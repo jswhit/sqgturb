@@ -27,6 +27,7 @@ model = SQG(pv_climo[0],\
 obtimes = nc_truth.variables['t'][:]
 assim_interval = obtimes[fcstlag]-obtimes[0]
 assim_timesteps = int(np.round(assim_interval/model.dt))
+print fcstlag, assim_interval, assim_timesteps
 model.timesteps = assim_timesteps
 
 ntimes = len(obtimes)
@@ -34,7 +35,7 @@ pv0err_mean = 0; pv1err_mean = 0
 nfcst = 0
 for ntime in xrange(ntimes-fcstlag):
     pvfcst = model.advance(pv_truth[ntime])
-    pverr = pvfcst - pv_truth[ntime+1]
+    pverr = pvfcst - pv_truth[ntime+fcstlag]
     pverrsq = (scalefact*pverr)**2
     pv0err = np.sqrt(pverrsq[0].mean())
     pv1err = np.sqrt(pverrsq[1].mean())
