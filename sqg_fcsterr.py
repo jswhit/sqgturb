@@ -3,8 +3,8 @@ import numpy as np
 from netCDF4 import Dataset
 import sys, time
 
-filename_climo = "sqg_N128.nc"
-filename_truth = "sqg_N256_N128_blockmean.nc"
+filename_climo = "data/sqg_N64.nc"
+filename_truth = "data/sqg_N256_N64.nc"
 # get model info
 nc_climo = Dataset(filename_climo)
 nc_truth = Dataset(filename_truth)
@@ -19,7 +19,7 @@ scalefact = nc_climo.f*nc_climo.theta0/nc_climo.g
 fcstlag = int(sys.argv[1])
 diff_efold = float(sys.argv[2])
 
-model = Eady2D(pv_climo[0],\
+model = SQG(pv_climo[0],\
     nsq=nc_climo.nsq,f=nc_climo.f,dt=nc_climo.dt,U=nc_climo.U,H=nc_climo.H,\
     r=nc_climo.r,tdiab=nc_climo.tdiab,\
     diff_order=nc_climo.diff_order,diff_efold=diff_efold)

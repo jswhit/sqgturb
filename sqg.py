@@ -20,7 +20,7 @@ from __future__ import print_function
 import numpy as np
 try: # pyfftw is *much* faster
     from pyfftw.interfaces import numpy_fft, cache
-    print('# using pyfftw...')
+    #print('# using pyfftw...')
     cache.enable()
     rfft2 = numpy_fft.rfft2; irfft2 = numpy_fft.irfft2
 except ImportError: # fall back on numpy fft.
