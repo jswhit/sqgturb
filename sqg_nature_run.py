@@ -97,8 +97,8 @@ def initfig():
     return im1,im2,txt1,txt2
 
 if savedata:
-   filename  = 'sqg_N%s.nc' % N # name of netcdf file.
-   filename2 = 'sqg_N%s_N%s.nc' % (N,Nout) # name of netcdf file.
+   filename  = 'data/sqg_N%s.nc' % N # name of netcdf file.
+   filename2 = 'data/sqg_N%s_N%s.nc' % (N,Nout) # name of netcdf file.
    nc = Dataset(filename, mode='w', format='NETCDF4_CLASSIC')
    nc2 = Dataset(filename2, mode='w', format='NETCDF4_CLASSIC')
    nc.r = model.r
@@ -202,7 +202,9 @@ def updatefig(*args):
             pvvar[nout,:,:,:] = pv
             tvar[nout] = t
             nc.sync()
-            if t >= tmax: nc.close()
+            if t >= tmax:
+                nc.close()
+                nc2.close()
             nout = nout + 1
     return im1,im2,txt1,txt2
 
