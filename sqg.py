@@ -208,7 +208,7 @@ if __name__ == "__main__":
                    diff_order=norder,diff_efold=diff_efold,symmetric=symmetric)
 
     #  initialize figure.
-    outputinterval = 9600. # interval between frames in seconds
+    outputinterval = 21600. # interval between frames in seconds
     tmin = 100.*86400. # time to start saving data (in days)
     tmax = 700.*86400. # time to stop (in days)
     nsteps = int(tmax/outputinterval) # number of time steps to animate

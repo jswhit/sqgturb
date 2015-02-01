@@ -22,7 +22,7 @@ def block_mean(ar, fact):
 
 # model parameters.
 N = 256  # number of points in each direction.
-Nout = 64 # number of points on output grid (N should be a multiple of Nout)
+Nout = 128 # number of points on output grid (N should be a multiple of Nout)
 if N%Nout != 0:
     raise ValueError('N should be a multiple of Nout')
 if Nout > N:
@@ -73,7 +73,7 @@ model =\
 SQG(pv,nsq=nsq,f=f,dt=dt,U=U,H=H,r=r,tdiab=tdiab,diff_order=norder,diff_efold=efold,symmetric=symmetric)
 
 #  initialize figure.
-outputinterval = 9600. # interval between frames in seconds
+outputinterval = 21600. # interval between frames in seconds
 tmin = 100.*86400. # time to start saving data (in days)
 tmax = 700.*86400. # time to stop (in days)
 nsteps = int(tmax/dt) # number of time steps to animate
