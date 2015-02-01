@@ -27,7 +27,6 @@ model = SQG(pv_climo[0],\
 obtimes = nc_truth.variables['t'][:]
 assim_interval = obtimes[fcstlag]-obtimes[0]
 assim_timesteps = int(np.round(assim_interval/model.dt))
-print fcstlag, assim_interval, assim_timesteps
 model.timesteps = assim_timesteps
 
 ntimes = len(obtimes)
