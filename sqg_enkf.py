@@ -52,8 +52,9 @@ oberrextra = 0.0 # representativity error
 
 nassim = 1200 # assimilation times to run
 
-filename_climo = 'N64_asym.nc' # file name for forecast model climo
-filename_truth = 'N256_N64_blockmean_asym.nc' # file name for nature run to draw obs
+filename_climo = 'data/sqg_N64.nc' # file name for forecast model climo
+filename_truth = 'data/sqg_N256_N64.nc' # file name for nature run to draw obs
+
 print('# filename_modelclimo=%s' % filename_climo)
 print('# filename_truth=%s' % filename_truth)
 print('# nobs=%s levob=%s oberrextra=%s' % (nobs,levob,oberrextra))
