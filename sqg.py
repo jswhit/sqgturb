@@ -168,7 +168,7 @@ if __name__ == "__main__":
     # netcdf file.
 
     # model parameters.
-    N = 128 # number of points in each direction.
+    N = 64 # number of points in each direction.
     # Ekman damping coefficient r=dek*N**2/f, dek = ekman depth = sqrt(2.*Av/f))
     # Av (turb viscosity) = 2.5 gives dek = sqrt(5/f) = 223
     # for ocean Av is 1-5, land 5-50 (Lin and Pierrehumbert, 1988)
@@ -186,7 +186,7 @@ if __name__ == "__main__":
     dt = 128*1200./N # time step
     # efolding time scale (seconds) for smallest wave (N/2) in del**norder hyperdiffusion
     norder = 8
-    diff_efold = 2*dt
+    diff_efold = 10800.
     symmetric = False # (asymmetric equilibrium jet with zero wind at sfc)
     # parameter used to scale PV to temperature units.
     scalefact = f*theta0/g
@@ -208,13 +208,13 @@ if __name__ == "__main__":
                    diff_order=norder,diff_efold=diff_efold,symmetric=symmetric)
 
     #  initialize figure.
-    outputinterval = 10800. # interval between frames in seconds
+    outputinterval = 9600. # interval between frames in seconds
     tmin = 100.*86400. # time to start saving data (in days)
     tmax = 700.*86400. # time to stop (in days)
     nsteps = int(tmax/outputinterval) # number of time steps to animate
     model.timesteps = int(outputinterval/model.dt)
-    #savedata = 'sqg.nc' # save data plotted in a netcdf file.
-    savedata = None
+    savedata = 'data/sqg_N%s.nc' % N # save data plotted in a netcdf file.
+    #savedata = None
 
     levplot = 1
     fig = plt.figure(figsize=(8,8))
@@ -284,6 +284,7 @@ if __name__ == "__main__":
             pvvar[nout,:,:,:] = pv
             tvar[nout] = t
             nc.sync()
+            if t >= tmax: nc.close()
             nout = nout + 1
         return im,txt
 
