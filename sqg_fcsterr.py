@@ -30,7 +30,7 @@ assim_timesteps = int(np.round(assim_interval/model.dt))
 model.timesteps = assim_timesteps
 
 ntimes = len(obtimes) - 200
-pv0err_mean = 0; pv1err_mean = 0
+pv0err_mean = 0; pv1err_mean = 0; pverr_mean = 0
 nfcst = 0
 for ntime in xrange(ntimes):
     pvfcst = model.advance(pv_truth[ntime])
@@ -38,8 +38,10 @@ for ntime in xrange(ntimes):
     pverrsq = (scalefact*pverr)**2
     pv0err = np.sqrt(pverrsq[0].mean())
     pv1err = np.sqrt(pverrsq[1].mean())
+    pverr = np.sqrt(pverrsq.mean())
     pv0err_mean = pv0err_mean +  pv0err
     pv1err_mean = pv1err_mean +  pv1err
+    pverr_mean = pverr_mean + pverr
     nfcst += 1
     #print ntime, pv0err, pv1err
-print fcstlag,diff_efold,pv0err_mean/nfcst,pv1err_mean/nfcst
+print fcstlag,diff_efold,pv0err_mean/nfcst,pv1err_mean/nfcst,pverr_mean/nfcst
