@@ -35,8 +35,8 @@ use_letkf = False # use serial EnSRF
 # if nobs > 0, each ob time nobs ob locations are randomly sampled (without
 # replacement) from the model grid
 # if nobs < 0, fixed network of every Nth grid point used (N = -nobs)
-#nobs = 500 # number of obs to assimilate (randomly distributed)
-nobs = -2 # fixed network, every nobs grid points. nobs=-1 obs at all pts.
+nobs = 512  # number of obs to assimilate (randomly distributed)
+#nobs = -1 # fixed network, every nobs grid points. nobs=-1 obs at all pts.
 
 # if levob=0, sfc temp obs used.  if 1, lid temp obs used. If [0,1] obs at both
 # boundaries.
@@ -48,7 +48,7 @@ if direct_insertion: print('# direct insertion!')
 nanals = 40 # ensemble members
 
 oberrstdev = 1.0 # ob error standard deviation in K
-oberrextra = 1.0 # representativity error
+oberrextra = 0.0 # representativity error
 
 nassim = 1200 # assimilation times to run
 
