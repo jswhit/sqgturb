@@ -36,24 +36,24 @@ use_letkf = False # use serial EnSRF
 # replacement) from the model grid
 # if nobs < 0, fixed network of every Nth grid point used (N = -nobs)
 #nobs = 500 # number of obs to assimilate (randomly distributed)
-nobs = -1 # fixed network, every nobs grid points. nobs=-1 obs at all pts.
+nobs = -2 # fixed network, every nobs grid points. nobs=-1 obs at all pts.
 
 # if levob=0, sfc temp obs used.  if 1, lid temp obs used. If [0,1] obs at both
 # boundaries.
 levob = [0,1]; levob = list(levob); levob.sort()
 
-direct_insertion = False # only relevant for nobs=-1, levob=[0,1]
+direct_insertion = True # only relevant for nobs=-1, levob=[0,1]
 if direct_insertion: print('# direct insertion!')
 
 nanals = 40 # ensemble members
 
 oberrstdev = 1.0 # ob error standard deviation in K
-oberrextra = 0.0 # representativity error
+oberrextra = 1.0 # representativity error
 
 nassim = 1200 # assimilation times to run
 
-filename_climo = 'data/sqg_N64.nc' # file name for forecast model climo
-filename_truth = 'data/sqg_N256_N64.nc' # file name for nature run to draw obs
+filename_climo = 'data/sqg_N64_symek.nc' # file name for forecast model climo
+filename_truth = 'data/sqg_N256_N64_symek.nc' # file name for nature run to draw obs
 
 print('# filename_modelclimo=%s' % filename_climo)
 print('# filename_truth=%s' % filename_truth)
@@ -338,18 +338,18 @@ for ntime in range(nassim):
     # print out analysis error, spread and innov stats for background
     pverr_a = (scalefact*(pvensmean-pv_truth[ntime]))**2
     pvsprd_a = ((scalefact*(pvensmean-pvens))**2).sum(axis=0)/(nanals-1)
-    #print("%s %g %g %g %g %g %g %g %g %g %g %g" %\
-    #(ntime,np.sqrt(pverr_a.mean()),np.sqrt(pvsprd_a.mean()),\
-    # np.sqrt(pverr_b.mean()),np.sqrt(pvsprd_b.mean()),\
-    # obinc_b,obsprd_b,obinc_a,obsprd_a,omaomb,obbias_b,covrelax))
-    pv0err_a = np.sqrt(pverr_a[0].mean())
-    pv1err_a = np.sqrt(pverr_a[1].mean())
-    pv0sprd_a = np.sqrt(pvsprd_a[0].mean())
-    pv1sprd_a = np.sqrt(pvsprd_a[1].mean())
-    print("%s %g %g %g %g %g %g %g %g %g %g %g %g %g %g" %\
-    (ntime,pv0err_a,pv0sprd_a,pv1err_a,pv1sprd_a,\
-     pv0err_b,pv0sprd_b,pv1err_b,pv1sprd_b,\
-     obinc_b,obsprd_b,obinc_a,obsprd_a,obbias_b,covrelax))
+    print("%s %g %g %g %g %g %g %g %g %g %g %g" %\
+    (ntime,np.sqrt(pverr_a.mean()),np.sqrt(pvsprd_a.mean()),\
+     np.sqrt(pverr_b.mean()),np.sqrt(pvsprd_b.mean()),\
+     obinc_b,obsprd_b,obinc_a,obsprd_a,omaomb,obbias_b,covrelax))
+    #pv0err_a = np.sqrt(pverr_a[0].mean())
+    #pv1err_a = np.sqrt(pverr_a[1].mean())
+    #pv0sprd_a = np.sqrt(pvsprd_a[0].mean())
+    #pv1sprd_a = np.sqrt(pvsprd_a[1].mean())
+    #print("%s %g %g %g %g %g %g %g %g %g %g %g %g %g %g" %\
+    #(ntime,pv0err_a,pv0sprd_a,pv1err_a,pv1sprd_a,\
+    # pv0err_b,pv0sprd_b,pv1err_b,pv1sprd_b,\
+    # obinc_b,obsprd_b,obinc_a,obsprd_a,obbias_b,covrelax))
 
     # save data.
     if savedata is not None:

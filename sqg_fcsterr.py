@@ -3,8 +3,8 @@ import numpy as np
 from netCDF4 import Dataset
 import sys, time
 
-filename_climo = "data/sqg_N64.nc"
-filename_truth = "data/sqg_N256_N64.nc"
+filename_climo = "data/sqg_N64_symek.nc"
+filename_truth = "data/sqg_N256_N64_symek.nc"
 # get model info
 nc_climo = Dataset(filename_climo)
 nc_truth = Dataset(filename_truth)
@@ -29,10 +29,10 @@ assim_interval = obtimes[fcstlag]-obtimes[0]
 assim_timesteps = int(np.round(assim_interval/model.dt))
 model.timesteps = assim_timesteps
 
-ntimes = len(obtimes)
+ntimes = len(obtimes) - 200
 pv0err_mean = 0; pv1err_mean = 0
 nfcst = 0
-for ntime in xrange(ntimes-fcstlag):
+for ntime in xrange(ntimes):
     pvfcst = model.advance(pv_truth[ntime])
     pverr = pvfcst - pv_truth[ntime+fcstlag]
     pverrsq = (scalefact*pverr)**2

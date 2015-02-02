@@ -22,7 +22,7 @@ def block_mean(ar, fact):
 
 # model parameters.
 N = 256  # number of points in each direction.
-Nout = 128 # number of points on output grid (N should be a multiple of Nout)
+Nout = 64  # number of points on output grid (N should be a multiple of Nout)
 if N%Nout != 0:
     raise ValueError('N should be a multiple of Nout')
 if Nout > N:
@@ -37,7 +37,7 @@ if nskip != 1:
 # spindown time of a barotropic vortex is tau = H/(f*dek), 10 days for
 # H=10km, f=0.0001, dek=100m.
 #dek = 0.
-dek = 100.
+dek = 40.
 nsq = 1.e-4; f=1.e-4; g = 9.8; theta0 = 300
 r = dek*nsq/f
 tdiab = 10.*86400 # thermal relaxation time scale
@@ -51,7 +51,7 @@ norder = 8
 efold = 2*dt
 # parameter used to scale PV to temperature units.
 scalefact = f*theta0/g
-symmetric = False
+symmetric = True
 
 # fix random seed for reproducibility.
 np.random.seed(4)
@@ -97,8 +97,8 @@ def initfig():
     return im1,im2,txt1,txt2
 
 if savedata:
-   filename  = 'data/sqg_N%s.nc' % N # name of netcdf file.
-   filename2 = 'data/sqg_N%s_N%s.nc' % (N,Nout) # name of netcdf file.
+   filename  = 'data/sqg_N%s_symek.nc' % N # name of netcdf file.
+   filename2 = 'data/sqg_N%s_N%s_symek.nc' % (N,Nout) # name of netcdf file.
    nc = Dataset(filename, mode='w', format='NETCDF4_CLASSIC')
    nc2 = Dataset(filename2, mode='w', format='NETCDF4_CLASSIC')
    nc.r = model.r
