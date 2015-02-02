@@ -42,7 +42,7 @@ nobs = -2 # fixed network, every nobs grid points. nobs=-1 obs at all pts.
 # boundaries.
 levob = [0,1]; levob = list(levob); levob.sort()
 
-direct_insertion = True # only relevant for nobs=-1, levob=[0,1]
+direct_insertion = False # only relevant for nobs=-1, levob=[0,1]
 if direct_insertion: print('# direct insertion!')
 
 nanals = 40 # ensemble members
