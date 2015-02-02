@@ -52,7 +52,7 @@ oberrextra = 0.0 # representativity error
 
 nassim = 1200 # assimilation times to run
 
-filename_climo = 'data/sqg_N64_symek.nc' # file name for forecast model climo
+filename_climo = 'data/sqg_N64_symek_12000.nc' # file name for forecast model climo
 filename_truth = 'data/sqg_N256_N64_symek.nc' # file name for nature run to draw obs
 
 print('# filename_modelclimo=%s' % filename_climo)
@@ -87,26 +87,10 @@ for nanal in range(nanals):
 print("# hcovlocal=%g vcovlocal=%s diff_efold=%s levob=%s tau_covrelax=%g nanals=%s" %\
         (hcovlocal_scale/1000.,vcovlocal_fact,diff_efold,levob,tau_covrelax,nanals))
 
-# read nature run, create obs.
+# nature run
 nc_truth = Dataset(filename_truth)
 pv_truth = nc_truth.variables['pv']
-pvmean_t = np.zeros((2,ny,nx),np.float)
-pvvar_t = np.zeros((2,ny,nx),np.float)
-pvmean_c = np.zeros((2,ny,nx),np.float)
-pvvar_c = np.zeros((2,ny,nx),np.float)
-ntimes = pv_truth.shape[0]
-for nt in range(ntimes):
-    pvmean_t = pvmean_t + pv_truth[nt]/ntimes
-    pvmean_c = pvmean_c + pv_climo[nt]/ntimes
-for nt in range(ntimes):
-    pvvar_t = pvvar_t + (scalefact*(pv_truth[nt]-pvmean_t))**2/ntimes
-    pvvar_c = pvvar_c + (scalefact*(pv_climo[nt]-pvmean_c))**2/ntimes
-print('# variance truth',(pvvar_t.mean(axis=-1)).mean(axis=-1))
-print('# variance fcst',(pvvar_c.mean(axis=-1)).mean(axis=-1))
-print('# difference in stdev, oberrextra',\
-(pvvar_t-pvvar_c).mean(),oberrextra**2)
-
-# compute obs and localization function
+# set up arrays for obs and localization function
 if nobs < 0:
     nskip = -nobs
     if nx%nobs != 0:
