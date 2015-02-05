@@ -37,18 +37,20 @@ if nskip != 1:
 # spindown time of a barotropic vortex is tau = H/(f*dek), 10 days for
 # H=10km, f=0.0001, dek=100m.
 #dek = 0.
-dek = 40.
+dek = 0.
 nsq = 1.e-4; f=1.e-4; g = 9.8; theta0 = 300
 r = dek*nsq/f
-tdiab = 10.*86400 # thermal relaxation time scale
 # model time step.
 dt = 128.*1200./N
 U = 30 # jet speed
 L = 20.e6 # domain size (square)
 H = 10.e3 # lid height
+Lr = np.sqrt(nsq)*H/f # Rossby radius
+tdiab =  9.*Lr/U # thermal relaxtion time scale in advective time scale units.
+#tdiab = 10.*86400 # thermal relaxation time scale in seconds
 # efolding time scale (seconds) for smallest wave (N/2) in del**norder hyperdiffusion
 norder = 8
-efold = 2*dt
+efold = 5*dt
 # parameter used to scale PV to temperature units.
 scalefact = f*theta0/g
 symmetric = True
@@ -97,8 +99,8 @@ def initfig():
     return im1,im2,txt1,txt2
 
 if savedata:
-   filename  = 'data/sqg_N%s_symek.nc' % N # name of netcdf file.
-   filename2 = 'data/sqg_N%s_N%s_symek.nc' % (N,Nout) # name of netcdf file.
+   filename  = 'data/sqg_N%s.nc' % N # name of netcdf file.
+   filename2 = 'data/sqg_N%s_N%s.nc' % (N,Nout) # name of netcdf file.
    nc = Dataset(filename, mode='w', format='NETCDF4_CLASSIC')
    nc2 = Dataset(filename2, mode='w', format='NETCDF4_CLASSIC')
    nc.r = model.r

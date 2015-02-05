@@ -175,18 +175,21 @@ if __name__ == "__main__":
     # corresponding to ekman depth of 141-316 m over ocean.
     # spindown time of a barotropic vortex is tau = H/(f*dek), 10 days for
     # H=10km, f=0.0001, dek=100m.
-    dek = 40. # applied only at surface if symmetric=False
+    dek = 0. # applied only at surface if symmetric=False
     nsq = 1.e-4; f=1.e-4; g = 9.8; theta0 = 300
-    r = dek*nsq/f
-    tdiab = 10.*86400 # thermal relaxation time scale
-    # model time step.
-    U = 30 # jet speed
-    L = 20.e6 # domain size (square)
     H = 10.e3 # lid height
+    r = dek*nsq/f
+    U = 30 # jet speed
+    Lr = np.sqrt(nsq)*H/f # Rossby radius
+    L = 20.*Lr
     dt = 128*1200./N # time step
+    # thermal relaxatio time scale
+    #tdiab = (10./3.)*86400 # in seconds
+    tdiab =  10.*Lr/U # in advective time scales.
+    #print(tdiab/86400.,L,U); raise SystemExit
     # efolding time scale (seconds) for smallest wave (N/2) in del**norder hyperdiffusion
     norder = 8
-    diff_efold = 2*dt
+    diff_efold = 5*dt
     symmetric = True # (asymmetric equilibrium jet with zero wind at sfc)
     # parameter used to scale PV to temperature units.
     scalefact = f*theta0/g
@@ -213,7 +216,7 @@ if __name__ == "__main__":
     tmax = 700.*86400. # time to stop (in days)
     nsteps = int(tmax/outputinterval) # number of time steps to animate
     model.timesteps = int(outputinterval/model.dt)
-    #savedata = 'data/sqg_N%s_symek.nc' % N # save data plotted in a netcdf file.
+    #savedata = 'data/sqg_N%s.nc' % N # save data plotted in a netcdf file.
     savedata = None
 
     levplot = 1
