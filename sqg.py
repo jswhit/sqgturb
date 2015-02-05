@@ -168,7 +168,7 @@ if __name__ == "__main__":
     # netcdf file.
 
     # model parameters.
-    N = 64  # number of points in each direction.
+    N = 64 # number of points in each direction.
     # Ekman damping coefficient r=dek*N**2/f, dek = ekman depth = sqrt(2.*Av/f))
     # Av (turb viscosity) = 2.5 gives dek = sqrt(5/f) = 223
     # for ocean Av is 1-5, land 5-50 (Lin and Pierrehumbert, 1988)
@@ -213,8 +213,8 @@ if __name__ == "__main__":
     tmax = 700.*86400. # time to stop (in days)
     nsteps = int(tmax/outputinterval) # number of time steps to animate
     model.timesteps = int(outputinterval/model.dt)
-    savedata = 'data/sqg_N%s_symek.nc' % N # save data plotted in a netcdf file.
-    #savedata = None
+    #savedata = 'data/sqg_N%s_symek.nc' % N # save data plotted in a netcdf file.
+    savedata = None
 
     levplot = 1
     fig = plt.figure(figsize=(8,8))
