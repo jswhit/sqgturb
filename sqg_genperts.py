@@ -3,9 +3,9 @@ import numpy as np
 from netCDF4 import Dataset
 import sys, time
 
-filename_climo = "data/sqg_N64_symek_12000.nc"
-filename_truth = "data/sqg_N256_N64_symek.nc"
-filename = "data/N256_N64_symek_12000_errperts.nc"
+filename_climo = "data/sqg_N64.nc"
+filename_truth = "data/sqg_N256_N64.nc"
+filename = "data/N256_N64_errperts.nc"
 # get model info
 nc_climo = Dataset(filename_climo)
 nc_truth = Dataset(filename_truth)
