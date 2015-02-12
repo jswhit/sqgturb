@@ -186,7 +186,6 @@ if __name__ == "__main__":
     # thermal relaxatio time scale
     #tdiab = (10./3.)*86400 # in seconds
     tdiab =  10.*Lr/U # in advective time scales.
-    #print(tdiab/86400.,L,U); raise SystemExit
     # efolding time scale (seconds) for smallest wave (N/2) in del**norder hyperdiffusion
     norder = 8
     diff_efold = 5*dt
