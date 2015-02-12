@@ -46,7 +46,7 @@ U = 30 # jet speed
 L = 20.e6 # domain size (square)
 H = 10.e3 # lid height
 Lr = np.sqrt(nsq)*H/f # Rossby radius
-tdiab =  9.*Lr/U # thermal relaxtion time scale in advective time scale units.
+tdiab =  10.*Lr/U # thermal relaxtion time scale in advective time scale units.
 #tdiab = 10.*86400 # thermal relaxation time scale in seconds
 # efolding time scale (seconds) for smallest wave (N/2) in del**norder hyperdiffusion
 norder = 8
