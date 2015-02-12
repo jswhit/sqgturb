@@ -24,9 +24,13 @@ vcovlocal_fact = float(sys.argv[2])
 # time scale for adaptive computation of relaxation to prior spread inflation parameter.
 tau_covrelax = float(sys.argv[3])
 # efolding time scale on smallest resolve wave for hyperdiffusion
-diff_efold = float(sys.argv[4])
+if len(sys.argv) > 4:
+    diff_efold = float(sys.argv[4])
+else: # if not specified, use value from model climo file.
+    diff_efold = None
 
-savedata = None # if not None, netcdf filename to save data.
+#savedata = None # if not None, netcdf filename to save data.
+savedata = 'sqg_enkf_test.nc'
 
 profile = False # turn on profiling?
 
@@ -35,7 +39,7 @@ use_letkf = False # use serial EnSRF
 # if nobs > 0, each ob time nobs ob locations are randomly sampled (without
 # replacement) from the model grid
 # if nobs < 0, fixed network of every Nth grid point used (N = -nobs)
-nobs = 512  # number of obs to assimilate (randomly distributed)
+nobs = 512 # number of obs to assimilate (randomly distributed)
 #nobs = -1 # fixed network, every nobs grid points. nobs=-1 obs at all pts.
 
 # if levob=0, sfc temp obs used.  if 1, lid temp obs used. If [0,1] obs at both
@@ -76,6 +80,7 @@ x, y = np.meshgrid(x, y)
 nx = len(x); ny = len(y)
 pvens = np.empty((nanals,2,ny,nx),np.float32)
 dt = nc_climo.dt
+if diff_efold == None: diff_efold=nc_climo.diff_efold
 for nanal in range(nanals):
     pvens[nanal] = pv_climo[indxran[nanal]]
     models.append(\
@@ -153,6 +158,8 @@ if savedata is not None:
    t = nc.createDimension('t',None)
    obs = nc.createDimension('obs',nobs)
    ens = nc.createDimension('ens',nanals)
+   pv_t =\
+   nc.createVariable('pv_t',np.float32,('t','z','y','x'),zlib=True)
    pv_b =\
    nc.createVariable('pv_b',np.float32,('t','ens','z','y','x'),zlib=True)
    pv_a =\
@@ -252,6 +259,7 @@ for ntime in range(nassim):
     pv1sprd_b = np.sqrt(pvsprd_b[1].mean())
 
     if savedata is not None:
+        pv_t[ntime] = pv_truth[ntime]
         pv_b[ntime,:,:,:] = scalefact*pvens
         pv_obs[ntime] = pvob
         x_obs[ntime] = xob
