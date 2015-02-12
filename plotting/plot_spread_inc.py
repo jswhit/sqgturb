@@ -5,6 +5,7 @@ filename = 'sqg_enkf_test.nc'
 nc = Dataset(filename)
 pv_a = nc.variables['pv_a'][-1]
 pv_b = nc.variables['pv_b'][-1]
+inf = nc.variables['inflation'][-1]
 x_obs = nc.variables['x_obs'][-1]
 y_obs = nc.variables['y_obs'][-1]
 x = nc.variables['x'][:]
@@ -15,6 +16,7 @@ analinc = (pv_a - pv_b).mean(axis=0)
 sprd = np.sqrt(((pv_b-pv_b.mean(axis=0))**2).sum(axis=0)/(nanals-1))
 print analinc.shape, analinc.min(), analinc.max()
 print sprd.shape, sprd.min(), sprd.max()
+print inf.shape, inf.min(), inf.max()
 fig = plt.figure(figsize=(24,8))
 ax1 = fig.add_subplot(131)
 ax2 = fig.add_subplot(132)
@@ -27,11 +29,13 @@ im2=ax2.imshow(sprd[0],interpolation='nearest',origin='lower',cmap=plt.cm.hot_r,
 #cs2 = ax2.contourf(x,y,sprd[0],21,cmap=plt.cm.hot_r)
 #ax2.scatter(x_obs,y_obs,color='k',zorder=10)
 im3=ax3.imshow(analinc[0],interpolation='nearest',origin='lower',vmin=-4,vmax=4)
+#im3=ax3.imshow(inf[0],interpolation='nearest',origin='lower',cmap=plt.cm.hot_r,vmin=1,vmax=3)
 #levs = np.linspace(-4,4,21)
 #cs3 = ax3.contourf(x,y,analinc[0],levs,cmap=plt.cm.jet)
 ax1.set_title('ens mean background')
 ax2.set_title('spread')
 ax3.set_title('increment')
+#ax3.set_title('inflation')
 plt.tight_layout()
 plt.show()
 nc.close()
