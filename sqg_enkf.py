@@ -12,7 +12,7 @@ from enkf_utils import  cartdist,enkf_update,gaspcohn
 
 if len(sys.argv) == 1:
    msg="""
-python sqg_enkf.py hcovlocal_scale vcovlocal_fact tau_covrelax diff_efold
+python sqg_enkf.py hcovlocal_scale vcovlocal_fact tau_covrelax (diff_efold)
    """
    raise SystemExit(msg)
 
@@ -29,8 +29,8 @@ if len(sys.argv) > 4:
 else: # if not specified, use value from model climo file.
     diff_efold = None
 
-#savedata = None # if not None, netcdf filename to save data.
-savedata = 'sqg_enkf_test.nc'
+savedata = None # if not None, netcdf filename to save data.
+#savedata = 'sqg_enkf_test.nc'
 
 profile = False # turn on profiling?
 
