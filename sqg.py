@@ -182,13 +182,14 @@ if __name__ == "__main__":
     U = 30 # jet speed
     Lr = np.sqrt(nsq)*H/f # Rossby radius
     L = 20.*Lr
-    dt = 128*1200./N # time step
+    #dt = 128*1200./N # time step
+    dt = 3600.
     # thermal relaxatio time scale
     #tdiab = (10./3.)*86400 # in seconds
     tdiab =  10.*Lr/U # in advective time scales.
     # efolding time scale (seconds) for smallest wave (N/2) in del**norder hyperdiffusion
     norder = 8
-    diff_efold = 5*dt
+    diff_efold = 9000.
     symmetric = True # (asymmetric equilibrium jet with zero wind at sfc)
     # parameter used to scale PV to temperature units.
     scalefact = f*theta0/g
@@ -212,7 +213,7 @@ if __name__ == "__main__":
     #  initialize figure.
     outputinterval = 21600. # interval between frames in seconds
     tmin = 100.*86400. # time to start saving data (in days)
-    tmax = 700.*86400. # time to stop (in days)
+    tmax = 500.*86400. # time to stop (in days)
     nsteps = int(tmax/outputinterval) # number of time steps to animate
     model.timesteps = int(outputinterval/model.dt)
     #savedata = 'data/sqg_N%s.nc' % N # save data plotted in a netcdf file.
