@@ -26,7 +26,7 @@ if len(sys.argv) < 3: #
     covinflate1 = 1.0; covinflate2 = 1.0
 elif len(sys.argv) == 3:
     covinflate1 = float(sys.argv[2])
-    covinflate2 = 0.0
+    covinflate2 = -1.0
 else:
     covinflate1 = float(sys.argv[2])
     covinflate2 = float(sys.argv[3])
@@ -62,7 +62,10 @@ oberrextra = 0.0 # representativity error
 nassim = 600 # assimilation times to run
 
 filename_climo = 'data/sqg_N64.nc' # file name for forecast model climo
-filename_truth = 'data/sqg_N64.nc' # file name for nature run to draw obs
+# perfect model
+filename_truth = filename_climo # file name for nature run to draw obs
+# model error
+#filename_truth = 'data/sqg_N256_N64.nc' # file name for nature run to draw obs
 
 print('# filename_modelclimo=%s' % filename_climo)
 print('# filename_truth=%s' % filename_truth)
@@ -300,12 +303,19 @@ for ntime in range(nassim):
     pvensmean_a = pvens.mean(axis=0)
     pvprime = pvens-pvensmean_a
     asprd = (pvprime**2).sum(axis=0)/(nanals-1)
-    if covinflate2 <= 0:
+    if covinflate2 < 0:
         # relaxation to prior stdev (Whitaker and Hamill)
         asprd = np.sqrt(asprd); fsprd = np.sqrt(fsprd)
         inflation_factor = 1.+covinflate1*(fsprd-asprd)/fsprd
+    elif covinflate2 == 0:
+        # Hodyss and Campbell variant, useful when there is model error?
+        inc = pvensmean_a - pvensmean_b
+        inflation_factor = asprd + \
+        covinflate1*(asprd/fsprd)**2*((fsprd/nanals) + (2.*inc**2/(nanals-1)))
+        inflation_factor = np.sqrt(inflation_factor/asprd)
     else:
-        # Hodyss and Campbell
+        # Hodyss and Campbell (covinflate1=covinflate2=1 works well in perfect
+        # model scenario)
         inc = pvensmean_a - pvensmean_b
         inflation_factor = covinflate1*asprd + \
         (asprd/fsprd)**2*((fsprd/nanals) + covinflate2*(2.*inc**2/(nanals-1)))
