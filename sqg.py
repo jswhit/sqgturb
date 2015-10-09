@@ -169,6 +169,7 @@ if __name__ == "__main__":
 
     # model parameters.
     N = 64 # number of points in each direction.
+    #N = 256
     # Ekman damping coefficient r=dek*N**2/f, dek = ekman depth = sqrt(2.*Av/f))
     # Av (turb viscosity) = 2.5 gives dek = sqrt(5/f) = 223
     # for ocean Av is 1-5, land 5-50 (Lin and Pierrehumbert, 1988)
@@ -182,14 +183,15 @@ if __name__ == "__main__":
     U = 30 # jet speed
     Lr = np.sqrt(nsq)*H/f # Rossby radius
     L = 20.*Lr
-    #dt = 128*1200./N # time step
-    dt = 3600.
+    dt = 3600. # for N=64
+    #dt = 600 # for N=256
     # thermal relaxatio time scale
     #tdiab = (10./3.)*86400 # in seconds
     tdiab =  10.*Lr/U # in advective time scales.
     # efolding time scale (seconds) for smallest wave (N/2) in del**norder hyperdiffusion
     norder = 8
-    diff_efold = 9000.
+    diff_efold = 9000. # for N=64
+    #diff_efold = 3600. # for N=256
     symmetric = True # (asymmetric equilibrium jet with zero wind at sfc)
     # parameter used to scale PV to temperature units.
     scalefact = f*theta0/g
@@ -216,8 +218,8 @@ if __name__ == "__main__":
     tmax = 500.*86400. # time to stop (in days)
     nsteps = int(tmax/outputinterval) # number of time steps to animate
     model.timesteps = int(outputinterval/model.dt)
-    #savedata = 'data/sqg_N%s.nc' % N # save data plotted in a netcdf file.
-    savedata = None
+    savedata = 'data/sqg_N%s.nc' % N # save data plotted in a netcdf file.
+    #savedata = None
 
     levplot = 1
     fig = plt.figure(figsize=(8,8))
