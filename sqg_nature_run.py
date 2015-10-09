@@ -50,7 +50,7 @@ tdiab =  10.*Lr/U # thermal relaxtion time scale in advective time scale units.
 #tdiab = 10.*86400 # thermal relaxation time scale in seconds
 # efolding time scale (seconds) for smallest wave (N/2) in del**norder hyperdiffusion
 norder = 8
-efold = 5*dt
+efold = 3600.
 # parameter used to scale PV to temperature units.
 scalefact = f*theta0/g
 symmetric = True
@@ -77,7 +77,7 @@ SQG(pv,nsq=nsq,f=f,dt=dt,U=U,H=H,r=r,tdiab=tdiab,diff_order=norder,diff_efold=ef
 #  initialize figure.
 outputinterval = 21600. # interval between frames in seconds
 tmin = 100.*86400. # time to start saving data (in days)
-tmax = 700.*86400. # time to stop (in days)
+tmax = 500.*86400. # time to stop (in days)
 nsteps = int(tmax/dt) # number of time steps to animate
 savedata = True # save data plotted in a netcdf file.
 
