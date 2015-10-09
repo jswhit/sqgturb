@@ -6,28 +6,33 @@ import sys, time
 from enkf_utils import  cartdist,enkf_update,gaspcohn
 
 # EnKF cycling for SQG turbulence model model with boundary temp obs,
-# horizontal and vertical localization.  Adaptive relaxation to prior spread
-# inflation.  Random or fixed observing network (obs on either boundary or
+# horizontal and vertical localization.  Relaxation to prior spread
+# inflation, or Hodyss and Campbell inflation.
+# Random or fixed observing network (obs on either boundary or
 # both).
 
 if len(sys.argv) == 1:
    msg="""
-python sqg_enkf.py hcovlocal_scale vcovlocal_fact tau_covrelax (diff_efold)
+python sqg_enkf.py hcovlocal_scale covinflate1 covinflate2
    """
    raise SystemExit(msg)
 
 # covariance localization length scale in meters.
 hcovlocal_scale = float(sys.argv[1])
-# factor to apply to horizontal location at boundary
-# opposite to obs.
-vcovlocal_fact = float(sys.argv[2])
-# time scale for adaptive computation of relaxation to prior spread inflation parameter.
-tau_covrelax = float(sys.argv[3])
-# efolding time scale on smallest resolve wave for hyperdiffusion
-if len(sys.argv) > 4:
-    diff_efold = float(sys.argv[4])
-else: # if not specified, use value from model climo file.
-    diff_efold = None
+# inflation parameters
+# (covinflate2 <= 0 for RTPS, otherwise use Hodyss and Campbell)
+if len(sys.argv) < 3: #
+    # no inflation factor specified, use Hodyss and Campbell with a=b=1
+    covinflate1 = 1.0; covinflate2 = 1.0
+elif len(sys.argv) == 3:
+    covinflate1 = float(sys.argv[2])
+    covinflate2 = 0.0
+else:
+    covinflate1 = float(sys.argv[2])
+    covinflate2 = float(sys.argv[3])
+
+vcovlocal_fact = 1.0 # no vertical localization
+diff_efold = None # use diffusion from climo file
 
 savedata = None # if not None, netcdf filename to save data.
 #savedata = 'sqg_enkf_test.nc'
@@ -39,8 +44,8 @@ use_letkf = False # use serial EnSRF
 # if nobs > 0, each ob time nobs ob locations are randomly sampled (without
 # replacement) from the model grid
 # if nobs < 0, fixed network of every Nth grid point used (N = -nobs)
-nobs = 512 # number of obs to assimilate (randomly distributed)
-#nobs = -1 # fixed network, every nobs grid points. nobs=-1 obs at all pts.
+#nobs = 256 # number of obs to assimilate (randomly distributed)
+nobs = -4 # fixed network, every -nobs grid points. nobs=-1 obs at all pts.
 
 # if levob=0, sfc temp obs used.  if 1, lid temp obs used. If [0,1] obs at both
 # boundaries.
@@ -49,15 +54,15 @@ levob = [0,1]; levob = list(levob); levob.sort()
 direct_insertion = False # only relevant for nobs=-1, levob=[0,1]
 if direct_insertion: print('# direct insertion!')
 
-nanals = 40 # ensemble members
+nanals = 20 # ensemble members
 
 oberrstdev = 1.0 # ob error standard deviation in K
 oberrextra = 0.0 # representativity error
 
-nassim = 1200 # assimilation times to run
+nassim = 600 # assimilation times to run
 
 filename_climo = 'data/sqg_N64.nc' # file name for forecast model climo
-filename_truth = 'data/sqg_N256_N64.nc' # file name for nature run to draw obs
+filename_truth = 'data/sqg_N64.nc' # file name for nature run to draw obs
 
 print('# filename_modelclimo=%s' % filename_climo)
 print('# filename_truth=%s' % filename_truth)
@@ -89,8 +94,8 @@ for nanal in range(nanals):
     r=nc_climo.r,tdiab=nc_climo.tdiab,symmetric=nc_climo.symmetric,\
     diff_order=nc_climo.diff_order,diff_efold=diff_efold))
 
-print("# hcovlocal=%g vcovlocal=%s diff_efold=%s levob=%s tau_covrelax=%g nanals=%s" %\
-        (hcovlocal_scale/1000.,vcovlocal_fact,diff_efold,levob,tau_covrelax,nanals))
+print("# hcovlocal=%g vcovlocal=%s diff_efold=%s levob=%s covinf1=%s covinf2=%s nanals=%s" %\
+        (hcovlocal_scale/1000.,vcovlocal_fact,diff_efold,levob,covinflate1,covinflate2,nanals))
 
 # nature run
 nc_truth = Dataset(filename_truth)
@@ -101,6 +106,7 @@ if nobs < 0:
     if nx%nobs != 0:
         raise ValueError('nx must be divisible by nobs')
     nobs = (nx/nobs)**2
+    print('# nobs = %s' % nobs)
     fixed = True
 else:
     fixed = False
@@ -123,12 +129,6 @@ for nanal in range(nanals):
     models[nanal].timesteps = assim_timesteps
 
 # initialize relaxation to prior spread inflation factor.
-if direct_insertion:
-    tau_covrelax = -1.e-10
-if tau_covrelax < 0.:
-    # if negative, use fixed relaxation factor.
-    covrelax = -tau_covrelax
-covrelax_prev = 0.5
 
 if savedata is not None:
    nc = Dataset(savedata, mode='w', format='NETCDF4_CLASSIC')
@@ -140,7 +140,6 @@ if savedata is not None:
    nc.nanals = nanals
    nc.hcovlocal_scale = hcovlocal_scale
    nc.vcovlocal_fact = vcovlocal_fact
-   nc.tau_covrelax = tau_covrelax
    nc.oberrstdev = oberrstdev
    nc.levob = levob
    nc.g = nc_climo.g; nc.theta0 = nc_climo.theta0
@@ -167,7 +166,6 @@ if savedata is not None:
    pv_a.units = 'K'
    pv_b.units = 'K'
    inf = nc.createVariable('inflation',np.float32,('t','z','y','x'),zlib=True)
-   covr = nc.createVariable('covrelax',np.float32,('t',))
    pv_obs = nc.createVariable('obs',np.float32,('t','obs'))
    x_obs = nc.createVariable('x_obs',np.float32,('t','obs'))
    y_obs = nc.createVariable('y_obs',np.float32,('t','obs'))
@@ -235,7 +233,7 @@ for ntime in range(nassim):
             #raise SystemExit
 
     # first-guess spread (need later to compute inflation factor)
-    fsprd = np.sqrt(((pvens - pvens.mean(axis=0))**2).sum(axis=0)/(nanals-1))
+    fsprd = ((pvens - pvens.mean(axis=0))**2).sum(axis=0)/(nanals-1)
 
     # compute forward operator.
     # hxens is ensemble in observation space.
@@ -250,13 +248,9 @@ for ntime in range(nassim):
     obfits_b = (obfits**2).mean()
     obbias_b = obfits.mean()
     obsprd_b = obsprd.mean()
-    pvensmean = pvens.mean(axis=0)
-    pverr_b = (scalefact*(pvensmean-pv_truth[ntime]))**2
-    pvsprd_b = ((scalefact*(pvensmean-pvens))**2).sum(axis=0)/(nanals-1)
-    pv0err_b = np.sqrt(pverr_b[0].mean())
-    pv1err_b = np.sqrt(pverr_b[1].mean())
-    pv0sprd_b = np.sqrt(pvsprd_b[0].mean())
-    pv1sprd_b = np.sqrt(pvsprd_b[1].mean())
+    pvensmean_b = pvens.mean(axis=0).copy()
+    pverr_b = (scalefact*(pvensmean_b-pv_truth[ntime]))**2
+    pvsprd_b = ((scalefact*(pvensmean_b-pvens))**2).sum(axis=0)/(nanals-1)
 
     if savedata is not None:
         pv_t[ntime] = pv_truth[ntime]
@@ -291,63 +285,46 @@ for ntime in range(nassim):
     for nanal in range(nanals):
         for k in range(len(levob)):
             hxens[nanal,k,...] = scalefact*pvens[nanal,k,...].ravel()[indxob] # surface pv obs
-    # compute update to covariance relaxation parameter
+
+    # ob space diagnostics
     hxensmean_a = hxens.mean(axis=0)
     obsprd_a = (((hxens-hxensmean_a)**2).sum(axis=0)/(nanals-1)).mean()
+    # expected value is HPaHT (obsprd_a).
     obinc_a = ((hxensmean_a-hxensmean_b)*(pvob-hxensmean_a)).mean()
+    # expected value is HPbHT (obsprd_b).
     obinc_b = ((hxensmean_a-hxensmean_b)*(pvob-hxensmean_b)).mean()
+    # expected value R (oberrvar).
     omaomb = ((pvob-hxensmean_a)*(pvob-hxensmean_b)).mean()
-    # estimate inflation factor
-    if obinc_a > 0.:
-        # estimate inflation based on posterior spread
-        estinf_a = np.sqrt(obinc_a/obsprd_a)
-    else:
-        estinf_a = 1.
-    if obinc_b > 0.:
-        # estimate inflation based on prior spread
-        estinf_b = np.sqrt(obinc_b/obsprd_b)
-    else:
-        estinf_b = 1.
-    estinf = 0.5*(estinf_a+estinf_b) # average the two estimates
-    if estinf < 1.0: estinf=1.0 # inflation not deflation
-    # convert global inflation parameter to relaxation to prior spread
-    # parameter.
-    if tau_covrelax >= 0.: # if < 0, used fixed relaxation factor.
-        sprdfact = (np.sqrt(obsprd_b)-np.sqrt(obsprd_a))/np.sqrt(obsprd_a)
-        covrelax = np.clip((estinf - 1.0)/sprdfact,0.0,None)
-        # exponentially weighted moving average estimate.
-        covrelax = covrelax_prev + (covrelax-covrelax_prev)/tau_covrelax
-        covrelax_prev = covrelax
 
     # relaxation to prior spread inflation.
-    pvensmean = pvens.mean(axis=0)
-    pvprime = pvens-pvensmean
-    asprd = np.sqrt((pvprime**2).sum(axis=0)/(nanals-1))
-    inflation_factor = 1.+covrelax*(fsprd-asprd)/asprd
+    pvensmean_a = pvens.mean(axis=0)
+    pvprime = pvens-pvensmean_a
+    asprd = (pvprime**2).sum(axis=0)/(nanals-1)
+    if covinflate2 <= 0:
+        # relaxation to prior stdev (Whitaker and Hamill)
+        asprd = np.sqrt(asprd); fsprd = np.sqrt(fsprd)
+        inflation_factor = 1.+covinflate1*(fsprd-asprd)/fsprd
+    else:
+        # Hodyss and Campbell
+        inc = pvensmean_a - pvensmean_b
+        inflation_factor = covinflate1*asprd + \
+        (asprd/fsprd)**2*((fsprd/nanals) + covinflate2*(2.*inc**2/(nanals-1)))
+        inflation_factor = np.sqrt(inflation_factor/asprd)
     pvprime = pvprime*inflation_factor
-    pvens = pvprime + pvensmean
+    pvens = pvprime + pvensmean_a
 
     # print out analysis error, spread and innov stats for background
-    pverr_a = (scalefact*(pvensmean-pv_truth[ntime]))**2
-    pvsprd_a = ((scalefact*(pvensmean-pvens))**2).sum(axis=0)/(nanals-1)
-    print("%s %g %g %g %g %g %g %g %g %g %g %g" %\
+    pverr_a = (scalefact*(pvensmean_a-pv_truth[ntime]))**2
+    pvsprd_a = ((scalefact*(pvensmean_a-pvens))**2).sum(axis=0)/(nanals-1)
+    print("%s %g %g %g %g %g %g %g %g %g %g" %\
     (ntime,np.sqrt(pverr_a.mean()),np.sqrt(pvsprd_a.mean()),\
      np.sqrt(pverr_b.mean()),np.sqrt(pvsprd_b.mean()),\
-     obinc_b,obsprd_b,obinc_a,obsprd_a,omaomb,obbias_b,covrelax))
-    #pv0err_a = np.sqrt(pverr_a[0].mean())
-    #pv1err_a = np.sqrt(pverr_a[1].mean())
-    #pv0sprd_a = np.sqrt(pvsprd_a[0].mean())
-    #pv1sprd_a = np.sqrt(pvsprd_a[1].mean())
-    #print("%s %g %g %g %g %g %g %g %g %g %g %g %g %g %g" %\
-    #(ntime,pv0err_a,pv0sprd_a,pv1err_a,pv1sprd_a,\
-    # pv0err_b,pv0sprd_b,pv1err_b,pv1sprd_b,\
-    # obinc_b,obsprd_b,obinc_a,obsprd_a,obbias_b,covrelax))
+     obinc_b,obsprd_b,obinc_a,obsprd_a,omaomb,obbias_b))
 
     # save data.
     if savedata is not None:
         pv_a[ntime,:,:,:] = scalefact*pvens
         tvar[ntime] = obtimes[ntime]
-        covr[ntime] = covrelax
         inf[ntime] = inflation_factor
         nc.sync()
 
