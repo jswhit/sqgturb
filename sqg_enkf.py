@@ -21,15 +21,13 @@ python sqg_enkf.py hcovlocal_scale covinflate1 covinflate2
 hcovlocal_scale = float(sys.argv[1])
 # inflation parameters
 # (covinflate2 <= 0 for RTPS, otherwise use Hodyss and Campbell)
-if len(sys.argv) < 3: #
-    # no inflation factor specified, use Hodyss and Campbell with a=b=1
-    covinflate1 = 1.0; covinflate2 = 1.0
-elif len(sys.argv) == 3:
-    covinflate1 = float(sys.argv[2])
-    covinflate2 = -1.0
+covinflate1 = float(sys.argv[2])
+covinflate2 = float(sys.argv[3])
+# representativity error
+if len(sys.argv) > 4:
+    oberrextra = float(sys.argv[4])
 else:
-    covinflate1 = float(sys.argv[2])
-    covinflate2 = float(sys.argv[3])
+    oberrextra = 0.0
 
 vcovlocal_fact = 1.0 # no vertical localization
 diff_efold = None # use diffusion from climo file
@@ -57,15 +55,14 @@ if direct_insertion: print('# direct insertion!')
 nanals = 20 # ensemble members
 
 oberrstdev = 1.0 # ob error standard deviation in K
-oberrextra = 0.0 # representativity error
 
 nassim = 600 # assimilation times to run
 
 filename_climo = 'data/sqg_N64.nc' # file name for forecast model climo
 # perfect model
-filename_truth = filename_climo # file name for nature run to draw obs
+#filename_truth = filename_climo # file name for nature run to draw obs
 # model error
-#filename_truth = 'data/sqg_N256_N64.nc' # file name for nature run to draw obs
+filename_truth = 'data/sqg_N256_N64.nc' # file name for nature run to draw obs
 
 print('# filename_modelclimo=%s' % filename_climo)
 print('# filename_truth=%s' % filename_truth)
@@ -98,7 +95,7 @@ for nanal in range(nanals):
     diff_order=nc_climo.diff_order,diff_efold=diff_efold))
 
 print("# hcovlocal=%g vcovlocal=%s diff_efold=%s levob=%s covinf1=%s covinf2=%s nanals=%s" %\
-        (hcovlocal_scale/1000.,vcovlocal_fact,diff_efold,levob,covinflate1,covinflate2,nanals))
+     (hcovlocal_scale/1000.,vcovlocal_fact,diff_efold,levob,covinflate1,covinflate2,nanals))
 
 # nature run
 nc_truth = Dataset(filename_truth)
