@@ -322,13 +322,13 @@ for ntime in range(nassim):
     pvens = pvprime + pvensmean_a
 
     # posterior additive inflation (random samples of offline generated perturbations)
-    indxran = np.random.choice(pv_perts.shape[0],size=nanals,replace=False)
-    indxran.sort()
-    pvperts = pv_perts[indxran]
-    pvperts = addinflate*(pvperts - pvperts.mean(axis=0))
+    #indxran = np.random.choice(pv_perts.shape[0],size=nanals,replace=False)
+    #indxran.sort()
+    #pvperts = pv_perts[indxran]
+    #pvperts = addinflate*(pvperts - pvperts.mean(axis=0))
     #print(pvperts.min(), pvperts.max(), (pvens - pvens.mean(axis=0)).min(),\
     #        (pvens - pvens.mean(axis=0)).max())
-    pvens += pvperts
+    #pvens += pvperts
 
     # posterior additive inflation (random samples of analysis increments)
     #indxran = np.random.choice(pv_a_in.shape[0]-200,size=nanals,replace=False)
@@ -338,6 +338,16 @@ for ntime in range(nassim):
     ##print(pvperts.min(), pvperts.max(), (pvens - pvens.mean(axis=0)).min(),\
     ##        (pvens - pvens.mean(axis=0)).max())
     #pvens += pvperts
+
+    # posterior additive inflation (random samples of 6-h differences
+    # from model climo)
+    indxran = np.random.choice(pv_climo.shape[0]-1,size=nanals,replace=False)
+    indxran.sort()
+    pvperts = pv_climo[indxran+1] - pv_climo[indxran]
+    pvperts = addinflate*(pvperts - pvperts.mean(axis=0))/scalefact
+    #print(pvperts.min(), pvperts.max(), (pvens - pvens.mean(axis=0)).min(),\
+    #        (pvens - pvens.mean(axis=0)).max())
+    pvens += pvperts
 
     # print out analysis error, spread and innov stats for background
     pverr_a = (scalefact*(pvensmean_a-pv_truth[ntime]))**2
