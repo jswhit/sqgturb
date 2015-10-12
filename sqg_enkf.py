@@ -60,9 +60,9 @@ nassim = 600 # assimilation times to run
 
 filename_climo = 'data/sqg_N64.nc' # file name for forecast model climo
 # perfect model
-#filename_truth = filename_climo # file name for nature run to draw obs
+filename_truth = 'data/sqg_N64.nc' # file name for nature run to draw obs
 # model error
-filename_truth = 'data/sqg_N256_N64.nc' # file name for nature run to draw obs
+#filename_truth = 'data/sqg_N256_N64.nc' # file name for nature run to draw obs
 
 print('# filename_modelclimo=%s' % filename_climo)
 print('# filename_truth=%s' % filename_truth)
@@ -296,22 +296,17 @@ for ntime in range(nassim):
     # expected value R (oberrvar).
     omaomb = ((pvob-hxensmean_a)*(pvob-hxensmean_b)).mean()
 
-    # relaxation to prior spread inflation.
+    # posterior multiplicative inflation.
     pvensmean_a = pvens.mean(axis=0)
     pvprime = pvens-pvensmean_a
     asprd = (pvprime**2).sum(axis=0)/(nanals-1)
     if covinflate2 < 0:
-        # relaxation to prior stdev (Whitaker and Hamill)
+        # relaxation to prior stdev (Whitaker & Hamill)
+        # works best with imperfect model.
         asprd = np.sqrt(asprd); fsprd = np.sqrt(fsprd)
         inflation_factor = 1.+covinflate1*(fsprd-asprd)/fsprd
-    elif covinflate2 == 0:
-        # Hodyss and Campbell variant, useful when there is model error?
-        inc = pvensmean_a - pvensmean_b
-        inflation_factor = asprd + \
-        covinflate1*(asprd/fsprd)**2*((fsprd/nanals) + (2.*inc**2/(nanals-1)))
-        inflation_factor = np.sqrt(inflation_factor/asprd)
     else:
-        # Hodyss and Campbell (covinflate1=covinflate2=1 works well in perfect
+        # Hodyss and Campbell (covinflate1=covinflate2=1 works best in perfect
         # model scenario)
         inc = pvensmean_a - pvensmean_b
         inflation_factor = covinflate1*asprd + \
@@ -326,7 +321,7 @@ for ntime in range(nassim):
     print("%s %g %g %g %g %g %g %g %g %g %g" %\
     (ntime,np.sqrt(pverr_a.mean()),np.sqrt(pvsprd_a.mean()),\
      np.sqrt(pverr_b.mean()),np.sqrt(pvsprd_b.mean()),\
-     obinc_b,obsprd_b,obinc_a,obsprd_a,omaomb,obbias_b))
+     obinc_b,obsprd_b,obinc_a,obsprd_a,omaomb/oberrvar.mean(),obbias_b))
 
     # save data.
     if savedata is not None:
