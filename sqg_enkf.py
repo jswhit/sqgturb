@@ -33,7 +33,7 @@ vcovlocal_fact = 1.0 # no vertical localization
 diff_efold = None # use diffusion from climo file
 
 savedata = None # if not None, netcdf filename to save data.
-#savedata = 'sqg_enkf_test.nc'
+#savedata = 'sqg_enkf_rtps.nc'
 
 profile = False # turn on profiling?
 
@@ -304,7 +304,7 @@ for ntime in range(nassim):
         # relaxation to prior stdev (Whitaker & Hamill)
         # works best with imperfect model.
         asprd = np.sqrt(asprd); fsprd = np.sqrt(fsprd)
-        inflation_factor = 1.+covinflate1*(fsprd-asprd)/fsprd
+        inflation_factor = 1.+covinflate1*(fsprd-asprd)/asprd
     else:
         # Hodyss and Campbell (covinflate1=covinflate2=1 works best in perfect
         # model scenario)
