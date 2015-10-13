@@ -302,8 +302,10 @@ for ntime in range(nassim):
         asprd = np.sqrt(asprd); fsprd = np.sqrt(fsprd)
         inflation_factor = 1.+covinflate*(fsprd-asprd)/asprd
     else:
-        # Hodyss and Campbell inflation, modified to account for model error.
-        # for perfect model case, best results when covinflate=1.
+        # Hodyss and Campbell inflation, assuming Gaussian distributions,
+        # modified to account for model error by assuming model error is
+        # proportional to sampling error.
+        # For perfect model case, best results when covinflate=1.
         inc = pvensmean_a - pvensmean_b
         inflation_factor = np.sqrt(1. + \
         covinflate*(asprd/fsprd**2)*((fsprd/nanals) + (2.*inc**2/(nanals-1))))
