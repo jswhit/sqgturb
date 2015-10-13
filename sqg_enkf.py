@@ -302,7 +302,6 @@ for ntime in range(nassim):
     asprd = (pvprime**2).sum(axis=0)/(nanals-1)
     if covinflate2 < 0:
         # relaxation to prior stdev (Whitaker & Hamill)
-        # works best with imperfect model.
         asprd = np.sqrt(asprd); fsprd = np.sqrt(fsprd)
         inflation_factor = 1.+covinflate1*(fsprd-asprd)/asprd
     else:
