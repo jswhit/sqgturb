@@ -28,8 +28,8 @@ else:
 vcovlocal_fact = 1.0 # no vertical localization
 diff_efold = None # use diffusion from climo file
 
-#savedata = None # if not None, netcdf filename to save data.
-savedata = 'sqg_enkf_imperfect_inf%s.nc' % covinflate
+savedata = None # if not None, netcdf filename to save data.
+#savedata = 'sqg_enkf_imperfect_inf%s.nc' % covinflate
 
 profile = False # turn on profiling?
 
@@ -52,7 +52,7 @@ nanals = 20 # ensemble members
 
 oberrstdev = 1.0 # ob error standard deviation in K
 
-nassim = 600 # assimilation times to run
+nassim = 800 # assimilation times to run
 
 filename_climo = 'data/sqg_N64.nc' # file name for forecast model climo
 # perfect model
