@@ -3,7 +3,7 @@ from sqg import SQG, rfft2, irfft2
 import numpy as np
 from netCDF4 import Dataset
 import sys, time
-from enkf_utils import  cartdist,enkf_update,gaspcohn
+from enkf_meantemp_utils import  cartdist,enkf_update,gaspcohn
 
 # EnKF cycling for SQG turbulence model model with vertically
 # integrated temp obs.
@@ -101,7 +101,7 @@ if nobs < 0:
 else:
     fixed = False
 oberrvar = oberrstdev**2*np.ones(nobs,np.float) + oberrextra**2
-pvob = np.empty(nobs),np.float)
+pvob = np.empty(nobs,np.float)
 covlocal = np.empty((ny,nx),np.float)
 covlocal_tmp = np.empty((nobs,nx*ny),np.float)
 xens = np.empty((nanals,2,nx*ny),np.float)
@@ -259,7 +259,7 @@ for ntime in range(nassim):
         xens[nanal] = pvens[nanal].reshape((2,nx*ny))
     # update state vector.
     xens =\
-    enkf_update(xens,hxens,pvob,oberrvar,covlocal_tmp,levob,vcovlocal_fact,obcovlocal=obcovlocal)
+    enkf_update(xens,hxens,pvob,oberrvar,covlocal_tmp,obcovlocal=obcovlocal)
     # back to 3d state vector
     for nanal in range(nanals):
         pvens[nanal] = xens[nanal].reshape((2,ny,nx))
@@ -268,8 +268,8 @@ for ntime in range(nassim):
 
     # forward operator on posterior ensemble.
     for nanal in range(nanals):
-        pvspec = rfft2(pvens[nanal],pvspec=pvspec)
-        psispec = models[nanal].invert()
+        pvspec = rfft2(pvens[nanal])
+        psispec = models[nanal].invert(pvspec=pvspec)
         pvavspec = (psispec[1]-psispec[0])/models[nanal].H
         pvav = irfft2(pvavspec)
         hxens[nanal] = scalefact*pvav.ravel()[indxob] # surface pv obs
