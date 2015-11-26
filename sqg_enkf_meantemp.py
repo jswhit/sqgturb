@@ -118,7 +118,17 @@ for nanal in range(nanals):
     models[nanal].t = obtimes[0]
     models[nanal].timesteps = assim_timesteps
 
+# for fixed ob network, initialize indxob,xob,yob
+if fixed:
+    mask = np.zeros((ny,nx),np.bool)
+    nskip = int(nx/np.sqrt(nobs))
+    mask[0:ny:nskip,0:nx:nskip] = True
+    tmp = np.arange(0,nx*ny).reshape(ny,nx)
+    indxob = tmp[mask.nonzero()].ravel()
+    xob = x.ravel()[indxob]; yob = y.ravel()[indxob]
+
 # forward operator
+# (vertically integrated theta obs).
 def fwdop(model,pv,indxob):
     # vertically integrated theta obs.
     pvspec = rfft2(pv)
@@ -195,17 +205,10 @@ for ntime in range(nassim):
         #p[ny/4:3*ny/4,nx/4:3*nx/4] = 4.*psave[ny/4:3*ny/4,nx/4:3*nx/4]
         #p = p - p.sum()/(nx*ny) + 1./(nx*ny)
         indxob = np.random.choice(nx*ny,nobs,replace=False,p=p.ravel())
-    else:
-        mask = np.zeros((ny,nx),np.bool)
-        nskip = int(nx/np.sqrt(nobs))
-        mask[0:ny:nskip,0:nx:nskip] = True
-        tmp = np.arange(0,nx*ny).reshape(ny,nx)
-        indxob = tmp[mask.nonzero()].ravel()
+        xob = x.ravel()[indxob]; yob = y.ravel()[indxob]
     # vertically integrated theta obs.
     pvob = fwdop(models[0],pv_truth[ntime],indxob)
     pvob += np.random.normal(scale=oberrstdev,size=nobs) # add ob errors
-    xob = x.ravel()[indxob]
-    yob = y.ravel()[indxob]
     # plot ob network
     #import matplotlib.pyplot as plt
     #plt.contourf(x,y,pv_truth[0,1,...],15)
