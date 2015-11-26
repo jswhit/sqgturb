@@ -42,7 +42,7 @@ use_letkf = False # use serial EnSRF
 #nobs = 256 # number of obs to assimilate (randomly distributed)
 nobs = -4 # fixed network, every -nobs grid points. nobs=-1 obs at all pts.
 
-nanals = 20 # ensemble members
+nanals = 10 # ensemble members
 
 oberrstdev = 1.0 # ob error standard deviation in K
 
@@ -118,8 +118,16 @@ for nanal in range(nanals):
     models[nanal].t = obtimes[0]
     models[nanal].timesteps = assim_timesteps
 
-# initialize relaxation to prior spread inflation factor.
+# forward operator
+def fwdop(model,pv,indxob):
+    # vertically integrated theta obs.
+    pvspec = rfft2(pv)
+    psispec = model.invert(pvspec=pvspec)
+    pvavspec = (psispec[1]-psispec[0])/models[0].H
+    pvav = irfft2(pvavspec)
+    return scalefact*pvav.ravel()[indxob]
 
+# initialize netcdf output file.
 if savedata is not None:
    nc = Dataset(savedata, mode='w', format='NETCDF4_CLASSIC')
    nc.r = models[0].r
@@ -194,11 +202,7 @@ for ntime in range(nassim):
         tmp = np.arange(0,nx*ny).reshape(ny,nx)
         indxob = tmp[mask.nonzero()].ravel()
     # vertically integrated theta obs.
-    pvspec = rfft2(pv_truth[ntime])
-    psispec = models[0].invert(pvspec=pvspec)
-    pvavspec = (psispec[1]-psispec[0])/models[0].H
-    pvav = irfft2(pvavspec)
-    pvob = scalefact*pvav.ravel()[indxob]
+    pvob = fwdop(models[0],pv_truth[ntime],indxob)
     pvob += np.random.normal(scale=oberrstdev,size=nobs) # add ob errors
     xob = x.ravel()[indxob]
     yob = y.ravel()[indxob]
@@ -230,11 +234,7 @@ for ntime in range(nassim):
     # hxens is ensemble in observation space.
     hxens = np.empty((nanals,nobs),np.float)
     for nanal in range(nanals):
-        pvspec = rfft2(pvens[nanal])
-        psispec = models[nanal].invert(pvspec=pvspec)
-        pvavspec = (psispec[1]-psispec[0])/models[nanal].H
-        pvav = irfft2(pvavspec)
-        hxens[nanal] = scalefact*pvav.ravel()[indxob] # surface pv obs
+        hxens[nanal] = fwdop(models[nanal],pvens[nanal],indxob)
     hxensmean_b = hxens.mean(axis=0)
     obsprd = ((hxens-hxensmean_b)**2).sum(axis=0)/(nanals-1)
     # innov stats for background
@@ -268,11 +268,7 @@ for ntime in range(nassim):
 
     # forward operator on posterior ensemble.
     for nanal in range(nanals):
-        pvspec = rfft2(pvens[nanal])
-        psispec = models[nanal].invert(pvspec=pvspec)
-        pvavspec = (psispec[1]-psispec[0])/models[nanal].H
-        pvav = irfft2(pvavspec)
-        hxens[nanal] = scalefact*pvav.ravel()[indxob] # surface pv obs
+        hxens[nanal] = fwdop(models[nanal],pvens[nanal],indxob)
 
     # ob space diagnostics
     hxensmean_a = hxens.mean(axis=0)
