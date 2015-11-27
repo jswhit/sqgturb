@@ -3,7 +3,7 @@ from sqg import SQG, rfft2, irfft2
 import numpy as np
 from netCDF4 import Dataset
 import sys, time
-from enkf_meantemp_utils import  cartdist,enkf_update,gaspcohn
+from enkf_meantemp_utils import  cartdist,enkf_update,enkf_update_modens,gaspcohn
 
 # EnKF cycling for SQG turbulence model model with vertically
 # integrated temp obs.
@@ -11,7 +11,7 @@ from enkf_meantemp_utils import  cartdist,enkf_update,gaspcohn
 
 if len(sys.argv) == 1:
    msg="""
-python sqg_enkf_meantemp.py hcovlocal_scale covinflate1 covinflate2
+python sqg_enkf_meantemp_ml.py hcovlocal_scale covinflate1 covinflate2
    """
    raise SystemExit(msg)
 
@@ -29,6 +29,8 @@ else:
 
 diff_efold = None # use diffusion from climo file
 
+modelspace_local = False # model space localization
+
 savedata = None # if not None, netcdf filename to save data.
 #savedata = 'sqg_enkf.nc'
 
@@ -42,7 +44,7 @@ use_letkf = False # use serial EnSRF
 #nobs = 256 # number of obs to assimilate (randomly distributed)
 nobs = -4 # fixed network, every -nobs grid points. nobs=-1 obs at all pts.
 
-nanals = 10 # ensemble members
+nanals = 20 # ensemble members
 
 oberrstdev = 1.0 # ob error standard deviation in K
 
@@ -67,12 +69,12 @@ nc_climo = Dataset(filename_climo)
 scalefact = nc_climo.f*nc_climo.theta0/nc_climo.g
 # initialize qg model instances for each ensemble member.
 models = []
-x = nc_climo.variables['x'][:]
-y = nc_climo.variables['y'][:]
+x1 = nc_climo.variables['x'][:]
+y1 = nc_climo.variables['y'][:]
+nx = len(x1); ny = len(y1)
 pv_climo = nc_climo.variables['pv']
 indxran = np.random.choice(pv_climo.shape[0],size=nanals,replace=False)
-x, y = np.meshgrid(x, y)
-nx = len(x); ny = len(y)
+x, y = np.meshgrid(x1, y1)
 pvens = np.empty((nanals,2,ny,nx),np.float32)
 dt = nc_climo.dt
 if diff_efold == None: diff_efold=nc_climo.diff_efold
@@ -102,16 +104,37 @@ else:
     fixed = False
 oberrvar = oberrstdev**2*np.ones(nobs,np.float) + oberrextra**2
 pvob = np.empty(nobs,np.float)
-covlocal = np.empty((ny,nx),np.float)
-covlocal_tmp = np.empty((nobs,nx*ny),np.float)
+covlocal = np.empty((nx*ny,nx*ny),np.float)
 xens = np.empty((nanals,2,nx*ny),np.float)
-if not use_letkf:
-    obcovlocal = np.empty((nobs,nobs),np.float)
-else:
-    obcovlocal = None
 obtimes = nc_truth.variables['t'][:]
 assim_interval = obtimes[1]-obtimes[0]
 assim_timesteps = int(np.round(assim_interval/models[0].dt))
+
+if modelspace_local:
+    thresh = 0.95
+    nn = 0
+    for i in range(nx):
+        for j in range(ny):
+            dist = cartdist(x1[i],y1[j],x,y,nc_climo.L,nc_climo.L)
+            covloc2d = gaspcohn(dist/hcovlocal_scale)
+            covlocal[nn] = covloc2d.ravel()
+            #if nn == nx*ny/2+nx/2:
+            #    import matplotlib.pyplot as plt
+            #    plt.contourf(np.arange(nx),np.arange(ny),covloc2d,15)
+            #    plt.colorbar()
+            #    plt.show()
+            #    raise SystemExit
+            nn += 1
+    evals, eigs = np.linalg.eigh(covlocal)
+    evals = np.where(evals > 1.e-10, evals, 1.e-10)
+    evalsum = evals.sum(); neig = 0; frac = 0.0
+    while frac < thresh:
+        frac = evals[nx*ny-neig-1:nx*ny].sum()/evalsum
+        #print(neig,frac,evals[nx*ny-neig-1])
+        neig += 1
+    zz = (eigs*np.sqrt(evals/frac)).T
+    z = zz[nx*ny-neig:nx*ny,:]
+    print('# model space localization: neig = %s' % neig)
 
 # initialize model clock
 for nanal in range(nanals):
@@ -125,7 +148,8 @@ if fixed:
     mask[0:ny:nskip,0:nx:nskip] = True
     tmp = np.arange(0,nx*ny).reshape(ny,nx)
     indxob = tmp[mask.nonzero()].ravel()
-    xob = x.ravel()[indxob]; yob = y.ravel()[indxob]
+    xob = x.ravel()[indxob]
+    yob = y.ravel()[indxob]
 
 # forward operator
 # (vertically integrated theta obs).
@@ -137,7 +161,7 @@ def fwdop(model,pv,indxob):
     pvav = irfft2(pvavspec)
     return scalefact*pvav.ravel()[indxob]
 
-# initialize netcdf output file.
+# initialize netcdf output file
 if savedata is not None:
    nc = Dataset(savedata, mode='w', format='NETCDF4_CLASSIC')
    nc.r = models[0].r
@@ -216,19 +240,6 @@ for ntime in range(nassim):
     #plt.axis('off')
     #plt.show()
     #raise SystemExit
-    # compute covariance localization function for each ob
-    if not fixed or ntime == 0:
-        for nob in range(nobs):
-            dist = cartdist(xob[nob],yob[nob],x,y,nc_climo.L,nc_climo.L)
-            covlocal = gaspcohn(dist/hcovlocal_scale)
-            covlocal_tmp[nob] = covlocal.ravel()
-            dist = cartdist(xob[nob],yob[nob],xob,yob,nc_climo.L,nc_climo.L)
-            if not use_letkf: obcovlocal[nob] = gaspcohn(dist/hcovlocal_scale)
-            # plot covariance localization
-            #import matplotlib.pyplot as plt
-            #plt.contourf(x,y,covlocal,15)
-            #plt.show()
-            #raise SystemExit
 
     # first-guess spread (need later to compute inflation factor)
     fsprd = ((pvens - pvens.mean(axis=0))**2).sum(axis=0)/(nanals-1)
@@ -261,8 +272,20 @@ for ntime in range(nassim):
     for nanal in range(nanals):
         xens[nanal] = pvens[nanal].reshape((2,nx*ny))
     # update state vector.
-    xens =\
-    enkf_update(xens,hxens,pvob,oberrvar,covlocal_tmp,obcovlocal=obcovlocal)
+    if modelspace_local:
+        xens =\
+        enkf_update_modens(xens,hxens,fwdop,models[0],indxob,pvob,oberrvar,z,letkf=use_letkf)
+    else:
+        if not fixed or ntime == 0:
+            covlocal = np.empty((nobs,nx*ny),np.float)
+            obcovlocal = np.empty((nobs,nobs),np.float)
+            for nob in range(nobs):
+                dist = cartdist(xob[nob],yob[nob],x,y,nc_climo.L,nc_climo.L)
+                covlocal[nob] = gaspcohn(dist/hcovlocal_scale).ravel()
+                dist = cartdist(xob[nob],yob[nob],xob,yob,nc_climo.L,nc_climo.L)
+                if not use_letkf: obcovlocal[nob] = gaspcohn(dist/hcovlocal_scale)
+        xens =\
+        enkf_update(xens,hxens,pvob,oberrvar,covlocal,obcovlocal=obcovlocal)
     # back to 3d state vector
     for nanal in range(nanals):
         pvens[nanal] = xens[nanal].reshape((2,ny,nx))
