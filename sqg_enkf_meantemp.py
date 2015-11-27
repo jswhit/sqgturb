@@ -1,6 +1,7 @@
 from __future__ import print_function
 from sqg import SQG, rfft2, irfft2
 import numpy as np
+from scipy import linalg
 from netCDF4 import Dataset
 import sys, time
 from enkf_meantemp_utils import  cartdist,enkf_update,enkf_update_modens,gaspcohn
@@ -36,7 +37,7 @@ savedata = None # if not None, netcdf filename to save data.
 
 profile = False # turn on profiling?
 
-use_letkf = False # use serial EnSRF
+use_letkf = True # use serial EnSRF
 
 # if nobs > 0, each ob time nobs ob locations are randomly sampled (without
 # replacement) from the model grid
@@ -125,7 +126,7 @@ if modelspace_local:
             #    plt.show()
             #    raise SystemExit
             nn += 1
-    evals, eigs = np.linalg.eigh(covlocal)
+    evals, eigs = linalg.eigh(covlocal)
     evals = np.where(evals > 1.e-10, evals, 1.e-10)
     evalsum = evals.sum(); neig = 0; frac = 0.0
     while frac < thresh:
