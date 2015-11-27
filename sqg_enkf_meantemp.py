@@ -17,19 +17,19 @@ python sqg_enkf_meantemp_ml.py hcovlocal_scale covinflate1 covinflate2
 
 # covariance localization length scale in meters.
 hcovlocal_scale = float(sys.argv[1])
-# inflation parameters
-# (covinflate2 <= 0 for RTPS, otherwise use Hodyss and Campbell)
-covinflate1 = float(sys.argv[2])
-covinflate2 = float(sys.argv[3])
+modelspace_local = int(sys.argv[2])
+covinflate1=1.; covinflate2=1.
+if len(sys.argv) > 3:
+    # inflation paramers
+    # (covinflate2 <= 0 for RTPS, otherwise use Hodyss and Campbell)
+    covinflate1 = float(sys.argv[2])
+    covinflate2 = float(sys.argv[3])
+
 # representativity error
-if len(sys.argv) > 4:
-    oberrextra = float(sys.argv[4])
-else:
-    oberrextra = 0.0
+oberrextra = 0.0
 
 diff_efold = None # use diffusion from climo file
 
-modelspace_local = False # model space localization
 
 savedata = None # if not None, netcdf filename to save data.
 #savedata = 'sqg_enkf.nc'
