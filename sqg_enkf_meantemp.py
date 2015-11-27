@@ -4,7 +4,7 @@ import numpy as np
 from scipy import linalg
 from netCDF4 import Dataset
 import sys, time
-from enkf_meantemp_utils import  cartdist,enkf_update,enkf_update_modens,gaspcohn
+from enkf_meantemp_utilsx import  cartdist,enkf_update,enkf_update_modens,gaspcohn
 
 # EnKF cycling for SQG turbulence model model with vertically
 # integrated temp obs.
@@ -30,7 +30,6 @@ if len(sys.argv) > 3:
 oberrextra = 0.0
 
 diff_efold = None # use diffusion from climo file
-
 
 savedata = None # if not None, netcdf filename to save data.
 #savedata = 'sqg_enkf.nc'
@@ -106,7 +105,7 @@ else:
 oberrvar = oberrstdev**2*np.ones(nobs,np.float) + oberrextra**2
 pvob = np.empty(nobs,np.float)
 covlocal = np.empty((nx*ny,nx*ny),np.float)
-xens = np.empty((nanals,2,nx*ny),np.float)
+xens = np.empty((nanals,2*nx*ny),np.float)
 obtimes = nc_truth.variables['t'][:]
 assim_interval = obtimes[1]-obtimes[0]
 assim_timesteps = int(np.round(assim_interval/models[0].dt))
@@ -134,6 +133,7 @@ if modelspace_local:
         #print(neig,frac,evals[nx*ny-neig-1])
         neig += 1
     zz = (eigs*np.sqrt(evals/frac)).T
+    zz = np.tile(zz,(1,2))
     z = zz[nx*ny-neig:nx*ny,:]
     print('# model space localization: neig = %s' % neig)
 
@@ -271,20 +271,22 @@ for ntime in range(nassim):
     # EnKF update
     # create 1d state vector.
     for nanal in range(nanals):
-        xens[nanal] = pvens[nanal].reshape((2,nx*ny))
+        xens[nanal] = np.ascontiguousarray(pvens[nanal].reshape((2*nx*ny)))
     # update state vector.
-    if modelspace_local:
+    if modelspace_local and ntime > 100:
         xens =\
         enkf_update_modens(xens,hxens,fwdop,models[0],indxob,pvob,oberrvar,z,letkf=use_letkf)
     else:
         if not fixed or ntime == 0:
             covlocal = np.empty((nobs,nx*ny),np.float)
-            obcovlocal = np.empty((nobs,nobs),np.float)
+            obcovlocal = None
+            if not use_letkf: obcovlocal = np.empty((nobs,nobs),np.float)
             for nob in range(nobs):
                 dist = cartdist(xob[nob],yob[nob],x,y,nc_climo.L,nc_climo.L)
                 covlocal[nob] = gaspcohn(dist/hcovlocal_scale).ravel()
                 dist = cartdist(xob[nob],yob[nob],xob,yob,nc_climo.L,nc_climo.L)
                 if not use_letkf: obcovlocal[nob] = gaspcohn(dist/hcovlocal_scale)
+            covlocal = np.tile(covlocal,(1,2))
         xens =\
         enkf_update(xens,hxens,pvob,oberrvar,covlocal,obcovlocal=obcovlocal)
     # back to 3d state vector

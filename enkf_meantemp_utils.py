@@ -27,39 +27,28 @@ def gaspcohn(r):
 def enkf_update(xens,hxens,obs,oberrs,covlocal,obcovlocal=None):
     """serial potter method or LETKF (if obcovlocal is None)"""
 
-    nanals, nlevs, ndim = xens.shape; nobs = obs.shape[-1]
-    N = int(np.sqrt(ndim))
+    nanals, ndim = xens.shape; nobs = obs.shape[-1]
     xmean = xens.mean(axis=0); xprime = xens-xmean
     hxmean = hxens.mean(axis=0); hxprime = hxens-hxmean
 
     if obcovlocal is not None:  # serial EnSRF update
 
         for nob,ob,oberr in zip(np.arange(nobs),obs,oberrs):
-            ominusf = ob-hxmean[nob].copy()
-            hxens = hxprime[:,nob].copy().reshape((nanals, 1))
-            hpbht = (hxens**2).sum()/(nanals-1)
+            omf = ob-hxmean[nob]; hx = hxprime[:,nob]
+            hpbht = np.dot(hx,hx)/(nanals-1)
             gainfact = ((hpbht+oberr)/hpbht*\
                        (1.-np.sqrt(oberr/(hpbht+oberr))))
             # state space update
-            # only update points closer than localization radius to ob
-            mask = covlocal[nob,:] > -1.e-10
-            for k in range(2):
-                pbht = (xprime[:,k,mask].T*hxens[:,0]).sum(axis=1)/float(nanals-1)
-                kfgain = covlocal[nob,mask]*pbht/(hpbht+oberr)
-                #import matplotlib.pyplot as plt
-                #plt.contourf(np.arange(N),np.arange(N),(kfgain*ominusf).reshape(N,N),np.linspace(-2000,2000,21),extend='both')
-                #plt.colorbar()
-                #plt.show()
-                #raise SystemExit
-                xmean[k,mask] = xmean[k,mask] + kfgain*ominusf
-                xprime[:,k,mask] = xprime[:,k,mask] - gainfact*kfgain*hxens
+            pbht = np.dot(xprime.T,hx)/(nanals-1)
+            kfgain = covlocal[nob]*pbht/(hpbht+oberr)
+            xmean = xmean + kfgain*omf
+            xprime = xprime - gainfact*kfgain*hx[:,np.newaxis]
             # observation space update
             # only update obs within localization radius
-            mask = obcovlocal[nob,:] > 1.e-10
-            pbht = (hxprime[:,mask].T*hxens[:,0]).sum(axis=1)/float(nanals-1)
-            kfgain = obcovlocal[nob,mask]*pbht/(hpbht+oberr)
-            hxmean[mask] = hxmean[mask] + kfgain*ominusf
-            hxprime[:,mask] = hxprime[:,mask] - gainfact*kfgain*hxens
+            pbht = np.dot(hxprime.T,hx)/(nanals-1)
+            kfgain = obcovlocal[nob]*pbht/(hpbht+oberr)
+            hxmean = hxmean + kfgain*omf
+            hxprime = hxprime - gainfact*kfgain*hx[:,np.newaxis]
         return xmean + xprime
 
     else:  # LETKF update
@@ -73,32 +62,27 @@ def enkf_update(xens,hxens,obs,oberrs,covlocal,obcovlocal=None):
             tmp = np.dot(np.dot(np.dot(painv, painv.T), YbRinv), ominusf)
             return np.sqrt(nanals-1)*painv + tmp[:,np.newaxis]
         for n in range(ndim1):
-            mask = covlocal[:,n] > 1.e-10
-            Rinv = np.diag(covlocal[mask,n]/oberrs[mask])
-            for k in range(2):
-                wts = calcwts(hxprime[:,mask],Rinv,(obs[mask]-hxmean[mask]))
-                xens[:,k,n] = xmean[k,n] + np.dot(wts.T, xprime[:,k,n])
+            Rinv = np.diag(covlocal[:,n]/oberrs)
+            wts = calcwts(hxprime,Rinv,(obs-hxmean))
+            xens[:,n] = xmean[n] + np.dot(wts.T, xprime[:,n])
         return xens
 
 def enkf_update_modens(xens,hxens,fwdop,model,indxob,obs,oberrs,z,letkf=False):
-    """serial potter method or LETKF"""
+    """serial potter method or ETKF, modulated ensemble, no localization"""
 
-    nanals, nlevs, ndim = xens.shape; nobs = obs.shape[-1]
+    nanals, ndim = xens.shape; nobs = obs.shape[-1]
     xmean = xens.mean(axis=0); xprime = xens-xmean
-    #for nanal in range(nanals):
-    #    hxens[nanal] = fwdop(model,xens[nanal],indxob)
     hxmean = hxens.mean(axis=0); hxprime = hxens-hxmean
 
     # modulation ensemble
     neig = z.shape[0]; nanals2 = neig*nanals
-    xprime2 = np.zeros((nanals2,nlevs,ndim),xprime.dtype)
+    xprime2 = np.zeros((nanals2,ndim),xprime.dtype)
     hxprime2 = np.zeros((nanals2,nobs),xprime.dtype)
-    for k in range(2):
-        nanal2 = 0
-        for j in range(neig):
-            for nanal in range(nanals):
-                xprime2[nanal2,k,:] = xprime[nanal,k,:]*z[neig-j-1,:]
-                nanal2 += 1
+    nanal2 = 0
+    for j in range(neig):
+        for nanal in range(nanals):
+            xprime2[nanal2,:] = xprime[nanal,:]*z[neig-j-1,:]
+            nanal2 += 1
     # normalize modulated ensemble so total variance unchanged.
     var = ((xprime**2).sum(axis=0)/(nanals-1)).mean()
     var2 = ((xprime2**2).sum(axis=0)/(nanals2-1)).mean()
@@ -109,38 +93,29 @@ def enkf_update_modens(xens,hxens,fwdop,model,indxob,obs,oberrs,z,letkf=False):
 
     # compute forward operator on modulated ensemble.
     for nanal in range(nanals2):
-        hxprime2[nanal] = fwdop(model,xprime2[nanal].reshape(nlevs,model.N,model.N),indxob)
+        hxprime2[nanal] = fwdop(model,xprime2[nanal].reshape(2,model.N,model.N),indxob)
         #hxprime2[nanal] = xprime2[nanal,0,indxob]
     if not letkf:  # serial EnSRF update
 
         for nob,ob,oberr in zip(np.arange(nobs),obs,oberrs):
-            ominusf = ob-hxmean[nob].copy()
-            hxens = hxprime2[:,nob].copy()
-            hxens_orig = hxprime[:,nob].copy()
-            hpbht = (hxens**2).sum()/(nanals2-1)
+            hx2 = hxprime2[:,nob]; hx = hxprime[:,nob]
+            omf = ob-hxmean[nob]
+            hpbht = np.dot(hx2,hx2)/(nanals2-1)
             gainfact = ((hpbht+oberr)/hpbht*\
                        (1.-np.sqrt(oberr/(hpbht+oberr))))
             # state space update
-            for k in range(2):
-                pbht = (xprime2[:,k,:].T*hxens).sum(axis=1)/float(nanals2-1)
-                kfgain = pbht/(hpbht+oberr)
-                #import matplotlib.pyplot as plt
-                #plt.contourf(np.arange(model.N),np.arange(model.N),(kfgain*ominusf).reshape(model.N,model.N),np.linspace(-2000,2000,21),extend='both')
-                #plt.colorbar()
-                #plt.show()
-                #raise SystemExit
-                xmean[k,:] = xmean[k,:] + kfgain*ominusf
-                xprime2[:,k,:] = xprime2[:,k,:] -\
-                        gainfact*kfgain*hxens[:,np.newaxis]
-                xprime[:,k,:] = xprime[:,k,:] -\
-                        gainfact*kfgain*hxens_orig[:,np.newaxis]
+            pbht = np.dot(xprime2.T,hx2)/(nanals2-1)
+            kfgain = pbht/(hpbht+oberr)
+            xmean = xmean + kfgain*omf
+            xprime2 = xprime2 - gainfact*kfgain*hx2[:,np.newaxis]
+            xprime = xprime - gainfact*kfgain*hx[:,np.newaxis]
             # observation space update
             # only update obs within localization radius
-            pbht = (hxprime2.T*hxens).sum(axis=1)/float(nanals2-1)
+            pbht = np.dot(hxprime2.T,hx2)/(nanals2-1)
             kfgain = pbht/(hpbht+oberr)
-            hxmean = hxmean + kfgain*ominusf
-            hxprime2 = hxprime2 - gainfact*kfgain*hxens[:,np.newaxis]
-            hxprime = hxprime - gainfact*kfgain*hxens_orig[:,np.newaxis]
+            hxmean = hxmean + kfgain*omf
+            hxprime2 = hxprime2 - gainfact*kfgain*hx2[:,np.newaxis]
+            hxprime = hxprime - gainfact*kfgain*hx[:,np.newaxis]
         return xmean + xprime
 
     else:  # ETKF computation of gain, perturbed obs update for ens perts.
@@ -154,8 +129,7 @@ def enkf_update_modens(xens,hxens,fwdop,model,indxob,obs,oberrs,z,letkf=False):
         ((obnoise-obnoise.mean(axis=0))**2).sum(axis=0)/(nanals-1)
         obnoise = np.sqrt(oberrs)*obnoise/np.sqrt(obnoise_var)
         hxprime = hxprime + obnoise - obnoise.mean(axis=0) 
-        for k in range(2):
-            kfgain = np.dot(xprime2[:,k,:].T,np.dot(painv,YbRinv))
-            xmean[k] = xmean[k] + np.dot(kfgain, obs-hxmean).T
-            xprime[:,k,:] = xprime[:,k,:] - np.dot(kfgain,hxprime.T).T
+        kfgain = np.dot(xprime2.T,np.dot(painv,YbRinv))
+        xmean = xmean + np.dot(kfgain, obs-hxmean).T
+        xprime = xprime - np.dot(kfgain,hxprime.T).T
         return xmean + xprime
