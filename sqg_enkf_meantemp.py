@@ -22,8 +22,8 @@ covinflate1=1.; covinflate2=1.
 if len(sys.argv) > 3:
     # inflation paramers
     # (covinflate2 <= 0 for RTPS, otherwise use Hodyss and Campbell)
-    covinflate1 = float(sys.argv[2])
-    covinflate2 = float(sys.argv[3])
+    covinflate1 = float(sys.argv[3])
+    covinflate2 = float(sys.argv[4])
 
 # representativity error
 oberrextra = 0.0

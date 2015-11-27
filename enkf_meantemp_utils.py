@@ -99,10 +99,10 @@ def enkf_update_modens(xens,hxens,fwdop,model,indxob,obs,oberrs,z,letkf=False):
                 xprime2[nanal2,k,:] = xprime[nanal,k,:]*z[neig-j-1,:]
                 nanal2 += 1
     # normalize modulated ensemble so total variance unchanged.
-    var = ((xprime**2).sum(axis=0)/(nanals-1)).mean()
-    var2 = ((xprime2**2).sum(axis=0)/(nanals2-1)).mean()
-    xprime2 = np.sqrt(var/var2)*xprime2
-    #xprime2 = np.sqrt(float(nanals2-1)/float(nanals-1))*xprime2
+    #var = ((xprime**2).sum(axis=0)/(nanals-1)).mean()
+    #var2 = ((xprime2**2).sum(axis=0)/(nanals2-1)).mean()
+    #xprime2 = np.sqrt(var/var2)*xprime2
+    xprime2 = np.sqrt(float(nanals2-1)/float(nanals-1))*xprime2
     #var2 = ((xprime2**2).sum(axis=0)/(nanals2-1)).mean()
     #print(var,var2)
 
