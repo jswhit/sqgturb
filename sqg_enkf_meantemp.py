@@ -42,8 +42,8 @@ use_letkf = True # use serial EnSRF
 # if nobs > 0, each ob time nobs ob locations are randomly sampled (without
 # replacement) from the model grid
 # if nobs < 0, fixed network of every Nth grid point used (N = -nobs)
-#nobs = 256 # number of obs to assimilate (randomly distributed)
-nobs = -4 # fixed network, every -nobs grid points. nobs=-1 obs at all pts.
+nobs = 256 # number of obs to assimilate (randomly distributed)
+#nobs = -4 # fixed network, every -nobs grid points. nobs=-1 obs at all pts.
 
 nanals = 20 # ensemble members
 

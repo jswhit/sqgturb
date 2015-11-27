@@ -45,12 +45,12 @@ def enkf_update(xens,hxens,obs,oberrs,covlocal,obcovlocal=None):
             mask = covlocal[nob,:] > -1.e-10
             for k in range(2):
                 pbht = (xprime[:,k,mask].T*hxens[:,0]).sum(axis=1)/float(nanals-1)
+                kfgain = covlocal[nob,mask]*pbht/(hpbht+oberr)
                 #import matplotlib.pyplot as plt
-                #plt.contourf(np.arange(N),np.arange(N),(covlocal[nob]*pbht).reshape((N,N)),15)
+                #plt.contourf(np.arange(N),np.arange(N),(kfgain*ominusf).reshape(N,N),np.linspace(-2000,2000,21),extend='both')
                 #plt.colorbar()
                 #plt.show()
                 #raise SystemExit
-                kfgain = covlocal[nob,mask]*pbht/(hpbht+oberr)
                 xmean[k,mask] = xmean[k,mask] + kfgain*ominusf
                 xprime[:,k,mask] = xprime[:,k,mask] - gainfact*kfgain*hxens
             # observation space update
@@ -123,13 +123,12 @@ def enkf_update_modens(xens,hxens,fwdop,model,indxob,obs,oberrs,z,letkf=False):
             # state space update
             for k in range(2):
                 pbht = (xprime2[:,k,:].T*hxens).sum(axis=1)/float(nanals2-1)
-                #pbht = (xprime2[:,k,:].T*xprime2[:,k,ndim/2+model.N/2]).sum(axis=1)/float(nanals2-1)
+                kfgain = pbht/(hpbht+oberr)
                 #import matplotlib.pyplot as plt
-                #plt.contourf(np.arange(model.N),np.arange(model.N),pbht.reshape(model.N,model.N),15)
+                #plt.contourf(np.arange(model.N),np.arange(model.N),(kfgain*ominusf).reshape(model.N,model.N),np.linspace(-2000,2000,21),extend='both')
                 #plt.colorbar()
                 #plt.show()
                 #raise SystemExit
-                kfgain = pbht/(hpbht+oberr)
                 xmean[k,:] = xmean[k,:] + kfgain*ominusf
                 xprime2[:,k,:] = xprime2[:,k,:] -\
                         gainfact*kfgain*hxens[:,np.newaxis]
@@ -148,13 +147,14 @@ def enkf_update_modens(xens,hxens,fwdop,model,indxob,obs,oberrs,z,letkf=False):
         YbRinv = np.dot(hxprime2,(1./oberrs)*np.eye(nobs))
         pa = (nanals2-1)*np.eye(nanals2)+np.dot(YbRinv,hxprime2.T)
         painv = linalg.cho_solve(linalg.cho_factor(pa),np.eye(nanals2))
-        kfgain = np.dot(xprime2.T,np.dot(painv,YbRinv))
-        xmean = xmean + np.dot(kfgain, obs-hxmean).T
         obnoise =\
         np.sqrt(oberrs)*np.random.standard_normal(size=(nanals,nobs))
         obnoise_var =\
         ((obnoise-obnoise.mean(axis=0))**2).sum(axis=0)/(nanals-1)
         obnoise = np.sqrt(oberrs)*obnoise/np.sqrt(obnoise_var)
         hxprime = hxprime + obnoise - obnoise.mean(axis=0) 
-        xprime = xprime - np.dot(kfgain,hxprime[:,:,np.newaxis]).T.squeeze()
+        for k in range(2):
+            kfgain = np.dot(xprime2[:,k,:].T,np.dot(painv,YbRinv))
+            xmean[k] = xmean[k] + np.dot(kfgain, obs-hxmean).T
+            xprime[:,k,:] = xprime[:,k,:] - np.dot(kfgain,hxprime.T).T
         return xmean + xprime
