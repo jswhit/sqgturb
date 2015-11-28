@@ -5,6 +5,7 @@ from scipy import linalg
 from netCDF4 import Dataset
 import sys, time
 from enkf_meantemp_utilsx import  cartdist,enkf_update,enkf_update_modens,gaspcohn
+from scipy.ndimage.filters import uniform_filter
 
 # EnKF cycling for SQG turbulence model model with vertically
 # integrated temp obs.
@@ -36,7 +37,7 @@ savedata = None # if not None, netcdf filename to save data.
 
 profile = False # turn on profiling?
 
-use_letkf = True # use serial EnSRF
+use_letkf = False # use serial EnSRF
 
 # if nobs > 0, each ob time nobs ob locations are randomly sampled (without
 # replacement) from the model grid
@@ -49,6 +50,8 @@ nanals = 20 # ensemble members
 oberrstdev = 1.0 # ob error standard deviation in K
 
 nassim = 800 # assimilation times to run
+
+filter_width = 7 # number of pts in running average filter for forward operator
 
 filename_climo = 'data/sqg_N64.nc' # file name for forecast model climo
 # perfect model
@@ -160,6 +163,9 @@ def fwdop(model,pv,indxob):
     psispec = model.invert(pvspec=pvspec)
     pvavspec = (psispec[1]-psispec[0])/models[0].H
     pvav = irfft2(pvavspec)
+    if filter_width > 0:
+        pvav = uniform_filter(pvav, size=filter_width, output=None,
+               mode='wrap', cval=0.0, origin=0)
     return scalefact*pvav.ravel()[indxob]
 
 # initialize netcdf output file
@@ -273,7 +279,7 @@ for ntime in range(nassim):
     for nanal in range(nanals):
         xens[nanal] = np.ascontiguousarray(pvens[nanal].reshape((2*nx*ny)))
     # update state vector.
-    if modelspace_local and ntime > 100:
+    if modelspace_local:
         xens =\
         enkf_update_modens(xens,hxens,fwdop,models[0],indxob,pvob,oberrvar,z,letkf=use_letkf)
     else:

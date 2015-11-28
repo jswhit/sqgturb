@@ -94,7 +94,7 @@ def enkf_update_modens(xens,hxens,fwdop,model,indxob,obs,oberrs,z,letkf=False):
     # compute forward operator on modulated ensemble.
     for nanal in range(nanals2):
         hxprime2[nanal] = fwdop(model,xprime2[nanal].reshape(2,model.N,model.N),indxob)
-        #hxprime2[nanal] = xprime2[nanal,0,indxob]
+
     if not letkf:  # serial EnSRF update
 
         for nob,ob,oberr in zip(np.arange(nobs),obs,oberrs):
