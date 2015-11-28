@@ -47,7 +47,7 @@ nobs = 256 # number of obs to assimilate (randomly distributed)
 
 nanals = 20 # ensemble members
 
-oberrstdev = 1.0 # ob error standard deviation in K
+oberrstdev = 0.25 # ob error standard deviation in K
 
 nassim = 800 # assimilation times to run
 
