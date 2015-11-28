@@ -4,7 +4,7 @@ import numpy as np
 from scipy import linalg
 from netCDF4 import Dataset
 import sys, time
-from enkf_meantemp_utilsx import  cartdist,enkf_update,enkf_update_modens,gaspcohn
+from enkf_meantemp_utils import  cartdist,enkf_update,enkf_update_modens,gaspcohn
 from scipy.ndimage.filters import uniform_filter
 
 # EnKF cycling for SQG turbulence model model with vertically
