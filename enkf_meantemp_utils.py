@@ -122,14 +122,18 @@ def enkf_update_modens(xens,hxens,fwdop,model,indxob,obs,oberrs,z,letkf=False):
         YbRinv = np.dot(hxprime2,(1./oberrs)*np.eye(nobs))
         pa = (nanals2-1)*np.eye(nanals2)+np.dot(YbRinv,hxprime2.T)
         painv = linalg.cho_solve(linalg.cho_factor(pa),np.eye(nanals2))
-        # make sure ob noise has zero mean and correct stdev.
-        obnoise =\
-        np.sqrt(oberrs)*np.random.standard_normal(size=(nanals,nobs))
-        obnoise_var =\
-        ((obnoise-obnoise.mean(axis=0))**2).sum(axis=0)/(nanals-1)
-        obnoise = np.sqrt(oberrs)*obnoise/np.sqrt(obnoise_var)
-        hxprime = hxprime + obnoise - obnoise.mean(axis=0) 
         kfgain = np.dot(xprime2.T,np.dot(painv,YbRinv))
         xmean = xmean + np.dot(kfgain, obs-hxmean).T
+        # make sure ob noise has zero mean and correct stdev.
+        denkf = True
+        if not denkf:
+            obnoise =\
+            np.sqrt(oberrs)*np.random.standard_normal(size=(nanals,nobs))
+            obnoise_var =\
+            ((obnoise-obnoise.mean(axis=0))**2).sum(axis=0)/(nanals-1)
+            obnoise = np.sqrt(oberrs)*obnoise/np.sqrt(obnoise_var)
+            hxprime = hxprime + obnoise - obnoise.mean(axis=0) 
+        else:
+            kfgain = 0.5*kfgain
         xprime = xprime - np.dot(kfgain,hxprime.T).T
         return xmean + xprime
