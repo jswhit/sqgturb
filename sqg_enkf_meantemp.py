@@ -64,7 +64,8 @@ print('# filename_truth=%s' % filename_truth)
 print('# nobs=%s oberrextra=%s' % (nobs,oberrextra))
 
 # fix random seed for reproducibility.
-np.random.seed(42)
+rsobs = np.random.RandomState(42) # fixed seed for observations
+rsics = np.random.RandomState() # varying seed for initial conditions
 
 # get model info
 nc_climo = Dataset(filename_climo)
@@ -76,7 +77,7 @@ x1 = nc_climo.variables['x'][:]
 y1 = nc_climo.variables['y'][:]
 nx = len(x1); ny = len(y1)
 pv_climo = nc_climo.variables['pv']
-indxran = np.random.choice(pv_climo.shape[0],size=nanals,replace=False)
+indxran = rsics.choice(pv_climo.shape[0],size=nanals,replace=False)
 x, y = np.meshgrid(x1, y1)
 pvens = np.empty((nanals,2,ny,nx),np.float32)
 dt = nc_climo.dt
@@ -235,11 +236,11 @@ for ntime in range(nassim):
         #psave = p.copy()
         #p[ny/4:3*ny/4,nx/4:3*nx/4] = 4.*psave[ny/4:3*ny/4,nx/4:3*nx/4]
         #p = p - p.sum()/(nx*ny) + 1./(nx*ny)
-        indxob = np.random.choice(nx*ny,nobs,replace=False,p=p.ravel())
+        indxob = rsobs.choice(nx*ny,nobs,replace=False,p=p.ravel())
         xob = x.ravel()[indxob]; yob = y.ravel()[indxob]
     # vertically integrated theta obs.
     pvob = fwdop(models[0],pv_truth[ntime],indxob)
-    pvob += np.random.normal(scale=oberrstdev,size=nobs) # add ob errors
+    pvob += rsobs.normal(scale=oberrstdev,size=nobs) # add ob errors
     # plot ob network
     #import matplotlib.pyplot as plt
     #plt.contourf(x,y,pv_truth[0,1,...],15)
