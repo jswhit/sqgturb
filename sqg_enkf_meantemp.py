@@ -8,7 +8,7 @@ from enkf_meantemp_utils import  cartdist,enkf_update,enkf_update_modens,gaspcoh
 from scipy.ndimage.filters import uniform_filter
 
 # EnKF cycling for SQG turbulence model model with vertically
-# integrated temp obs.
+# integrated temp obs (and running mean filter in forward operator).
 # Random or fixed observing network.
 
 if len(sys.argv) == 1:
@@ -19,12 +19,12 @@ python sqg_enkf_meantemp_ml.py hcovlocal_scale covinflate1 covinflate2
 
 # covariance localization length scale in meters.
 hcovlocal_scale = float(sys.argv[1])
-modelspace_local = int(sys.argv[2])
+modelspace_local = int(sys.argv[2]) # model or ob space localization
+use_letkf = bool(int(sys.argv[3])) # (local) ETKF or serial assimilation
 covinflate1=1.; covinflate2=1.
-if len(sys.argv) > 3:
-    # inflation paramers
-    # (covinflate2 <= 0 for RTPS, otherwise use Hodyss and Campbell)
-    covinflate1 = float(sys.argv[3])
+if len(sys.argv) > 4:
+    # inflation parameters for Hodyss and Campbell inflation
+    covinflate1 = float(sys.argv[4])
     covinflate2 = float(sys.argv[4])
 
 # representativity error
@@ -37,21 +37,21 @@ savedata = None # if not None, netcdf filename to save data.
 
 profile = False # turn on profiling?
 
-use_letkf = False # use serial EnSRF
+po = False # use perturbed obs?
 
 # if nobs > 0, each ob time nobs ob locations are randomly sampled (without
 # replacement) from the model grid
 # if nobs < 0, fixed network of every Nth grid point used (N = -nobs)
-nobs = 256 # number of obs to assimilate (randomly distributed)
+nobs = 500 # number of obs to assimilate (randomly distributed)
 #nobs = -4 # fixed network, every -nobs grid points. nobs=-1 obs at all pts.
 
 nanals = 20 # ensemble members
 
-oberrstdev = 0.25 # ob error standard deviation in K
+oberrstdev = 0.5 # ob error standard deviation in K
 
-nassim = 800 # assimilation times to run
+nassim = 2200 # assimilation times to run
 
-filter_width = 7 # number of pts in running average filter for forward operator
+filter_width = 10 # number of pts in running average filter for forward operator
 
 filename_climo = 'data/sqg_N64.nc' # file name for forecast model climo
 # perfect model
@@ -61,7 +61,7 @@ filename_truth = 'data/sqg_N64.nc' # file name for nature run to draw obs
 
 print('# filename_modelclimo=%s' % filename_climo)
 print('# filename_truth=%s' % filename_truth)
-print('# nobs=%s oberrextra=%s' % (nobs,oberrextra))
+print('# oberr=%s oberrextra=%s' % (oberrstdev,oberrextra))
 
 # fix random seed for reproducibility.
 rsobs = np.random.RandomState(42) # fixed seed for observations
@@ -90,8 +90,8 @@ for nanal in range(nanals):
     r=nc_climo.r,tdiab=nc_climo.tdiab,symmetric=nc_climo.symmetric,\
     diff_order=nc_climo.diff_order,diff_efold=diff_efold))
 
-print("# hcovlocal=%g diff_efold=%s covinf1=%s covinf2=%s nanals=%s" %\
-     (hcovlocal_scale/1000.,diff_efold,covinflate1,covinflate2,nanals))
+print("# hcovlocal=%g diff_efold=%s covinf1=%s covinf2=%s nanals=%s use_letkf=%s" %\
+     (hcovlocal_scale/1000.,diff_efold,covinflate1,covinflate2,nanals,use_letkf))
 
 # nature run
 nc_truth = Dataset(filename_truth)
@@ -102,10 +102,12 @@ if nobs < 0:
     if nx%nobs != 0:
         raise ValueError('nx must be divisible by nobs')
     nobs = (nx/nobs)**2
-    print('# nobs = %s' % nobs)
+    print('# nobs = %s (fixed observing network)' % nobs)
     fixed = True
 else:
+    print('# nobs = %s (random observing network)' % nobs)
     fixed = False
+print('# forward operator %s x %s average' %(filter_width,filter_width))
 oberrvar = oberrstdev**2*np.ones(nobs,np.float) + oberrextra**2
 pvob = np.empty(nobs,np.float)
 covlocal = np.empty((nx*ny,nx*ny),np.float)
@@ -139,7 +141,7 @@ if modelspace_local:
     zz = (eigs*np.sqrt(evals/frac)).T
     zz = np.tile(zz,(1,2))
     z = zz[nx*ny-neig:nx*ny,:]
-    print('# model space localization: neig = %s' % neig)
+    print('# model space localization: neig = %s, frace = %s' % (neig,frac))
 
 # initialize model clock
 for nanal in range(nanals):
@@ -282,7 +284,7 @@ for ntime in range(nassim):
     # update state vector.
     if modelspace_local:
         xens =\
-        enkf_update_modens(xens,hxens,fwdop,models[0],indxob,pvob,oberrvar,z,letkf=use_letkf)
+        enkf_update_modens(xens,hxens,fwdop,models[0],indxob,pvob,oberrvar,z,rsics,letkf=use_letkf,po=po)
     else:
         if not fixed or ntime == 0:
             covlocal = np.empty((nobs,nx*ny),np.float)

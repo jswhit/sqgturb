@@ -215,26 +215,12 @@ if __name__ == "__main__":
     #  initialize figure.
     outputinterval = 21600. # interval between frames in seconds
     tmin = 100.*86400. # time to start saving data (in days)
-    tmax = 500.*86400. # time to stop (in days)
+    tmax = 2200.*86400. # time to stop (in days)
     nsteps = int(tmax/outputinterval) # number of time steps to animate
     model.timesteps = int(outputinterval/model.dt)
     savedata = 'data/sqg_N%s.nc' % N # save data plotted in a netcdf file.
     #savedata = None
-
-    levplot = 1
-    fig = plt.figure(figsize=(8,8))
-    fig.subplots_adjust(left=0, bottom=0.0, top=1., right=1.)
-    vmin = scalefact*model.pvbar[levplot].min()
-    vmax = scalefact*model.pvbar[levplot].max()
-    def initfig():
-        global im,txt
-        ax = fig.add_subplot(111)
-        ax.axis('off')
-        pv = irfft2(model.pvspec[levplot])  # spectral to grid
-        im = ax.imshow(scalefact*pv,interpolation='nearest',origin='lower',vmin=vmin,vmax=vmax)
-        txt = ax.text(0.1,0.95,'PV (Z=%s) time t = %g hours' %\
-        (levplot,float(model.t/3600.)),color='k',fontweight='bold',fontsize=18,transform=ax.transAxes)
-        return im,txt
+    plot = False # animate data as model is running?
 
     if savedata is not None:
         from netCDF4 import Dataset
@@ -271,30 +257,62 @@ if __name__ == "__main__":
         yvar[:] = np.arange(0,model.L,model.L/N)
         zvar[0] = 0; zvar[1] = model.H
 
-    nout = 0
-    def updatefig(*args):
-        global nout
-        model.advance()
-        t = model.t
-        pv = irfft2(model.pvspec)
-        hr = t/3600.
-        spd = np.sqrt(model.u[levplot]**2+model.v[levplot]**2)
-        umean = model.u[levplot].mean(axis=-1)
-        print(hr,scalefact*pv.min(),scalefact*pv.max(),\
-        spd.max(),spd.max(),umean.min(),umean.max())
-        im.set_data(scalefact*pv[levplot])
-        txt.set_text('PV (Z=%s) time t = %g hours' % (levplot,hr))
-        if savedata is not None and t >= tmin:
-            print('saving data at t = t = %g hours' % hr)
-            pvvar[nout,:,:,:] = pv
-            tvar[nout] = t
-            nc.sync()
-            if t >= tmax: nc.close()
-            nout = nout + 1
-        return im,txt
+    levplot = 1; nout = 0
+    if plot:
+        fig = plt.figure(figsize=(8,8))
+        fig.subplots_adjust(left=0, bottom=0.0, top=1., right=1.)
+        vmin = scalefact*model.pvbar[levplot].min()
+        vmax = scalefact*model.pvbar[levplot].max()
+        def initfig():
+            global im,txt
+            ax = fig.add_subplot(111)
+            ax.axis('off')
+            pv = irfft2(model.pvspec[levplot])  # spectral to grid
+            im = ax.imshow(scalefact*pv,interpolation='nearest',origin='lower',vmin=vmin,vmax=vmax)
+            txt = ax.text(0.1,0.95,'PV (Z=%s) time t = %g hours' %\
+            (levplot,float(model.t/3600.)),color='k',fontweight='bold',fontsize=18,transform=ax.transAxes)
+            return im,txt
+        def updatefig(*args):
+            global nout
+            model.advance()
+            t = model.t
+            pv = irfft2(model.pvspec)
+            hr = t/3600.
+            spd = np.sqrt(model.u[levplot]**2+model.v[levplot]**2)
+            umean = model.u[levplot].mean(axis=-1)
+            print(hr,scalefact*pv.min(),scalefact*pv.max(),\
+            spd.max(),spd.max(),umean.min(),umean.max())
+            im.set_data(scalefact*pv[levplot])
+            txt.set_text('PV (Z=%s) time t = %g hours' % (levplot,hr))
+            if savedata is not None and t >= tmin:
+                print('saving data at t = t = %g hours' % hr)
+                pvvar[nout,:,:,:] = pv
+                tvar[nout] = t
+                nc.sync()
+                if t >= tmax: nc.close()
+                nout = nout + 1
+            return im,txt
 
-    #interval=0 means draw as fast as possible
-    if savedata is None: nsteps = None
-    ani = animation.FuncAnimation(fig, updatefig, frames=nsteps, repeat=False,\
-          init_func=initfig,interval=0,blit=False)
-    plt.show()
+        #interval=0 means draw as fast as possible
+        if savedata is None: nsteps = None
+        ani = animation.FuncAnimation(fig, updatefig, frames=nsteps, repeat=False,\
+              init_func=initfig,interval=0,blit=False)
+        plt.show()
+    else:
+        t = 0.0
+        while t < tmax:
+            model.advance()
+            t = model.t
+            pv = irfft2(model.pvspec)
+            hr = t/3600.
+            spd = np.sqrt(model.u[levplot]**2+model.v[levplot]**2)
+            umean = model.u[levplot].mean(axis=-1)
+            print(hr,scalefact*pv.min(),scalefact*pv.max(),\
+            spd.max(),spd.max(),umean.min(),umean.max())
+            if savedata is not None and t >= tmin:
+                print('saving data at t = t = %g hours' % hr)
+                pvvar[nout,:,:,:] = pv
+                tvar[nout] = t
+                nc.sync()
+                if t >= tmax: nc.close()
+                nout = nout + 1

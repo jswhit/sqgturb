@@ -2,6 +2,11 @@ import numpy as np
 from scipy import linalg
 # function definitions.
 
+def symsqrt_psd(a):
+    """symmetric square-root of a symmetric positive definite matrix"""
+    evals, eigs = linalg.eigh(a)
+    return (eigs * np.sqrt(np.maximum(evals,0))).dot(eigs.T)
+
 def cartdist(x1,y1,x2,y2,xmax,ymax):
     # cartesian distance on doubly periodic plane
     dx = np.abs(x1 - x2)
@@ -67,7 +72,7 @@ def enkf_update(xens,hxens,obs,oberrs,covlocal,obcovlocal=None):
             xens[:,n] = xmean[n] + np.dot(wts.T, xprime[:,n])
         return xens
 
-def enkf_update_modens(xens,hxens,fwdop,model,indxob,obs,oberrs,z,letkf=False):
+def enkf_update_modens(xens,hxens,fwdop,model,indxob,obs,oberrs,z,rs,letkf=False,po=False):
     """serial potter method or ETKF, modulated ensemble, no localization"""
 
     nanals, ndim = xens.shape; nobs = obs.shape[-1]
@@ -86,6 +91,7 @@ def enkf_update_modens(xens,hxens,fwdop,model,indxob,obs,oberrs,z,letkf=False):
     # normalize modulated ensemble so total variance unchanged.
     var = ((xprime**2).sum(axis=0)/(nanals-1)).mean()
     var2 = ((xprime2**2).sum(axis=0)/(nanals2-1)).mean()
+    #print np.sqrt(var/var2), np.sqrt(float(nanals2-1)/float(nanals-1))
     xprime2 = np.sqrt(var/var2)*xprime2
     #xprime2 = np.sqrt(float(nanals2-1)/float(nanals-1))*xprime2
     #var2 = ((xprime2**2).sum(axis=0)/(nanals2-1)).mean()
@@ -124,16 +130,22 @@ def enkf_update_modens(xens,hxens,fwdop,model,indxob,obs,oberrs,z,letkf=False):
         painv = linalg.cho_solve(linalg.cho_factor(pa),np.eye(nanals2))
         kfgain = np.dot(xprime2.T,np.dot(painv,YbRinv))
         xmean = xmean + np.dot(kfgain, obs-hxmean).T
-        # make sure ob noise has zero mean and correct stdev.
-        denkf = True
-        if not denkf:
+        if po: # use perturbed obs instead deterministic EnKF for ensperts.
+            # make sure ob noise has zero mean and correct stdev.
             obnoise =\
-            np.sqrt(oberrs)*np.random.standard_normal(size=(nanals,nobs))
+            np.sqrt(oberrs)*rs.standard_normal(size=(nanals,nobs))
             obnoise_var =\
             ((obnoise-obnoise.mean(axis=0))**2).sum(axis=0)/(nanals-1)
             obnoise = np.sqrt(oberrs)*obnoise/np.sqrt(obnoise_var)
             hxprime = hxprime + obnoise - obnoise.mean(axis=0) 
         else:
-            kfgain = 0.5*kfgain
+            D = np.dot(hxprime2.T, hxprime2)/(nanals2-1) + np.diag(oberrs)
+            Dsqrt = symsqrt_psd(D) # symmetric square root of pos-def sym matrix
+            tmp = Dsqrt + np.diag(1./np.sqrt(oberrs))
+            tmpinv = linalg.cho_solve(linalg.cho_factor(tmp),np.eye(nobs))
+            # ((D/hpbht)*(1.-np.sqrt(oberrs/D))) = 
+            # np.sqrt(D)/(np.sqrt(D) + np.sqrt(oberrs))
+            gainfact = np.dot(Dsqrt,tmpinv) 
+            kfgain = np.dot(kfgain, gainfact)
         xprime = xprime - np.dot(kfgain,hxprime.T).T
         return xmean + xprime
