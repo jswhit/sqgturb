@@ -67,9 +67,33 @@ def enkf_update(xens,hxens,obs,oberrs,covlocal,obcovlocal=None):
             tmp = np.dot(np.dot(np.dot(painv, painv.T), YbRinv), ominusf)
             return np.sqrt(nanals-1)*painv + tmp[:,np.newaxis]
         for n in range(ndim1):
-            Rinv = np.diag(covlocal[:,n]/oberrs)
-            wts = calcwts(hxprime,Rinv,(obs-hxmean))
+            mask = covlocal[:,n] > 1.e-10
+            Rinv = np.diag(covlocal[mask,n]/oberrs[mask])
+            wts = calcwts(hxprime[:,mask],Rinv,(obs-hxmean)[mask])
             xens[:,n] = xmean[n] + np.dot(wts.T, xprime[:,n])
+        #def calcgain(hx,xprime,oberrvar):
+        #    nobs = len(oberrvar)
+        #    nanals = xprime.shape[0]
+        #    YbRinv = np.dot(hx,(1./oberrvar)*np.eye(nobs))
+        #    pa = (nanals-1)*np.eye(nanals) + np.dot(YbRinv, hx.T)
+        #    painv = linalg.cho_solve(linalg.cho_factor(pa),np.eye(nanals))
+        #    kfgain = np.dot(xprime.T,np.dot(painv,YbRinv))
+        #    D = np.dot(hx.T, hx)/(nanals-1) + np.diag(oberrvar)
+        #    Dsqrt = symsqrt_psd(D) # symmetric square root of pos-def sym matrix
+        #    tmp = Dsqrt + np.diag(1./np.sqrt(oberrvar))
+        #    tmpinv = linalg.cho_solve(linalg.cho_factor(tmp),np.eye(nobs))
+        #    gainfact = np.dot(Dsqrt,tmpinv)
+        #    return kfgain, gainfact
+        #for n in range(ndim1):
+        #    mask = covlocal[:,n] > 1.e-10
+        #    oberr_tmp = oberrs[mask]/covlocal[mask,n]
+        #    xprime_tmp = xprime[:,n].reshape((nanals,1))
+        #    hxprime_tmp = hxprime[:,mask]
+        #    kfgain, gainfact = calcgain(hxprime_tmp,xprime_tmp,oberr_tmp)
+        #    xmean[n] = xmean[n] + (np.dot(kfgain, (obs-hxmean)[mask]).T).squeeze()
+        #    kfgain = np.dot(kfgain, gainfact)
+        #    xprime[:,n] = xprime[:,n] - (np.dot(kfgain,hxprime_tmp.T).T).squeeze()
+        #xens = xmean + xprime
         return xens
 
 def enkf_update_modens(xens,hxens,fwdop,model,indxob,obs,oberrs,z,rs,letkf=False,po=False):
@@ -137,15 +161,15 @@ def enkf_update_modens(xens,hxens,fwdop,model,indxob,obs,oberrs,z,rs,letkf=False
             obnoise_var =\
             ((obnoise-obnoise.mean(axis=0))**2).sum(axis=0)/(nanals-1)
             obnoise = np.sqrt(oberrs)*obnoise/np.sqrt(obnoise_var)
-            hxprime = hxprime + obnoise - obnoise.mean(axis=0) 
+            hxprime = hxprime + obnoise - obnoise.mean(axis=0)
         else:
             D = np.dot(hxprime2.T, hxprime2)/(nanals2-1) + np.diag(oberrs)
             Dsqrt = symsqrt_psd(D) # symmetric square root of pos-def sym matrix
-            tmp = Dsqrt + np.diag(1./np.sqrt(oberrs))
+            tmp = Dsqrt + np.diag(np.sqrt(oberrs))
             tmpinv = linalg.cho_solve(linalg.cho_factor(tmp),np.eye(nobs))
-            # ((D/hpbht)*(1.-np.sqrt(oberrs/D))) = 
+            # ((D/hpbht)*(1.-np.sqrt(oberrs/D))) =
             # np.sqrt(D)/(np.sqrt(D) + np.sqrt(oberrs))
-            gainfact = np.dot(Dsqrt,tmpinv) 
+            gainfact = np.dot(Dsqrt,tmpinv)
             kfgain = np.dot(kfgain, gainfact)
         xprime = xprime - np.dot(kfgain,hxprime.T).T
         return xmean + xprime
