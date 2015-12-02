@@ -45,10 +45,11 @@ nobs = 500 # number of obs to assimilate (randomly distributed)
 
 nanals = 20 # ensemble members
 
-oberrstdev_spinup = 0.5
 oberrstdev_final = 0.1 # ob error standard deviation in K
+nspinup = 100 # spinup cycles
+oberrstdev_spinup = 0.5 # ob error to use in spinup period
 
-nassim = 2200 # assimilation times to run
+nassim = 2200 # assimilation cycles to run
 
 filter_width = 10 # number of pts in running average filter for forward operator
 
@@ -227,7 +228,7 @@ if savedata is not None:
 for ntime in range(nassim):
 
     # in spinup period, use larger ob error
-    if ntime < 50:
+    if ntime < nspinup:
         oberrstdev = oberrstdev_spinup
     else:
         oberrstdev = oberrstdev_final
