@@ -48,10 +48,14 @@ nanals = 20 # ensemble members
 oberrstdev_spinup = 0.5
 oberrstdev_final = 0.1 # ob error standard deviation in K
 
-nassim = 1200 # assimilation times to run
+nassim = 2200 # assimilation times to run
 
-filter_width = 3 # number of pts in running average filter for forward operator
-use_gaussian_filter=True
+# smoothing parameters for forward operator.
+use_gaussian_filter=False
+if use_gaussian_filter:
+    filter_width = 3
+else:
+    filter_width = 10
 
 filename_climo = 'data/sqg_N64.nc' # file name for forecast model climo
 # perfect model
