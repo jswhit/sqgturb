@@ -141,7 +141,8 @@ if modelspace_local:
     zz = (eigs*np.sqrt(evals/frac)).T
     zz = np.tile(zz,(1,2))
     z = zz[nx*ny-neig:nx*ny,:]
-    print('# model space localization: neig = %s, frace = %s' % (neig,frac))
+    print('# model space localization: neig = %s, variance expl = %5.2f%%' %
+            (neig,100*frac))
 
 # initialize model clock
 for nanal in range(nanals):
