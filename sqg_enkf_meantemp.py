@@ -37,8 +37,6 @@ savedata = None # if not None, netcdf filename to save data.
 
 profile = False # turn on profiling?
 
-po = False # use perturbed obs?
-
 # if nobs > 0, each ob time nobs ob locations are randomly sampled (without
 # replacement) from the model grid
 # if nobs < 0, fixed network of every Nth grid point used (N = -nobs)
@@ -47,7 +45,7 @@ nobs = 500 # number of obs to assimilate (randomly distributed)
 
 nanals = 20 # ensemble members
 
-oberrstdev = 0.5 # ob error standard deviation in K
+oberrstdev = 0.1 # ob error standard deviation in K
 
 nassim = 2200 # assimilation times to run
 
@@ -285,7 +283,7 @@ for ntime in range(nassim):
     # update state vector.
     if modelspace_local:
         xens =\
-        enkf_update_modens(xens,hxens,fwdop,models[0],indxob,pvob,oberrvar,z,rsics,letkf=use_letkf,po=po)
+        enkf_update_modens(xens,hxens,fwdop,models[0],indxob,pvob,oberrvar,z,rsics,letkf=use_letkf)
     else:
         if not fixed or ntime == 0:
             covlocal = np.empty((nobs,nx*ny),np.float)

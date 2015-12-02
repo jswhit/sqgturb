@@ -80,33 +80,10 @@ def enkf_update(xens,hxens,obs,oberrs,covlocal,obcovlocal=None):
             Rinv = np.diag(covlocal[mask,n]/oberrs[mask])
             wts = calcwts(hxprime[:,mask],Rinv,(obs-hxmean)[mask])
             xens[:,n] = xmean[n] + np.dot(wts.T, xprime[:,n])
-        #def calcgain(hx,xprime,oberrvar):
-        #    nobs = len(oberrvar)
-        #    nanals = xprime.shape[0]
-        #    YbRinv = np.dot(hx,(1./oberrvar)*np.eye(nobs))
-        #    pa = (nanals-1)*np.eye(nanals) + np.dot(YbRinv, hx.T)
-        #    painv = cho_solve(cho_factor(pa),np.eye(nanals))
-        #    kfgain = np.dot(xprime.T,np.dot(painv,YbRinv))
-        #    D = np.dot(hx.T, hx)/(nanals-1) + np.diag(oberrvar)
-        #    Dsqrt = symsqrt_psd(D) # symmetric square root of pos-def sym matrix
-        #    tmp = Dsqrt + np.diag(1./np.sqrt(oberrvar))
-        #    tmpinv = cho_solve(cho_factor(tmp),np.eye(nobs))
-        #    gainfact = np.dot(Dsqrt,tmpinv)
-        #    return kfgain, gainfact
-        #for n in range(ndim1):
-        #    mask = covlocal[:,n] > 1.e-10
-        #    oberr_tmp = oberrs[mask]/covlocal[mask,n]
-        #    xprime_tmp = xprime[:,n].reshape((nanals,1))
-        #    hxprime_tmp = hxprime[:,mask]
-        #    kfgain, gainfact = calcgain(hxprime_tmp,xprime_tmp,oberr_tmp)
-        #    xmean[n] = xmean[n] + (np.dot(kfgain, (obs-hxmean)[mask]).T).squeeze()
-        #    kfgain = np.dot(kfgain, gainfact)
-        #    xprime[:,n] = xprime[:,n] - (np.dot(kfgain,hxprime_tmp.T).T).squeeze()
-        #xens = xmean + xprime
         return xens
 
-def enkf_update_modens(xens,hxens,fwdop,model,indxob,obs,oberrs,z,rs,letkf=False,po=False):
-    """serial potter method or ETKF, modulated ensemble, no localization"""
+def enkf_update_modens(xens,hxens,fwdop,model,indxob,obs,oberrs,z,rs,letkf=False):
+    """serial potter method or ETKF with modulated ensemble, no localization"""
 
     nanals, ndim = xens.shape; nobs = obs.shape[-1]
     xmean = xens.mean(axis=0); xprime = xens-xmean
@@ -158,31 +135,12 @@ def enkf_update_modens(xens,hxens,fwdop,model,indxob,obs,oberrs,z,rs,letkf=False
             hxprime = hxprime - gainfact*kfgain*hx[:,np.newaxis]
         return xmean + xprime
 
-    else:  # ETKF computation of gain, perturbed obs update for ens perts.
+    else:  # ETKF update
         YbRinv = np.dot(hxprime2,(1./oberrs)*np.eye(nobs))
         pa = (nanals2-1)*np.eye(nanals2)+np.dot(YbRinv,hxprime2.T)
         pasqrt_inv, painv = symsqrtinv_psd(pa)
         kfgain = np.dot(xprime2.T,np.dot(painv,YbRinv))
         xmean = xmean + np.dot(kfgain, obs-hxmean).T
-        if po: # use perturbed obs instead deterministic EnKF for ensperts.
-            # make sure ob noise has zero mean and correct stdev.
-            obnoise =\
-            np.sqrt(oberrs)*rs.standard_normal(size=(nanals,nobs))
-            obnoise_var =\
-            ((obnoise-obnoise.mean(axis=0))**2).sum(axis=0)/(nanals-1)
-            obnoise = np.sqrt(oberrs)*obnoise/np.sqrt(obnoise_var)
-            hxprime = hxprime + obnoise - obnoise.mean(axis=0)
-            xprime = xprime - np.dot(kfgain,hxprime.T).T
-        else:
-            # use reduced gain to update perts 
-            #D = np.dot(hxprime2.T, hxprime2)/(nanals2-1) + np.diag(oberrs)
-            #Dsqrt = symsqrt_psd(D) # symmetric square root of pos-def sym matrix
-            #tmp = Dsqrt + np.diag(np.sqrt(oberrs))
-            #tmpinv = cho_solve(cho_factor(tmp),np.eye(nobs))
-            #gainfact = np.dot(Dsqrt,tmpinv)
-            #kfgain = np.dot(kfgain, gainfact)
-            #xprime = xprime - np.dot(kfgain,hxprime.T).T
-            # use subset of ensemble wts to update perts
-            enswts = np.sqrt(nanals2-1)*pasqrt_inv
-            xprime = np.dot(enswts[:,0:nanals].T,xprime2/scalefact)
+        enswts = np.sqrt(nanals2-1)*pasqrt_inv
+        xprime = np.dot(enswts[:,0:nanals].T,xprime2/scalefact)
         return xmean + xprime
