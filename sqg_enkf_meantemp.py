@@ -45,7 +45,8 @@ nobs = 500 # number of obs to assimilate (randomly distributed)
 
 nanals = 20 # ensemble members
 
-oberrstdev = 0.1 # ob error standard deviation in K
+oberrstdev_spinup = 0.5
+oberrstdev_final = 0.1 # ob error standard deviation in K
 
 nassim = 2200 # assimilation times to run
 
@@ -59,7 +60,7 @@ filename_truth = 'data/sqg_N64.nc' # file name for nature run to draw obs
 
 print('# filename_modelclimo=%s' % filename_climo)
 print('# filename_truth=%s' % filename_truth)
-print('# oberr=%s oberrextra=%s' % (oberrstdev,oberrextra))
+print('# oberr=%s oberrextra=%s' % (oberrstdev_spinup,oberrextra))
 
 # fix random seed for reproducibility.
 rsobs = np.random.RandomState(42) # fixed seed for observations
@@ -106,7 +107,6 @@ else:
     print('# nobs = %s (random observing network)' % nobs)
     fixed = False
 print('# forward operator %s x %s average' %(filter_width,filter_width))
-oberrvar = oberrstdev**2*np.ones(nobs,np.float) + oberrextra**2
 pvob = np.empty(nobs,np.float)
 covlocal = np.empty((nx*ny,nx*ny),np.float)
 xens = np.empty((nanals,2*nx*ny),np.float)
@@ -180,7 +180,7 @@ if savedata is not None:
    nc.H = models[0].H
    nc.nanals = nanals
    nc.hcovlocal_scale = hcovlocal_scale
-   nc.oberrstdev = oberrstdev
+   nc.oberrstdev = oberrstdev_final
    nc.g = nc_climo.g; nc.theta0 = nc_climo.theta0
    nc.nsq = models[0].nsq
    nc.tdiab = models[0].tdiab
@@ -225,6 +225,13 @@ if savedata is not None:
    ensvar[:] = np.arange(1,nanals+1)
 
 for ntime in range(nassim):
+
+    # in spinup period, use larger ob error
+    if ntime < 50:
+        oberrstdev = oberrstdev_spinup
+    else:
+        oberrstdev = oberrstdev_final
+    oberrvar = oberrstdev**2*np.ones(nobs,np.float) + oberrextra**2
 
     # check model clock
     if models[0].t != obtimes[ntime]:
