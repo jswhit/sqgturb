@@ -127,7 +127,6 @@ def enkf_update_modens(xens,hxens,fwdop,model,indxob,obs,oberrs,z,rs,letkf=False
             xprime2 = xprime2 - gainfact*kfgain*hx2[:,np.newaxis]
             xprime = xprime - gainfact*kfgain*hx[:,np.newaxis]
             # observation space update
-            # only update obs within localization radius
             pbht = np.dot(hxprime2.T,hx2)/(nanals2-1)
             kfgain = pbht/(hpbht+oberr)
             hxmean = hxmean + kfgain*omf
