@@ -82,7 +82,7 @@ def enkf_update(xens,hxens,obs,oberrs,covlocal,obcovlocal=None):
             xens[:,n] = xmean[n] + np.dot(wts.T, xprime[:,n])
         return xens
 
-def enkf_update_modens(xens,hxens,fwdop,model,indxob,obs,oberrs,z,rs,letkf=False):
+def enkf_update_modens(xens,hxens,fwdop,indxob,obs,oberrs,z,rs,letkf=False):
     """serial potter method or ETKF with modulated ensemble, no localization"""
 
     nanals, ndim = xens.shape; nobs = obs.shape[-1]
@@ -110,7 +110,7 @@ def enkf_update_modens(xens,hxens,fwdop,model,indxob,obs,oberrs,z,rs,letkf=False
 
     # compute forward operator on modulated ensemble.
     for nanal in range(nanals2):
-        hxprime2[nanal] = fwdop(model,xprime2[nanal].reshape(2,model.N,model.N),indxob)
+        hxprime2[nanal] = fwdop.calc(xprime2[nanal].reshape(2,fwdop.model.N,fwdop.model.N),indxob)
 
     if not letkf:  # serial EnSRF update
 
@@ -141,5 +141,5 @@ def enkf_update_modens(xens,hxens,fwdop,model,indxob,obs,oberrs,z,rs,letkf=False
         kfgain = np.dot(xprime2.T,np.dot(painv,YbRinv))
         xmean = xmean + np.dot(kfgain, obs-hxmean).T
         enswts = np.sqrt(nanals2-1)*pasqrt_inv
-        xprime = np.dot(enswts[:,0:nanals].T,xprime2/scalefact)
+        xprime = np.dot(enswts[:,0:nanals].T,xprime2)/scalefact
         return xmean + xprime

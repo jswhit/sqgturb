@@ -5,7 +5,7 @@ from scipy import linalg
 from netCDF4 import Dataset
 import sys, time
 from enkf_meantemp_utils import  cartdist,enkf_update,enkf_update_modens,gaspcohn
-from scipy.ndimage.filters import uniform_filter
+from scipy.ndimage.filters import uniform_filter, gaussian_filter
 
 # EnKF cycling for SQG turbulence model model with vertically
 # integrated temp obs (and running mean filter in forward operator).
@@ -48,9 +48,10 @@ nanals = 20 # ensemble members
 oberrstdev_spinup = 0.5
 oberrstdev_final = 0.1 # ob error standard deviation in K
 
-nassim = 2200 # assimilation times to run
+nassim = 1200 # assimilation times to run
 
-filter_width = 10 # number of pts in running average filter for forward operator
+filter_width = 3 # number of pts in running average filter for forward operator
+use_gaussian_filter=True
 
 filename_climo = 'data/sqg_N64.nc' # file name for forecast model climo
 # perfect model
@@ -106,7 +107,10 @@ if nobs < 0:
 else:
     print('# nobs = %s (random observing network)' % nobs)
     fixed = False
-print('# forward operator %s x %s average' %(filter_width,filter_width))
+if use_gaussian_filter:
+    print('# forward operator gaussian filter with stdev %s' % filter_width)
+else:
+    print('# forward operator %s x %s block mean' %(filter_width,filter_width))
 pvob = np.empty(nobs,np.float)
 covlocal = np.empty((nx*ny,nx*ny),np.float)
 xens = np.empty((nanals,2*nx*ny),np.float)
@@ -157,19 +161,26 @@ if fixed:
     xob = x.ravel()[indxob]
     yob = y.ravel()[indxob]
 
-# forward operator
+# forward operator object
 # (vertically integrated theta obs).
-def fwdop(model,pv,indxob):
-    # vertically integrated theta obs.
-    pvspec = rfft2(pv)
-    psispec = model.invert(pvspec=pvspec)
-    pvavspec = (psispec[1]-psispec[0])/models[0].H
-    pvav = irfft2(pvavspec)
-    if filter_width > 0:
-        pvav = uniform_filter(pvav, size=filter_width, output=None,
-               mode='wrap', cval=0.0, origin=0)
-    return scalefact*pvav.ravel()[indxob]
-
+class Hop(object):
+    def __init__(self,**kwargs):
+        for k in kwargs:
+            self.__dict__[k] = kwargs[k]
+    def calc(self,pv,indxob):
+        pvspec = rfft2(pv)
+        psispec = self.model.invert(pvspec=pvspec)
+        pvavspec = (psispec[1]-psispec[0])/self.model.H
+        pvav = irfft2(pvavspec)
+        if self.filter_width > 0:
+            if self.use_gaussian_filter:
+                pvav = gaussian_filter(pvav, self.filter_width, mode='wrap')
+            else:
+                pvav = uniform_filter(pvav, size=self.filter_width, mode='wrap')
+        return self.scalefact*pvav.ravel()[indxob]
+fwdop = Hop(model=models[0],scalefact=scalefact,filter_width=filter_width,\
+            use_gaussian_filter=use_gaussian_filter)
+        
 # initialize netcdf output file
 if savedata is not None:
    nc = Dataset(savedata, mode='w', format='NETCDF4_CLASSIC')
@@ -247,7 +258,7 @@ for ntime in range(nassim):
         indxob = rsobs.choice(nx*ny,nobs,replace=False,p=p.ravel())
         xob = x.ravel()[indxob]; yob = y.ravel()[indxob]
     # vertically integrated theta obs.
-    pvob = fwdop(models[0],pv_truth[ntime],indxob)
+    pvob = fwdop.calc(pv_truth[ntime],indxob)
     pvob += rsobs.normal(scale=oberrstdev,size=nobs) # add ob errors
     # plot ob network
     #import matplotlib.pyplot as plt
@@ -264,7 +275,7 @@ for ntime in range(nassim):
     # hxens is ensemble in observation space.
     hxens = np.empty((nanals,nobs),np.float)
     for nanal in range(nanals):
-        hxens[nanal] = fwdop(models[nanal],pvens[nanal],indxob)
+        hxens[nanal] = fwdop.calc(pvens[nanal],indxob)
     hxensmean_b = hxens.mean(axis=0)
     obsprd = ((hxens-hxensmean_b)**2).sum(axis=0)/(nanals-1)
     # innov stats for background
@@ -290,7 +301,7 @@ for ntime in range(nassim):
     # update state vector.
     if modelspace_local:
         xens =\
-        enkf_update_modens(xens,hxens,fwdop,models[0],indxob,pvob,oberrvar,z,rsics,letkf=use_letkf)
+        enkf_update_modens(xens,hxens,fwdop,indxob,pvob,oberrvar,z,rsics,letkf=use_letkf)
     else:
         if not fixed or ntime == 0:
             covlocal = np.empty((nobs,nx*ny),np.float)
@@ -312,7 +323,7 @@ for ntime in range(nassim):
 
     # forward operator on posterior ensemble.
     for nanal in range(nanals):
-        hxens[nanal] = fwdop(models[nanal],pvens[nanal],indxob)
+        hxens[nanal] = fwdop.calc(pvens[nanal],indxob)
 
     # ob space diagnostics
     hxensmean_a = hxens.mean(axis=0)
