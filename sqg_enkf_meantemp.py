@@ -25,7 +25,7 @@ covinflate1=1.; covinflate2=1.
 if len(sys.argv) > 4:
     # inflation parameters for Hodyss and Campbell inflation
     covinflate1 = float(sys.argv[4])
-    covinflate2 = float(sys.argv[4])
+    covinflate2 = float(sys.argv[5])
 
 # representativity error
 oberrextra = 0.0
@@ -59,7 +59,7 @@ else:
 
 filename_climo = 'data/sqg_N64.nc' # file name for forecast model climo
 # perfect model
-filename_truth = 'data/sqg_N64.nc' # file name for nature run to draw obs
+filename_truth = 'data/sqg_N128_N64.nc' # file name for nature run to draw obs
 # model error
 #filename_truth = 'data/sqg_N256_N64.nc' # file name for nature run to draw obs
 
@@ -343,12 +343,16 @@ for ntime in range(nassim):
     pvensmean_a = pvens.mean(axis=0)
     pvprime = pvens-pvensmean_a
     asprd = (pvprime**2).sum(axis=0)/(nanals-1)
-    # Hodyss and Campbell (covinflate1=covinflate2=1 works best in perfect
-    # model scenario)
-    inc = pvensmean_a - pvensmean_b
-    inflation_factor = covinflate1*asprd + \
-    (asprd/fsprd)**2*((fsprd/nanals) + covinflate2*(2.*inc**2/(nanals-1)))
-    inflation_factor = np.sqrt(inflation_factor/asprd)
+    if covinflate2 > 0:
+        # Hodyss and Campbell (covinflate1=covinflate2=1 works best in perfect
+        # model scenario)
+        inc = pvensmean_a - pvensmean_b
+        inflation_factor = covinflate1*asprd + \
+        (asprd/fsprd)**2*((fsprd/nanals) + covinflate2*(2.*inc**2/(nanals-1)))
+        inflation_factor = np.sqrt(inflation_factor/asprd)
+    else: # RTPS inflation
+        asprd = np.sqrt(asprd); fsprd = np.sqrt(fsprd)
+        inflation_factor = 1.+covinflate1*(fsprd-asprd)/asprd
     pvprime = pvprime*inflation_factor
     pvens = pvprime + pvensmean_a
 
