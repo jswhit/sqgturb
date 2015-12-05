@@ -301,7 +301,7 @@ for ntime in range(nassim):
     # update state vector.
     if modelspace_local:
         xens =\
-        enkf_update_modens(xens,hxens,fwdop,indxob,pvob,oberrvar,z,rsics,letkf=use_letkf)
+        enkf_update_modens(xens,hxens,fwdop,indxob,pvob,oberrvar,z,letkf=use_letkf)
     else:
         if not fixed or ntime == 0:
             covlocal = np.empty((nobs,nx*ny),np.float)

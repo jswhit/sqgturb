@@ -76,7 +76,7 @@ def enkf_update(xens,hxens,obs,oberrs,covlocal,obcovlocal=None):
             xens[:,n] = xmean[n] + np.dot(wts.T, xprime[:,n])
         return xens
 
-def enkf_update_modens(xens,hxens,fwdop,indxob,obs,oberrs,z,rs,letkf=False):
+def enkf_update_modens(xens,hxens,fwdop,indxob,obs,oberrs,z,letkf=False):
     """serial potter method or ETKF with modulated ensemble, no localization"""
 
     nanals, ndim = xens.shape; nobs = obs.shape[-1]
