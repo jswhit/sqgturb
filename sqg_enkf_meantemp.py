@@ -8,7 +8,7 @@ from enkf_meantemp_utils import  cartdist,enkf_update,enkf_update_modens,gaspcoh
 from scipy.ndimage.filters import uniform_filter, gaussian_filter
 
 # EnKF cycling for SQG turbulence model model with vertically
-# integrated temp obs (and running mean filter in forward operator).
+# integrated temp obs (and horizontal filter in forward operator).
 # Random or fixed observing network.
 
 np.seterr(all='raise') # raise error when overflow occurs
