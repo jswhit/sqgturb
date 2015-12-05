@@ -3,11 +3,6 @@ from numpy.linalg import eigh
 from scipy.linalg import cho_solve, cho_factor
 # function definitions.
 
-def symsqrt_psd(a):
-    """symmetric square-root of a symmetric positive definite matrix"""
-    evals, eigs = eigh(a)
-    return (eigs * np.sqrt(np.maximum(evals,0))).dot(eigs.T)
-
 def symsqrtinv_psd(a):
     """inverse and inverse symmetric square-root of a symmetric positive
     definite matrix"""
@@ -71,10 +66,9 @@ def enkf_update(xens,hxens,obs,oberrs,covlocal,obcovlocal=None):
         def calcwts(hx,Rinv,ominusf):
             YbRinv = np.dot(hx, Rinv)
             pa = (nanals-1)*np.eye(nanals) + np.dot(YbRinv, hx.T)
-            evals, eigs = eigh(pa)
-            painv = np.dot(np.dot(eigs, np.diag(np.sqrt(1./evals))), eigs.T)
-            tmp = np.dot(np.dot(np.dot(painv, painv.T), YbRinv), ominusf)
-            return np.sqrt(nanals-1)*painv + tmp[:,np.newaxis]
+            pasqrt_inv, painv = symsqrtinv_psd(pa)
+            tmp = np.dot(np.dot(painv, YbRinv), ominusf)
+            return np.sqrt(nanals-1)*pasqrt_inv + tmp[:,np.newaxis]
         for n in range(ndim1):
             mask = covlocal[:,n] > 1.e-10
             Rinv = np.diag(covlocal[mask,n]/oberrs[mask])

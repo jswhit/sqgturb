@@ -11,6 +11,8 @@ from scipy.ndimage.filters import uniform_filter, gaussian_filter
 # integrated temp obs (and running mean filter in forward operator).
 # Random or fixed observing network.
 
+np.seterr(all='raise') # raise error when overflow occurs
+
 if len(sys.argv) == 1:
    msg="""
 python sqg_enkf_meantemp_ml.py hcovlocal_scale covinflate1 covinflate2
@@ -19,7 +21,7 @@ python sqg_enkf_meantemp_ml.py hcovlocal_scale covinflate1 covinflate2
 
 # covariance localization length scale in meters.
 hcovlocal_scale = float(sys.argv[1])
-modelspace_local = int(sys.argv[2]) # model or ob space localization
+modelspace_local = bool(int(sys.argv[2])) # model or ob space localization
 use_letkf = bool(int(sys.argv[3])) # (local) ETKF or serial assimilation
 covinflate1=1.; covinflate2=1.
 if len(sys.argv) > 4:
@@ -40,33 +42,31 @@ profile = False # turn on profiling?
 # if nobs > 0, each ob time nobs ob locations are randomly sampled (without
 # replacement) from the model grid
 # if nobs < 0, fixed network of every Nth grid point used (N = -nobs)
-nobs = 500 # number of obs to assimilate (randomly distributed)
+nobs = 128 # number of obs to assimilate (randomly distributed)
 #nobs = -4 # fixed network, every -nobs grid points. nobs=-1 obs at all pts.
 
 nanals = 20 # ensemble members
 
-oberrstdev_final = 0.1 # ob error standard deviation in K
-nspinup = 100 # spinup cycles
-oberrstdev_spinup = 0.5 # ob error to use in spinup period
+oberrstdev = 0.1 # ob error standard deviation in K
 
-nassim = 2200 # assimilation cycles to run
+nassim = 2200 # assimilation times to run
 
 # smoothing parameters for forward operator.
-use_gaussian_filter=False
+use_gaussian_filter=True
 if use_gaussian_filter:
-    filter_width = 3
+    filter_width = 4
 else:
     filter_width = 10
 
 filename_climo = 'data/sqg_N64.nc' # file name for forecast model climo
 # perfect model
-filename_truth = 'data/sqg_N128_N64.nc' # file name for nature run to draw obs
+#filename_truth = 'data/sqg_N64.nc' # file name for nature run to draw obs
 # model error
-#filename_truth = 'data/sqg_N256_N64.nc' # file name for nature run to draw obs
+filename_truth = 'data/sqg_N128_N64.nc' # file name for nature run to draw obs
 
 print('# filename_modelclimo=%s' % filename_climo)
 print('# filename_truth=%s' % filename_truth)
-print('# oberr=%s oberrextra=%s' % (oberrstdev_spinup,oberrextra))
+print('# oberr=%s oberrextra=%s' % (oberrstdev,oberrextra))
 
 # fix random seed for reproducibility.
 rsobs = np.random.RandomState(42) # fixed seed for observations
@@ -107,10 +107,10 @@ if nobs < 0:
     if nx%nobs != 0:
         raise ValueError('nx must be divisible by nobs')
     nobs = (nx/nobs)**2
-    print('# nobs = %s (fixed observing network)' % nobs)
+    print('# nobs=%s (fixed ob network), modelspace_local=%s' % (nobs,modelspace_local))
     fixed = True
 else:
-    print('# nobs = %s (random observing network)' % nobs)
+    print('# nobs=%s (random obs network), modelspace_local=%s' % (nobs,modelspace_local))
     fixed = False
 if use_gaussian_filter:
     print('# forward operator gaussian filter with stdev %s' % filter_width)
@@ -242,11 +242,6 @@ if savedata is not None:
 
 for ntime in range(nassim):
 
-    # in spinup period, use larger ob error
-    if ntime < nspinup:
-        oberrstdev = oberrstdev_spinup
-    else:
-        oberrstdev = oberrstdev_final
     oberrvar = oberrstdev**2*np.ones(nobs,np.float) + oberrextra**2
 
     # check model clock
