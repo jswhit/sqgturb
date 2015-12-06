@@ -1,4 +1,4 @@
-#from __future__ import print_function
+from __future__ import print_function
 from sqg import SQG, rfft2, irfft2
 import numpy as np
 from scipy import linalg
@@ -103,7 +103,7 @@ for nanal in range(nanals):
     #pvav2 = gaussian_filter(pvav, filter_widthg, mode='wrap')
     #filter_widthu = 10
     #pvav3 = uniform_filter(pvav, size=filter_widthu, mode='wrap')
-    #print pvav.min(), pvav.max()
+    #print(pvav.min(), pvav.max())
     #vmin = -30; vmax = 30
     #im = plt.imshow(pvav,interpolation='nearest',origin='lower',vmin=vmin,vmax=vmax)
     #plt.title('unfiltered')
