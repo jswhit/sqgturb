@@ -1,4 +1,4 @@
-from __future__ import print_function
+#from __future__ import print_function
 from sqg import SQG, rfft2, irfft2
 import numpy as np
 from scipy import linalg
@@ -54,15 +54,15 @@ nassim = 2200 # assimilation times to run
 # smoothing parameters for forward operator.
 use_gaussian_filter=True
 if use_gaussian_filter:
-    filter_width = 4
+    filter_width = 3
 else:
     filter_width = 10
 
 filename_climo = 'data/sqg_N64.nc' # file name for forecast model climo
 # perfect model
-#filename_truth = 'data/sqg_N64.nc' # file name for nature run to draw obs
+filename_truth = 'data/sqg_N64.nc' # file name for nature run to draw obs
 # model error
-filename_truth = 'data/sqg_N128_N64.nc' # file name for nature run to draw obs
+#filename_truth = 'data/sqg_N128_N64.nc' # file name for nature run to draw obs
 
 print('# filename_modelclimo=%s' % filename_climo)
 print('# filename_truth=%s' % filename_truth)
@@ -94,6 +94,27 @@ for nanal in range(nanals):
     nsq=nc_climo.nsq,f=nc_climo.f,dt=dt,U=nc_climo.U,H=nc_climo.H,\
     r=nc_climo.r,tdiab=nc_climo.tdiab,symmetric=nc_climo.symmetric,\
     diff_order=nc_climo.diff_order,diff_efold=diff_efold))
+    #import matplotlib.pyplot as plt
+    #pvspec = rfft2(pvens[nanal])
+    #psispec = models[nanal].invert(pvspec=pvspec)
+    #pvavspec = (psispec[1]-psispec[0])/models[nanal].H
+    #pvav = scalefact*irfft2(pvavspec)
+    #filter_widthg = 3
+    #pvav2 = gaussian_filter(pvav, filter_widthg, mode='wrap')
+    #filter_widthu = 10
+    #pvav3 = uniform_filter(pvav, size=filter_widthu, mode='wrap')
+    #print pvav.min(), pvav.max()
+    #vmin = -30; vmax = 30
+    #im = plt.imshow(pvav,interpolation='nearest',origin='lower',vmin=vmin,vmax=vmax)
+    #plt.title('unfiltered')
+    #plt.figure()
+    #im = plt.imshow(pvav2,interpolation='nearest',origin='lower',vmin=vmin,vmax=vmax)
+    #plt.title('gaussian filtered sigma=%s' % (filter_widthg))
+    #plt.figure()
+    #im = plt.imshow(pvav3,interpolation='nearest',origin='lower',vmin=vmin,vmax=vmax)
+    #plt.title('uniform filtered width=%s' % (filter_widthu))
+    #plt.show()
+    #raise SystemExit
 
 print("# hcovlocal=%g diff_efold=%s covinf1=%s covinf2=%s nanals=%s use_letkf=%s" %\
      (hcovlocal_scale/1000.,diff_efold,covinflate1,covinflate2,nanals,use_letkf))
