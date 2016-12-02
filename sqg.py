@@ -191,7 +191,7 @@ if __name__ == "__main__":
 
     # model parameters.
     N = 512 # number of waves
-    dt = 100  # time step
+    dt = 120  # time step
     # Ekman damping coefficient r=dek*N**2/f, dek = ekman depth = sqrt(2.*Av/f))
     # Av (turb viscosity) = 2.5 gives dek = sqrt(5/f) = 223
     # for ocean Av is 1-5, land 5-50 (Lin and Pierrehumbert, 1988)
@@ -208,7 +208,7 @@ if __name__ == "__main__":
     # thermal relaxation time scale
     tdiab = 10.*86400 # in seconds
     # efolding time scale (seconds) for smallest wave (N/2) in del**norder hyperdiffusion
-    norder = 8; diff_efold = 2400
+    norder = 8; diff_efold = 1800
     symmetric = True # (asymmetric equilibrium jet with zero wind at sfc)
     # parameter used to scale PV to temperature units.
     scalefact = f*theta0/g
@@ -300,9 +300,7 @@ if __name__ == "__main__":
             pv = irfft2(model.pvspec)
             hr = t/3600.
             spd = np.sqrt(model.u[levplot]**2+model.v[levplot]**2)
-            umean = model.u[levplot].mean(axis=-1)
-            print(hr,scalefact*pv.min(),scalefact*pv.max(),\
-            spd.max(),spd.max(),umean.min(),umean.max())
+            print(hr,spd.max(),scalefact*pv.min(),scalefact*pv.max())
             im.set_data(scalefact*pv[levplot])
             txt.set_text('PV (Z=%s) time t = %g hours' % (levplot,hr))
             if savedata is not None and t >= tmin:
