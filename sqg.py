@@ -191,7 +191,7 @@ if __name__ == "__main__":
 
     # model parameters.
     N = 512 # number of waves
-    dt = 120  # time step
+    dt = 100  # time step
     # Ekman damping coefficient r=dek*N**2/f, dek = ekman depth = sqrt(2.*Av/f))
     # Av (turb viscosity) = 2.5 gives dek = sqrt(5/f) = 223
     # for ocean Av is 1-5, land 5-50 (Lin and Pierrehumbert, 1988)
