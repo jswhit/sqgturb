@@ -22,13 +22,17 @@ import numpy as np
 try: # pyfftw is *much* faster
     from pyfftw.interfaces import numpy_fft, cache
     #print('# using pyfftw...')
-    use_fftw = True
     cache.enable()
     rfft2 = numpy_fft.rfft2; irfft2 = numpy_fft.irfft2
 except ImportError: # fall back on numpy fft.
     print('# WARNING: using numpy fft (install pyfftw for better performance)...')
-    use_fftw = False
-    rfft2 = np.fft.rfft2; irfft2 = np.fft.irfft2
+    def rfft2(*args, **kwargs):
+        kwargs.pop('threads',None)
+        return np.fft.rfft2(*args,**kwargs)
+    def irfft2(*args, **kwargs):
+        kwargs.pop('threads',None)
+        return np.fft.irfft2(*args,**kwargs)
+
 
 class SQG:
 
@@ -131,16 +135,10 @@ class SQG:
         # number of timesteps given by 'timesteps' instance var.
         # if pv not specified, use pvspec instance variable.
         if pv is not None:
-            if use_fftw:
-                self.pvspec = rfft2(pv,threads=self.threads)
-            else:
-                self.pvspec = rfft2(pv)
+            self.pvspec = rfft2(pv,threads=self.threads)
         for n in range(self.timesteps):
             self.timestep()
-        if use_fftw:
-            return irfft2(self.pvspec,threads=self.threads)
-        else:
-            return irfft2(self.pvspec)
+        return irfft2(self.pvspec,threads=self.threads)
 
     def gettend(self,pvspec=None):
         # compute tendencies of pv on z=0,H
@@ -149,20 +147,12 @@ class SQG:
             pvspec = self.pvspec
         psispec = self.invert(pvspec)
         # nonlinear jacobian and thermal relaxation
-        if use_fftw:
-           u = irfft2(-self.il*psispec,threads=self.threads)
-           v = irfft2(self.ik*psispec,threads=self.threads)
-           pvx = irfft2(self.ik*pvspec,threads=self.threads)
-           pvy = irfft2(self.il*pvspec,threads=self.threads)
-           dpvspecdt =\
-           (1./self.tdiab)*(self.pvspec_eq-pvspec)-rfft2(u*pvx+v*pvy,threads=self.threads)
-        else:
-           u = irfft2(-self.il*psispec)
-           v = irfft2(self.ik*psispec)
-           pvx = irfft2(self.ik*pvspec)
-           pvy = irfft2(self.il*pvspec)
-           dpvspecdt =\
-           (1./self.tdiab)*(self.pvspec_eq-pvspec)-rfft2(u*pvx+v*pvy)
+        u = irfft2(-self.il*psispec,threads=self.threads)
+        v = irfft2(self.ik*psispec,threads=self.threads)
+        pvx = irfft2(self.ik*pvspec,threads=self.threads)
+        pvy = irfft2(self.il*pvspec,threads=self.threads)
+        dpvspecdt =\
+        (1./self.tdiab)*(self.pvspec_eq-pvspec)-rfft2(u*pvx+v*pvy,threads=self.threads)
         # Ekman damping at boundaries.
         if self.ekman:
             dpvspecdt[0] += self.r*self.ksqlsq*psispec[0]
