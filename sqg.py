@@ -22,10 +22,12 @@ import numpy as np
 try: # pyfftw is *much* faster
     from pyfftw.interfaces import numpy_fft, cache
     #print('# using pyfftw...')
+    use_fftw = True
     cache.enable()
     rfft2 = numpy_fft.rfft2; irfft2 = numpy_fft.irfft2
 except ImportError: # fall back on numpy fft.
     print('# WARNING: using numpy fft (install pyfftw for better performance)...')
+    use_fftw = False
     rfft2 = np.fft.rfft2; irfft2 = np.fft.irfft2
 
 class SQG:
@@ -38,7 +40,8 @@ class SQG:
             raise ValueError('1st dim of pv should be 2')
         N = pv.shape[1] # number of grid points in each direction
         self.N = N
-        self.threads = threads # number of openmp threads to use for FFTs
+        # number of openmp threads to use for FFTs (only for pyfftw)
+        self.threads = threads
         # N should be even
         if N%2:
             raise ValueError('N must be even (powers of 2 are fastest)')
@@ -83,8 +86,8 @@ class SQG:
         pvbar.shape = (2,N,1)
         pvbar = pvbar*np.ones((2,N,N),np.float32)
         self.pvbar = pvbar
-        self.pvspec_eq = rfft2(pvbar,threads=self.threads) # state to relax to with timescale tdiab
-        self.pvspec = rfft2(pv,threads=self.threads) # initial pv field (spectral)
+        self.pvspec_eq = rfft2(pvbar) # state to relax to with timescale tdiab
+        self.pvspec = rfft2(pv) # initial pv field (spectral)
         # spectral stuff
         k = (N*np.fft.fftfreq(N))[0:(N/2)+1]
         l = N*np.fft.fftfreq(N)
@@ -128,10 +131,16 @@ class SQG:
         # number of timesteps given by 'timesteps' instance var.
         # if pv not specified, use pvspec instance variable.
         if pv is not None:
-            self.pvspec = rfft2(pv,threads=self.threads)
+            if use_fftw:
+                self.pvspec = rfft2(pv,threads=self.threads)
+            else:
+                self.pvspec = rfft2(pv)
         for n in range(self.timesteps):
             self.timestep()
-        return irfft2(self.pvspec,threads=self.threads)
+        if use_fftw:
+            return irfft2(self.pvspec,threads=self.threads)
+        else:
+            return irfft2(self.pvspec)
 
     def gettend(self,pvspec=None):
         # compute tendencies of pv on z=0,H
@@ -140,12 +149,20 @@ class SQG:
             pvspec = self.pvspec
         psispec = self.invert(pvspec)
         # nonlinear jacobian and thermal relaxation
-        u = irfft2(-self.il*psispec,threads=self.threads)
-        v = irfft2(self.ik*psispec,threads=self.threads)
-        pvx = irfft2(self.ik*pvspec,threads=self.threads)
-        pvy = irfft2(self.il*pvspec,threads=self.threads)
-        dpvspecdt =\
-        (1./self.tdiab)*(self.pvspec_eq-pvspec)-rfft2(u*pvx+v*pvy,threads=self.threads)
+        if use_fftw:
+           u = irfft2(-self.il*psispec,threads=self.threads)
+           v = irfft2(self.ik*psispec,threads=self.threads)
+           pvx = irfft2(self.ik*pvspec,threads=self.threads)
+           pvy = irfft2(self.il*pvspec,threads=self.threads)
+           dpvspecdt =\
+           (1./self.tdiab)*(self.pvspec_eq-pvspec)-rfft2(u*pvx+v*pvy,threads=self.threads)
+        else:
+           u = irfft2(-self.il*psispec)
+           v = irfft2(self.ik*psispec)
+           pvx = irfft2(self.ik*pvspec)
+           pvy = irfft2(self.il*pvspec)
+           dpvspecdt =\
+           (1./self.tdiab)*(self.pvspec_eq-pvspec)-rfft2(u*pvx+v*pvy)
         # Ekman damping at boundaries.
         if self.ekman:
             dpvspecdt[0] += self.r*self.ksqlsq*psispec[0]
@@ -173,8 +190,7 @@ if __name__ == "__main__":
     # netcdf file.
 
     # model parameters.
-    #N = 64 # number of points in each direction.
-    N = 512
+    N = 512 # number of waves
     # Ekman damping coefficient r=dek*N**2/f, dek = ekman depth = sqrt(2.*Av/f))
     # Av (turb viscosity) = 2.5 gives dek = sqrt(5/f) = 223
     # for ocean Av is 1-5, land 5-50 (Lin and Pierrehumbert, 1988)
@@ -191,10 +207,8 @@ if __name__ == "__main__":
     dt = 120 # for N=256
     # thermal relaxation time scale
     tdiab = 10.*86400 # in seconds
-    #tdiab =  10.*Lr/U # in advective time scales.
     # efolding time scale (seconds) for smallest wave (N/2) in del**norder hyperdiffusion
     norder = 8
-    #diff_efold = 9000. # for N=64
     diff_efold = 2400. # for N=256
     symmetric = True # (asymmetric equilibrium jet with zero wind at sfc)
     # parameter used to scale PV to temperature units.
@@ -213,21 +227,21 @@ if __name__ == "__main__":
         pv[k] = pv[k] - pv[k].mean()
 
     # get OMP_NUM_THREADS (threads to use) from environment.
-    threads = int(os.getenv('OMP_NUM_THREADS'))
+    threads = int(os.getenv('OMP_NUM_THREADS','1'))
 
     # initialize qg model instance
     model = SQG(pv,nsq=nsq,f=f,U=U,H=H,r=r,tdiab=tdiab,dt=dt,
                 diff_order=norder,diff_efold=diff_efold,symmetric=symmetric,threads=threads)
 
     #  initialize figure.
-    #outputinterval = 21600. # interval between frames in seconds
     outputinterval = 3600. # interval between frames in seconds
     tmin = 100.*86400. # time to start saving data (in days)
     tmax = 500.*86400. # time to stop (in days)
     nsteps = int(tmax/outputinterval) # number of time steps to animate
+    # set number of timesteps to integrate for each call to model.advance
     model.timesteps = int(outputinterval/model.dt)
     savedata = 'data/sqg_N%s.nc' % N # save data plotted in a netcdf file.
-    #savedata = None
+    #savedata = None # don't save data
     plot = True # animate data as model is running?
 
     if savedata is not None:
@@ -284,7 +298,7 @@ if __name__ == "__main__":
             global nout
             model.advance()
             t = model.t
-            pv = irfft2(model.pvspec,threads=model.threads)
+            pv = irfft2(model.pvspec)
             hr = t/3600.
             spd = np.sqrt(model.u[levplot]**2+model.v[levplot]**2)
             umean = model.u[levplot].mean(axis=-1)
@@ -311,7 +325,7 @@ if __name__ == "__main__":
         while t < tmax:
             model.advance()
             t = model.t
-            pv = irfft2(model.pvspec,threads=model.threads)
+            pv = irfft2(model.pvspec)
             hr = t/3600.
             spd = np.sqrt(model.u[levplot]**2+model.v[levplot]**2)
             umean = model.u[levplot].mean(axis=-1)
