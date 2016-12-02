@@ -39,12 +39,12 @@ class SQG:
         if pv.shape[0] != 2:
             raise ValueError('1st dim of pv should be 2')
         N = pv.shape[1] # number of grid points in each direction
-        self.N = N
-        # number of openmp threads to use for FFTs (only for pyfftw)
-        self.threads = threads
         # N should be even
         if N%2:
             raise ValueError('N must be even (powers of 2 are fastest)')
+        self.N = N
+        # number of openmp threads to use for FFTs (only for pyfftw)
+        self.threads = threads
         if dt is None: # default time step
             dt = 128.*1200./N
         self.nsq = np.array(nsq,np.float32) # Brunt-Vaisalla (buoyancy) freq squared
