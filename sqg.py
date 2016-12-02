@@ -285,14 +285,12 @@ if __name__ == "__main__":
         vmin = scalefact*model.pvbar[levplot].min()
         vmax = scalefact*model.pvbar[levplot].max()
         def initfig():
-            global im,txt
+            global im
             ax = fig.add_subplot(111)
             ax.axis('off')
             pv = irfft2(model.pvspec[levplot])  # spectral to grid
             im = ax.imshow(scalefact*pv,interpolation='nearest',origin='lower',vmin=vmin,vmax=vmax)
-            txt = ax.text(0.1,0.95,'PV (Z=%s) time t = %g hours' %\
-            (levplot,float(model.t/3600.)),color='w',fontweight='bold',fontsize=18,transform=ax.transAxes)
-            return im,txt
+            return im,
         def updatefig(*args):
             global nout
             model.advance()
@@ -302,7 +300,6 @@ if __name__ == "__main__":
             spd = np.sqrt(model.u[levplot]**2+model.v[levplot]**2)
             print(hr,spd.max(),scalefact*pv.min(),scalefact*pv.max())
             im.set_data(scalefact*pv[levplot])
-            txt.set_text('PV (Z=%s) time t = %g hours' % (levplot,hr))
             if savedata is not None and t >= tmin:
                 print('saving data at t = t = %g hours' % hr)
                 pvvar[nout,:,:,:] = pv
@@ -310,7 +307,7 @@ if __name__ == "__main__":
                 nc.sync()
                 if t >= tmax: nc.close()
                 nout = nout + 1
-            return im,txt
+            return im,
 
         # interval=0 means draw as fast as possible
         if savedata is None: nsteps = None
