@@ -300,7 +300,6 @@ if __name__ == "__main__":
             return im,
 
         # interval=0 means draw as fast as possible
-        if savedata is None: nsteps = None
         ani = animation.FuncAnimation(fig, updatefig, frames=nsteps, repeat=False,\
               init_func=initfig,interval=0,blit=True)
         plt.show()
