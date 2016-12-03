@@ -3,6 +3,7 @@ import matplotlib.animation as animation
 from netCDF4 import Dataset
 
 filename = '../data/sqg_N512.nc'
+vmin = -30; vmax = 30; levplot = 1
 
 nc = Dataset(filename)
 pv_var = nc['pv']
@@ -12,7 +13,7 @@ scalefact = nc.f*nc.theta0/nc.g
 
 fig = plt.figure(figsize=(8,8))
 fig.subplots_adjust(left=0, bottom=0.0, top=1., right=1.)
-vmin = -30; vmax = 30; nout = 1; levplot = 1
+nout = 1
 
 def initfig():
     global im
@@ -29,7 +30,7 @@ def updatefig(*args):
     hr = t/3600.
     print hr,pv.min(),pv.max()
     im.set_data(pv[levplot])
-    nout = nout + 1
+    nout += 1
     return im,
 
 # interval=0 means draw as fast as possible
