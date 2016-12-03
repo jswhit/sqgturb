@@ -180,7 +180,7 @@ if __name__ == "__main__":
     # netcdf file.
 
     # model parameters.
-    N = 512 # number of waves
+    N = 512 # number of grid points in each direction (waves=N/2)
     dt = 120  # time step
     # Ekman damping coefficient r=dek*N**2/f, dek = ekman depth = sqrt(2.*Av/f))
     # Av (turb viscosity) = 2.5 gives dek = sqrt(5/f) = 223
