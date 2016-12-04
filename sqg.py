@@ -38,7 +38,7 @@ class SQG:
 
     def __init__(self,pv,f=1.e-4,nsq=1.e-4,L=20.e6,H=10.e3,U=30.,\
                  r=0.,tdiab=10.*86400,diff_order=8,diff_efold=None,
-                 symmetric=True,dt=None,threads=1):
+                 symmetric=True,dt=None,dealias=True,threads=1):
         # initialize SQG model.
         if pv.shape[0] != 2:
             raise ValueError('1st dim of pv should be 2')
@@ -57,6 +57,7 @@ class SQG:
         self.U = np.array(U,np.float32) # basic state velocity at z = H
         self.L = np.array(L,np.float32) # size of square domain.
         self.dt = np.array(dt,np.float32) # time step (seconds)
+        self.dealias = dealias  # if True, dealiasing applied using 3/2 rule.
         if r < 1.e-10:
             self.ekman = False
         else:
@@ -95,6 +96,14 @@ class SQG:
         # spectral stuff
         k = (N*np.fft.fftfreq(N))[0:(N/2)+1]
         l = N*np.fft.fftfreq(N)
+        if dealias:
+            self.transform_grid = (3*N/2, 3*N/2)
+            k_pad = ((3*N/2)*np.fft.fftfreq(3*N/2))[0:(3*N/4)+1]
+            l_pad = (3*N/2)*np.fft.fftfreq(3*N/2)
+            self.kindx = np.logical_and(k_pad <= k.max(),k_pad >= k.min())
+            self.lindx = np.logical_and(l_pad <= l.max(),l_pad >= l.min())
+        else:
+            self.transform_grid = (N,N)
         k,l = np.meshgrid(k,l)
         k = k.astype(np.float32); l = l.astype(np.float32)
         # dimensionalize wavenumbers.
@@ -147,12 +156,19 @@ class SQG:
             pvspec = self.pvspec
         psispec = self.invert(pvspec)
         # nonlinear jacobian and thermal relaxation
-        u = irfft2(-self.il*psispec,threads=self.threads)
-        v = irfft2(self.ik*psispec,threads=self.threads)
-        pvx = irfft2(self.ik*pvspec,threads=self.threads)
-        pvy = irfft2(self.il*pvspec,threads=self.threads)
-        dpvspecdt =\
-        (1./self.tdiab)*(self.pvspec_eq-pvspec)-rfft2(u*pvx+v*pvy,threads=self.threads)
+        u = irfft2(-self.il*psispec,s=self.transform_grid,threads=self.threads)
+        v = irfft2(self.ik*psispec,s=self.transform_grid,threads=self.threads)
+        pvx = irfft2(self.ik*pvspec,s=self.transform_grid,threads=self.threads)
+        pvy = irfft2(self.il*pvspec,s=self.transform_grid,threads=self.threads)
+        advection = u*pvx+v*pvy
+        tmpspec = rfft2(advection,threads=self.threads)
+        if self.dealias: 
+            advspec = np.zeros(pvspec.shape, pvspec.dtype)
+            for k in range(2):
+                advspec[k,:,:-1] = tmpspec[k][np.ix_(self.lindx,self.kindx)]
+        else:
+            advspec = tmpspec
+        dpvspecdt = (1./self.tdiab)*(self.pvspec_eq-pvspec)-advspec
         # Ekman damping at boundaries.
         if self.ekman:
             dpvspecdt[0] += self.r*self.ksqlsq*psispec[0]
