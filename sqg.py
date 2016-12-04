@@ -12,9 +12,9 @@ pv has units of meters per second.
 scale by f*theta0/g to convert to temperature.
 
 FFT spectral collocation method with 4th order Runge Kutta
-time stepping (hyperdiffusion treated implicitly).
+time stepping (dealiasing with 3/2 rule, hyperdiffusion treated implicitly).
 
-Jeff Whitaker December, 2013 <jeffrey.s.whitaker@noaa.gov>
+Jeff Whitaker December, 2016 <jeffrey.s.whitaker@noaa.gov>
 """
 from __future__ import print_function
 import os
