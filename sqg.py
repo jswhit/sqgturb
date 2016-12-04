@@ -48,7 +48,7 @@ class SQG:
             raise ValueError('N must be even (powers of 2 are fastest)')
         if dt is None: # time step must be specified
             raise ValueError('must specify time step')
-        if efold is None: # efolding time scale for diffusion must be specified
+        if diff_efold is None: # efolding time scale for diffusion must be specified
             raise ValueError('must specify efolding time scale for diffusion')
         # number of openmp threads to use for FFTs (only for pyfftw)
         self.threads = threads
