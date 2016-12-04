@@ -209,8 +209,8 @@ if __name__ == "__main__":
     # netcdf file.
 
     # model parameters.
-    N = 128 # number of grid points in each direction (waves=N/2)
-    dt = 3600. # time step
+    N = 256 # number of grid points in each direction (waves=N/2)
+    dt = 1200. # time step
     # Ekman damping coefficient r=dek*N**2/f, dek = ekman depth = sqrt(2.*Av/f))
     # Av (turb viscosity) = 2.5 gives dek = sqrt(5/f) = 223
     # for ocean Av is 1-5, land 5-50 (Lin and Pierrehumbert, 1988)
@@ -259,8 +259,8 @@ if __name__ == "__main__":
     nsteps = int(tmax/outputinterval) # number of time steps to animate
     # set number of timesteps to integrate for each call to model.advance
     model.timesteps = int(outputinterval/model.dt)
-    savedata = 'data/sqg_N%s.nc' % N # save data plotted in a netcdf file.
-    #savedata = None # don't save data
+    #savedata = 'data/sqg_N%s.nc' % N # save data plotted in a netcdf file.
+    savedata = None # don't save data
     plot = True # animate data as model is running?
 
     if savedata is not None:
