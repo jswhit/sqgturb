@@ -343,9 +343,7 @@ if __name__ == "__main__":
             pv = irfft2(model.pvspec)
             hr = t/3600.
             spd = np.sqrt(model.u[levplot]**2+model.v[levplot]**2)
-            umean = model.u[levplot].mean(axis=-1)
-            print(hr,scalefact*pv.min(),scalefact*pv.max(),\
-            spd.max(),spd.max(),umean.min(),umean.max())
+            print(hr,spd.max(),scalefact*pv.min(),scalefact*pv.max())
             if savedata is not None and t >= tmin:
                 print('saving data at t = t = %g hours' % hr)
                 pvvar[nout,:,:,:] = pv
