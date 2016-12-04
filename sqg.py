@@ -115,7 +115,7 @@ class SQG:
             self.ik_pad = (1.j*k_pad).astype(np.complex64)
             self.il_pad = (1.j*l_pad).astype(np.complex64)
         self.mu = np.sqrt(ksqlsq)*np.sqrt(self.nsq)*self.H/self.f
-        self.mu = np.clip(self.mu,0.00001,50) # clip to avoid overflow and NaN
+        self.mu = self.mu.clip(np.finfo(self.mu.dtype).eps) # clip to avoid NaN
         self.Hovermu = self.H/self.mu
         self.tanhmu = np.tanh(self.mu)
         self.sinhmu = np.sinh(self.mu)
@@ -209,8 +209,8 @@ if __name__ == "__main__":
     # netcdf file.
 
     # model parameters.
-    N = 256 # number of grid points in each direction (waves=N/2)
-    dt = 1200. # time step
+    N = 128 # number of grid points in each direction (waves=N/2)
+    dt = 3600. # time step
     # Ekman damping coefficient r=dek*N**2/f, dek = ekman depth = sqrt(2.*Av/f))
     # Av (turb viscosity) = 2.5 gives dek = sqrt(5/f) = 223
     # for ocean Av is 1-5, land 5-50 (Lin and Pierrehumbert, 1988)
