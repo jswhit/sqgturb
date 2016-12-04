@@ -175,7 +175,7 @@ class SQG:
             pvy = irfft2(self.il_pad*pvspec_pad,threads=self.threads)
         advection = u*pvx+v*pvy
         tmpspec = rfft2(advection,threads=self.threads)
-        if self.dealias:
+        if self.dealias: # truncate spectral coefficients of jacobian.
             advspec = np.zeros(pvspec.shape, pvspec.dtype)
             advspec[:,0:self.N/2,0:self.N/2] = tmpspec[:,0:self.N/2,0:self.N/2]
             advspec[:,-self.N/2:,0:self.N/2] = tmpspec[:,-self.N/2:,0:self.N/2]
