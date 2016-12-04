@@ -97,13 +97,15 @@ class SQG:
         k = (N*np.fft.fftfreq(N))[0:(N/2)+1]
         l = N*np.fft.fftfreq(N)
         if dealias:
-            self.transform_grid = (3*N/2, 3*N/2)
             k_pad = ((3*N/2)*np.fft.fftfreq(3*N/2))[0:(3*N/4)+1]
             l_pad = (3*N/2)*np.fft.fftfreq(3*N/2)
             self.kindx = np.logical_and(k_pad <= k.max(),k_pad >= k.min())
             self.lindx = np.logical_and(l_pad <= l.max(),l_pad >= l.min())
-        else:
-            self.transform_grid = (N,N)
+            k_pad,l_pad = np.meshgrid(k_pad,l_pad)
+            k_pad = k_pad.astype(np.float32); l_pad = l_pad.astype(np.float32)
+            k_pad = 2.*pi*k_pad/self.L; l_pad = 2.*pi*l_pad/self.L
+            self.ik_pad = (1.j*k_pad).astype(np.complex64)
+            self.il_pad = (1.j*l_pad).astype(np.complex64)
         k,l = np.meshgrid(k,l)
         k = k.astype(np.float32); l = l.astype(np.float32)
         # dimensionalize wavenumbers.
@@ -156,18 +158,30 @@ class SQG:
             pvspec = self.pvspec
         psispec = self.invert(pvspec)
         # nonlinear jacobian and thermal relaxation
-        u = irfft2(-self.il*psispec,s=self.transform_grid,threads=self.threads)
-        v = irfft2(self.ik*psispec,s=self.transform_grid,threads=self.threads)
-        pvx = irfft2(self.ik*pvspec,s=self.transform_grid,threads=self.threads)
-        pvy = irfft2(self.il*pvspec,s=self.transform_grid,threads=self.threads)
+        if not self.dealias:
+            u = irfft2(-self.il*psispec,threads=self.threads)
+            v = irfft2(self.ik*psispec,threads=self.threads)
+            pvx = irfft2(self.ik*pvspec,threads=self.threads)
+            pvy = irfft2(self.il*pvspec,threads=self.threads)
+        else: # pad spectral coeffs with zeros for dealiased jacobian
+            psispec_pad = np.zeros((2,)+self.ik_pad.shape, self.ik_pad.dtype)
+            pvspec_pad = np.zeros((2,)+self.ik_pad.shape, self.ik_pad.dtype)
+            psispec_pad[:,0:self.N/2,0:self.N/2] = psispec[:,0:self.N/2,0:self.N/2]
+            psispec_pad[:,-self.N/2:,0:self.N/2] = psispec[:,-self.N/2:,0:self.N/2]
+            pvspec_pad[:,0:self.N/2,0:self.N/2] = pvspec[:,0:self.N/2,0:self.N/2]
+            pvspec_pad[:,-self.N/2:,0:self.N/2] = pvspec[:,-self.N/2:,0:self.N/2]
+            u = irfft2(-self.il_pad*psispec_pad,threads=self.threads)
+            v = irfft2(self.ik_pad*psispec_pad,threads=self.threads)
+            pvx = irfft2(self.ik_pad*pvspec_pad,threads=self.threads)
+            pvy = irfft2(self.il_pad*pvspec_pad,threads=self.threads)
         advection = u*pvx+v*pvy
         tmpspec = rfft2(advection,threads=self.threads)
         if self.dealias: 
             advspec = np.zeros(pvspec.shape, pvspec.dtype)
-            for k in range(2):
-                advspec[k,:,:-1] = tmpspec[k][np.ix_(self.lindx,self.kindx)]
+            advspec[:,:,:-1] = tmpspec[:,self.lindx,0:N/2]
         else:
             advspec = tmpspec
+        advection = irfft2(advspec[1])
         dpvspecdt = (1./self.tdiab)*(self.pvspec_eq-pvspec)-advspec
         # Ekman damping at boundaries.
         if self.ekman:
@@ -197,7 +211,7 @@ if __name__ == "__main__":
 
     # model parameters.
     N = 512 # number of grid points in each direction (waves=N/2)
-    dt = 120  # time step
+    dt = 180  # time step
     # Ekman damping coefficient r=dek*N**2/f, dek = ekman depth = sqrt(2.*Av/f))
     # Av (turb viscosity) = 2.5 gives dek = sqrt(5/f) = 223
     # for ocean Av is 1-5, land 5-50 (Lin and Pierrehumbert, 1988)
@@ -214,13 +228,13 @@ if __name__ == "__main__":
     # thermal relaxation time scale
     tdiab = 10.*86400 # in seconds
     # efolding time scale (seconds) for smallest wave (N/2) in del**norder hyperdiffusion
-    norder = 8; diff_efold = 1800
+    norder = 8; diff_efold = 3600
     symmetric = True # (asymmetric equilibrium jet with zero wind at sfc)
     # parameter used to scale PV to temperature units.
     scalefact = f*theta0/g
 
     # create random noise
-    pv = np.random.normal(0,500.,size=(2,N,N)).astype(np.float32)
+    pv = np.random.normal(0,100.,size=(2,N,N)).astype(np.float32)
     # add isolated blob on lid
     nexp = 20
     x = np.arange(0,2.*np.pi,2.*np.pi/N); y = np.arange(0.,2.*np.pi,2.*np.pi/N)
@@ -236,7 +250,8 @@ if __name__ == "__main__":
 
     # initialize qg model instance
     model = SQG(pv,nsq=nsq,f=f,U=U,H=H,r=r,tdiab=tdiab,dt=dt,
-                diff_order=norder,diff_efold=diff_efold,symmetric=symmetric,threads=threads)
+                diff_order=norder,diff_efold=diff_efold,
+                dealias=True,symmetric=symmetric,threads=threads)
 
     #  initialize figure.
     outputinterval = 3600. # interval between frames in seconds
@@ -247,7 +262,7 @@ if __name__ == "__main__":
     model.timesteps = int(outputinterval/model.dt)
     savedata = 'data/sqg_N%s.nc' % N # save data plotted in a netcdf file.
     #savedata = None # don't save data
-    plot = True # animate data as model is running?
+    plot = False # animate data as model is running?
 
     if savedata is not None:
         from netCDF4 import Dataset
