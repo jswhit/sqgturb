@@ -181,7 +181,6 @@ class SQG:
             advspec[:,:,:-1] = tmpspec[:,self.lindx,0:N/2]
         else:
             advspec = tmpspec
-        advection = irfft2(advspec[1])
         dpvspecdt = (1./self.tdiab)*(self.pvspec_eq-pvspec)-advspec
         # Ekman damping at boundaries.
         if self.ekman:
