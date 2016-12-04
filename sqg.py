@@ -96,7 +96,7 @@ class SQG:
         # spectral stuff
         k = (N*np.fft.fftfreq(N))[0:(N/2)+1]
         l = N*np.fft.fftfreq(N)
-        if dealias:
+        if dealias: # arrays needed for dealiasing nonlinear Jacobian
             k_pad = ((3*N/2)*np.fft.fftfreq(3*N/2))[0:(3*N/4)+1]
             l_pad = (3*N/2)*np.fft.fftfreq(3*N/2)
             self.kindx = np.logical_and(k_pad <= k.max(),k_pad >= k.min())
@@ -176,7 +176,7 @@ class SQG:
             pvy = irfft2(self.il_pad*pvspec_pad,threads=self.threads)
         advection = u*pvx+v*pvy
         tmpspec = rfft2(advection,threads=self.threads)
-        if self.dealias: 
+        if self.dealias:
             advspec = np.zeros(pvspec.shape, pvspec.dtype)
             advspec[:,:,:-1] = tmpspec[:,self.lindx,0:N/2]
         else:
