@@ -46,11 +46,13 @@ class SQG:
         # N should be even
         if N%2:
             raise ValueError('N must be even (powers of 2 are fastest)')
-        self.N = N
+        if dt is None: # time step must be specified
+            raise ValueError('must specify time step')
+        if efold is None: # efolding time scale for diffusion must be specified
+            raise ValueError('must specify efolding time scale for diffusion')
         # number of openmp threads to use for FFTs (only for pyfftw)
         self.threads = threads
-        if dt is None: # default time step
-            dt = 128.*1200./N
+        self.N = N
         self.nsq = np.array(nsq,np.float32) # Brunt-Vaisalla (buoyancy) freq squared
         self.f = np.array(f,np.float32) # coriolis
         self.H = np.array(H,np.float32) # height of upper boundary
@@ -120,8 +122,7 @@ class SQG:
         self.tanhmu = np.tanh(self.mu)
         self.sinhmu = np.sinh(self.mu)
         self.diff_order = np.array(diff_order,np.float32) # hyperdiffusion order
-        if diff_efold == None: diff_efold = dt # default is to model timestep
-        self.diff_efold = np.array(diff_efold,np.float32)
+        self.diff_efold = np.array(diff_efold,np.float32) # hyperdiff time scale
         ktot = np.sqrt(ksqlsq)
         ktotcutoff = np.array(pi*N/self.L, np.float32)
         # integrating factor for hyperdiffusion
@@ -209,8 +210,8 @@ if __name__ == "__main__":
     # netcdf file.
 
     # model parameters.
-    N = 512 # number of grid points in each direction (waves=N/2)
-    dt = 180  # time step
+    N = 128 # number of grid points in each direction (waves=N/2)
+    dt = 3600. # time step
     # Ekman damping coefficient r=dek*N**2/f, dek = ekman depth = sqrt(2.*Av/f))
     # Av (turb viscosity) = 2.5 gives dek = sqrt(5/f) = 223
     # for ocean Av is 1-5, land 5-50 (Lin and Pierrehumbert, 1988)
@@ -227,7 +228,7 @@ if __name__ == "__main__":
     # thermal relaxation time scale
     tdiab = 10.*86400 # in seconds
     # efolding time scale (seconds) for smallest wave (N/2) in del**norder hyperdiffusion
-    norder = 8; diff_efold = 3600
+    norder = 8; diff_efold = 21600.
     symmetric = True # (asymmetric equilibrium jet with zero wind at sfc)
     # parameter used to scale PV to temperature units.
     scalefact = f*theta0/g
@@ -261,7 +262,7 @@ if __name__ == "__main__":
     model.timesteps = int(outputinterval/model.dt)
     savedata = 'data/sqg_N%s.nc' % N # save data plotted in a netcdf file.
     #savedata = None # don't save data
-    plot = False # animate data as model is running?
+    plot = True # animate data as model is running?
 
     if savedata is not None:
         from netCDF4 import Dataset
