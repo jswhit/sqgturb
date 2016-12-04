@@ -279,6 +279,7 @@ if __name__ == "__main__":
         nc.diff_efold = model.diff_efold
         nc.diff_order = model.diff_order
         nc.symmetric = int(model.symmetric)
+        nc.dealias = int(model.dealias)
         x = nc.createDimension('x',N)
         y = nc.createDimension('y',N)
         z = nc.createDimension('z',2)
