@@ -98,16 +98,6 @@ class SQG:
         # spectral stuff
         k = (N*np.fft.fftfreq(N))[0:(N/2)+1]
         l = N*np.fft.fftfreq(N)
-        if dealias: # arrays needed for dealiasing nonlinear Jacobian
-            k_pad = ((3*N/2)*np.fft.fftfreq(3*N/2))[0:(3*N/4)+1]
-            l_pad = (3*N/2)*np.fft.fftfreq(3*N/2)
-            self.kindx = np.logical_and(k_pad <= k.max(),k_pad >= k.min())
-            self.lindx = np.logical_and(l_pad <= l.max(),l_pad >= l.min())
-            k_pad,l_pad = np.meshgrid(k_pad,l_pad)
-            k_pad = k_pad.astype(np.float32); l_pad = l_pad.astype(np.float32)
-            k_pad = 2.*pi*k_pad/self.L; l_pad = 2.*pi*l_pad/self.L
-            self.ik_pad = (1.j*k_pad).astype(np.complex64)
-            self.il_pad = (1.j*l_pad).astype(np.complex64)
         k,l = np.meshgrid(k,l)
         k = k.astype(np.float32); l = l.astype(np.float32)
         # dimensionalize wavenumbers.
@@ -116,6 +106,14 @@ class SQG:
         self.k = k; self.l = l; self.ksqlsq = ksqlsq
         self.ik = (1.j*k).astype(np.complex64)
         self.il = (1.j*l).astype(np.complex64)
+        if dealias: # arrays needed for dealiasing nonlinear Jacobian
+            k_pad = ((3*N/2)*np.fft.fftfreq(3*N/2))[0:(3*N/4)+1]
+            l_pad = (3*N/2)*np.fft.fftfreq(3*N/2)
+            k_pad,l_pad = np.meshgrid(k_pad,l_pad)
+            k_pad = k_pad.astype(np.float32); l_pad = l_pad.astype(np.float32)
+            k_pad = 2.*pi*k_pad/self.L; l_pad = 2.*pi*l_pad/self.L
+            self.ik_pad = (1.j*k_pad).astype(np.complex64)
+            self.il_pad = (1.j*l_pad).astype(np.complex64)
         self.mu = np.sqrt(ksqlsq)*np.sqrt(self.nsq)*self.H/self.f
         self.mu = np.clip(self.mu,0.00001,50) # clip to avoid overflow and NaN
         self.Hovermu = self.H/self.mu
@@ -179,7 +177,8 @@ class SQG:
         tmpspec = rfft2(advection,threads=self.threads)
         if self.dealias:
             advspec = np.zeros(pvspec.shape, pvspec.dtype)
-            advspec[:,:,:-1] = tmpspec[:,self.lindx,0:N/2]
+            advspec[:,0:self.N/2,0:self.N/2] = tmpspec[:,0:self.N/2,0:self.N/2]
+            advspec[:,-self.N/2:,0:self.N/2] = tmpspec[:,-self.N/2:,0:self.N/2]
         else:
             advspec = tmpspec
         dpvspecdt = (1./self.tdiab)*(self.pvspec_eq-pvspec)-advspec
