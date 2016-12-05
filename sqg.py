@@ -182,6 +182,9 @@ class SQG:
             advspec = np.zeros(pvspec.shape, pvspec.dtype)
             advspec[:,0:self.N/2,0:self.N/2] = tmpspec[:,0:self.N/2,0:self.N/2]
             advspec[:,-self.N/2:,0:self.N/2] = tmpspec[:,-self.N/2:,0:self.N/2]
+            # include negative Nyquist frequency.
+            advspec[:,0:self.N/2,-1] = np.conjugate(tmpspec[:,0:self.N/2,self.N/2])
+            advspec[:,-self.N/2:,-1] = np.conjugate(tmpspec[:,-self.N/2:,self.N/2])
         else:
             advspec = tmpspec
         dpvspecdt = (1./self.tdiab)*(self.pvspec_eq-pvspec)-advspec
@@ -213,7 +216,10 @@ if __name__ == "__main__":
 
     # model parameters.
     N = 256 # number of grid points in each direction (waves=N/2)
-    dt = 128*600.0/N # 600 secs at N=128 with diff_efold=10*dt
+    dt = 240 # time step in seconds
+    # efolding time scale (seconds) for smallest wave (N/2) in del**norder hyperdiffusion
+    norder = 8; diff_efold = 2400
+    dealias = True # dealiased with 3/2 rule?
     # Ekman damping coefficient r=dek*N**2/f, dek = ekman depth = sqrt(2.*Av/f))
     # Av (turb viscosity) = 2.5 gives dek = sqrt(5/f) = 223
     # for ocean Av is 1-5, land 5-50 (Lin and Pierrehumbert, 1988)
@@ -229,8 +235,6 @@ if __name__ == "__main__":
     L = 20.*Lr
     # thermal relaxation time scale
     tdiab = 10.*86400 # in seconds
-    # efolding time scale (seconds) for smallest wave (N/2) in del**norder hyperdiffusion
-    norder = 8; diff_efold = 10*dt
     symmetric = True # (asymmetric equilibrium jet with zero wind at sfc)
     # parameter used to scale PV to temperature units.
     scalefact = f*theta0/g
@@ -253,7 +257,7 @@ if __name__ == "__main__":
     # initialize qg model instance
     model = SQG(pv,nsq=nsq,f=f,U=U,H=H,r=r,tdiab=tdiab,dt=dt,
                 diff_order=norder,diff_efold=diff_efold,
-                dealias=True,symmetric=symmetric,threads=threads)
+                dealias=dealias,symmetric=symmetric,threads=threads)
 
     #  initialize figure.
     outputinterval = 3600. # interval between frames in seconds
@@ -262,10 +266,10 @@ if __name__ == "__main__":
     nsteps = int(tmax/outputinterval) # number of time steps to animate
     # set number of timesteps to integrate for each call to model.advance
     model.timesteps = int(outputinterval/model.dt)
-    if model.dealias:
-        savedata = 'data/sqg_N%s_aliased.nc' % N # save data plotted in a netcdf file.
-    else:
+    if dealias:
         savedata = 'data/sqg_N%s_dealiased.nc' % N # save data plotted in a netcdf file.
+    else:
+        savedata = 'data/sqg_N%s_aliased.nc' % N # save data plotted in a netcdf file.
     #savedata = None # don't save data
     plot = True # animate data as model is running?
 
