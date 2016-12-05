@@ -311,9 +311,8 @@ if __name__ == "__main__":
     if plot:
         fig = plt.figure(figsize=(8,8))
         fig.subplots_adjust(left=0, bottom=0.0, top=1., right=1.)
-        #vmin = scalefact*model.pvbar[levplot].min()
-        #vmax = scalefact*model.pvbar[levplot].max()
-        vmax = 25; vmin = -vmax
+        vmin = scalefact*model.pvbar[levplot].min()
+        vmax = scalefact*model.pvbar[levplot].max()
         def initfig():
             global im
             ax = fig.add_subplot(111)
