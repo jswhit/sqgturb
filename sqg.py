@@ -112,8 +112,10 @@ class SQG:
             k_pad,l_pad = np.meshgrid(k_pad,l_pad)
             k_pad = k_pad.astype(np.float32); l_pad = l_pad.astype(np.float32)
             k_pad = 2.*pi*k_pad/self.L; l_pad = 2.*pi*l_pad/self.L
-            self.ik_pad = (1.j*k_pad).astype(np.complex64)
-            self.il_pad = (1.j*l_pad).astype(np.complex64)
+            # add factor of (3/2)**2 to account for rescaling
+            # of padded inverse transform.
+            self.ik_pad = 2.25*(1.j*k_pad).astype(np.complex64)
+            self.il_pad = 2.25*(1.j*l_pad).astype(np.complex64)
         self.mu = np.sqrt(ksqlsq)*np.sqrt(self.nsq)*self.H/self.f
         self.mu = self.mu.clip(np.finfo(self.mu.dtype).eps) # clip to avoid NaN
         self.Hovermu = self.H/self.mu
@@ -163,8 +165,8 @@ class SQG:
             pvx = irfft2(self.ik*pvspec,threads=self.threads)
             pvy = irfft2(self.il*pvspec,threads=self.threads)
         else: # pad spectral coeffs with zeros for dealiased jacobian
-            psispec_pad = np.zeros((2,)+self.ik_pad.shape, self.ik_pad.dtype)
-            pvspec_pad = np.zeros((2,)+self.ik_pad.shape, self.ik_pad.dtype)
+            psispec_pad = np.zeros((2,)+self.ik_pad.shape, psispec.dtype)
+            pvspec_pad = np.zeros((2,)+self.ik_pad.shape, pvspec.dtype)
             psispec_pad[:,0:self.N/2,0:self.N/2] = psispec[:,0:self.N/2,0:self.N/2]
             psispec_pad[:,-self.N/2:,0:self.N/2] = psispec[:,-self.N/2:,0:self.N/2]
             pvspec_pad[:,0:self.N/2,0:self.N/2] = pvspec[:,0:self.N/2,0:self.N/2]
@@ -199,6 +201,8 @@ class SQG:
         k3 = self.dt*self.gettend(self.pvspec + 0.5*k2)
         k4 = self.dt*self.gettend(self.pvspec + k3)
         self.pvspec = self.hyperdiff*(self.pvspec + (k1+2.*k2+2.*k3+k4)/6.)
+        # remove nyquist freq
+        self.pvspec[:,:,-1]=0.+0.j
         self.t += self.dt # increment time
 
 if __name__ == "__main__":
@@ -210,7 +214,7 @@ if __name__ == "__main__":
 
     # model parameters.
     N = 128 # number of grid points in each direction (waves=N/2)
-    dt = 3600. # time step
+    dt = 600. # time step
     # Ekman damping coefficient r=dek*N**2/f, dek = ekman depth = sqrt(2.*Av/f))
     # Av (turb viscosity) = 2.5 gives dek = sqrt(5/f) = 223
     # for ocean Av is 1-5, land 5-50 (Lin and Pierrehumbert, 1988)
@@ -227,7 +231,7 @@ if __name__ == "__main__":
     # thermal relaxation time scale
     tdiab = 10.*86400 # in seconds
     # efolding time scale (seconds) for smallest wave (N/2) in del**norder hyperdiffusion
-    norder = 8; diff_efold = 21600.
+    norder = 8; diff_efold = 9600.
     symmetric = True # (asymmetric equilibrium jet with zero wind at sfc)
     # parameter used to scale PV to temperature units.
     scalefact = f*theta0/g
@@ -255,12 +259,15 @@ if __name__ == "__main__":
     #  initialize figure.
     outputinterval = 3600. # interval between frames in seconds
     tmin = 100.*86400. # time to start saving data (in days)
-    tmax = 400.*86400. # time to stop (in days)
+    tmax = 200.*86400. # time to stop (in days)
     nsteps = int(tmax/outputinterval) # number of time steps to animate
     # set number of timesteps to integrate for each call to model.advance
     model.timesteps = int(outputinterval/model.dt)
-    #savedata = 'data/sqg_N%s.nc' % N # save data plotted in a netcdf file.
-    savedata = None # don't save data
+    if model.dealias:
+        savedata = 'data/sqg_N%s_dealiased.nc' % N # save data plotted in a netcdf file.
+    else:
+        savedata = 'data/sqg_N%s.nc' % N # save data plotted in a netcdf file.
+    #savedata = None # don't save data
     plot = True # animate data as model is running?
 
     if savedata is not None:
@@ -303,8 +310,9 @@ if __name__ == "__main__":
     if plot:
         fig = plt.figure(figsize=(8,8))
         fig.subplots_adjust(left=0, bottom=0.0, top=1., right=1.)
-        vmin = scalefact*model.pvbar[levplot].min()
-        vmax = scalefact*model.pvbar[levplot].max()
+        #vmin = scalefact*model.pvbar[levplot].min()
+        #vmax = scalefact*model.pvbar[levplot].max()
+        vmax = 24; vmin = -vmax
         def initfig():
             global im
             ax = fig.add_subplot(111)
