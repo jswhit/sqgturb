@@ -202,8 +202,6 @@ class SQG:
         k3 = self.dt*self.gettend(self.pvspec + 0.5*k2)
         k4 = self.dt*self.gettend(self.pvspec + k3)
         self.pvspec = self.hyperdiff*(self.pvspec + (k1+2.*k2+2.*k3+k4)/6.)
-        # remove nyquist freq
-        self.pvspec[:,:,-1]=0.+0.j
         self.t += self.dt # increment time
 
 if __name__ == "__main__":
@@ -215,7 +213,7 @@ if __name__ == "__main__":
 
     # model parameters.
     N = 256 # number of grid points in each direction (waves=N/2)
-    dt = 240. # time step
+    dt = 300. # time step
     # Ekman damping coefficient r=dek*N**2/f, dek = ekman depth = sqrt(2.*Av/f))
     # Av (turb viscosity) = 2.5 gives dek = sqrt(5/f) = 223
     # for ocean Av is 1-5, land 5-50 (Lin and Pierrehumbert, 1988)
