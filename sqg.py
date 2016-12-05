@@ -113,7 +113,8 @@ class SQG:
             k_pad = k_pad.astype(np.float32); l_pad = l_pad.astype(np.float32)
             k_pad = 2.*pi*k_pad/self.L; l_pad = 2.*pi*l_pad/self.L
             # add factor of (3/2)**2 to account for rescaling
-            # of padded inverse transform.
+            # of padded inverse transform (inverse transform is normalized
+            # by 1/N in each direction).
             self.ik_pad = 2.25*(1.j*k_pad).astype(np.complex64)
             self.il_pad = 2.25*(1.j*l_pad).astype(np.complex64)
         self.mu = np.sqrt(ksqlsq)*np.sqrt(self.nsq)*self.H/self.f
