@@ -231,7 +231,7 @@ if __name__ == "__main__":
     # thermal relaxation time scale
     tdiab = 10.*86400 # in seconds
     # efolding time scale (seconds) for smallest wave (N/2) in del**norder hyperdiffusion
-    norder = 8; diff_efold = 10800.
+    norder = 8; diff_efold = 21600.
     symmetric = True # (asymmetric equilibrium jet with zero wind at sfc)
     # parameter used to scale PV to temperature units.
     scalefact = f*theta0/g
@@ -263,10 +263,7 @@ if __name__ == "__main__":
     nsteps = int(tmax/outputinterval) # number of time steps to animate
     # set number of timesteps to integrate for each call to model.advance
     model.timesteps = int(outputinterval/model.dt)
-    if model.dealias:
-        savedata = 'data/sqg_N%s_dealiased.nc' % N # save data plotted in a netcdf file.
-    else:
-        savedata = 'data/sqg_N%s.nc' % N # save data plotted in a netcdf file.
+    savedata = 'data/sqg_N%s.nc' % N # save data plotted in a netcdf file.
     #savedata = None # don't save data
     plot = True # animate data as model is running?
 
