@@ -1,8 +1,7 @@
 from netCDF4 import Dataset
 from sqg import rfft2, irfft2, SQG
 import numpy as np
-import anfft
-nc = Dataset('data/sqg_N128_symek.nc')
+nc = Dataset('data/sqg_N128_dealiased.nc')
 print nc
 pv = nc.variables['pv']
 time = nc.variables['t'][:]/3600.
@@ -41,13 +40,15 @@ for i in range(kespecmean.shape[2]):
             kespecmean[:,j,i].mean(axis=0)
 wavenums = np.arange(ktotmax,dtype=np.float)
 wavenums[0] = 1.
-idealke1 = 10*kespec[1]*wavenums**-3
-idealke2 = 10*kespec[1]*wavenums**(-5./3,)
+idealke1 = 2.*kespec[1]*wavenums**-3
+idealke2 = 2.*kespec[1]*wavenums**(-5./3,)
+nc.close()
 
 import matplotlib.pyplot as plt
 import numpy as np
 plt.loglog(wavenums,kespec,color='b')
-plt.loglog(wavenums,idealke1,color='k')
+#plt.loglog(wavenums,idealke1,color='k')
 plt.loglog(wavenums,idealke2,color='r')
-plt.xlim(0,100)
+plt.ylim(10,10**7)
+plt.xlim(0,200)
 plt.show()

@@ -231,7 +231,7 @@ if __name__ == "__main__":
     # thermal relaxation time scale
     tdiab = 10.*86400 # in seconds
     # efolding time scale (seconds) for smallest wave (N/2) in del**norder hyperdiffusion
-    norder = 8; diff_efold = 9600.
+    norder = 8; diff_efold = 10800.
     symmetric = True # (asymmetric equilibrium jet with zero wind at sfc)
     # parameter used to scale PV to temperature units.
     scalefact = f*theta0/g
