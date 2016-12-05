@@ -213,7 +213,7 @@ if __name__ == "__main__":
 
     # model parameters.
     N = 256 # number of grid points in each direction (waves=N/2)
-    dt = 300. # time step
+    dt = 128*600.0/N # 600 secs at N=128 with diff_efold=10*dt
     # Ekman damping coefficient r=dek*N**2/f, dek = ekman depth = sqrt(2.*Av/f))
     # Av (turb viscosity) = 2.5 gives dek = sqrt(5/f) = 223
     # for ocean Av is 1-5, land 5-50 (Lin and Pierrehumbert, 1988)
