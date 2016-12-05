@@ -213,8 +213,8 @@ if __name__ == "__main__":
     # netcdf file.
 
     # model parameters.
-    N = 128 # number of grid points in each direction (waves=N/2)
-    dt = 600. # time step
+    N = 256 # number of grid points in each direction (waves=N/2)
+    dt = 240. # time step
     # Ekman damping coefficient r=dek*N**2/f, dek = ekman depth = sqrt(2.*Av/f))
     # Av (turb viscosity) = 2.5 gives dek = sqrt(5/f) = 223
     # for ocean Av is 1-5, land 5-50 (Lin and Pierrehumbert, 1988)
@@ -231,7 +231,7 @@ if __name__ == "__main__":
     # thermal relaxation time scale
     tdiab = 10.*86400 # in seconds
     # efolding time scale (seconds) for smallest wave (N/2) in del**norder hyperdiffusion
-    norder = 8; diff_efold = 21600.
+    norder = 8; diff_efold = 3600.
     symmetric = True # (asymmetric equilibrium jet with zero wind at sfc)
     # parameter used to scale PV to temperature units.
     scalefact = f*theta0/g
@@ -307,9 +307,8 @@ if __name__ == "__main__":
     if plot:
         fig = plt.figure(figsize=(8,8))
         fig.subplots_adjust(left=0, bottom=0.0, top=1., right=1.)
-        #vmin = scalefact*model.pvbar[levplot].min()
-        #vmax = scalefact*model.pvbar[levplot].max()
-        vmax = 24; vmin = -vmax
+        vmin = scalefact*model.pvbar[levplot].min()
+        vmax = scalefact*model.pvbar[levplot].max()
         def initfig():
             global im
             ax = fig.add_subplot(111)
