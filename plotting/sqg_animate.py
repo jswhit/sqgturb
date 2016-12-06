@@ -2,13 +2,13 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from netCDF4 import Dataset
 
-filename = '../data/sqg_N512.nc'
-vmin = -30; vmax = 30; levplot = 1
+filename = 'data/sqg_N256_aliased.nc'
+vmin = -25; vmax = 25; levplot = 1
 
 nc = Dataset(filename)
 pv_var = nc['pv']
 t_var = nc['t']
-nsteps = len(t_var)
+nsteps = len(t_var)-1
 scalefact = nc.f*nc.theta0/nc.g
 
 fig = plt.figure(figsize=(8,8))

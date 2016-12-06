@@ -2,8 +2,8 @@ from netCDF4 import Dataset
 from sqg import rfft2, irfft2, SQG
 import numpy as np
 levplot = None
-nc = Dataset('data/sqg_N64_symek_ord12.nc')
-nc2 = Dataset('data/sqg_N256_N64_symek.nc')
+nc = Dataset('data/sqg_N256_aliased.nc')
+nc2 = Dataset('data/sqg_N256_dealiased.nc')
 #nc2 = Dataset('sqg.nc')
 #print nc
 pv = nc.variables['pv']
@@ -68,18 +68,17 @@ for i in range(nk):
             kespecmean2[j,i]
 wavenums = np.arange(ktotmax,dtype=np.float)
 wavenums[0] = 1.
-idealke1 = 10*kespec[1]*wavenums**-3
-idealke2 = 10*kespec[1]*wavenums**(-5./3,)
+idealke1 = 2.*kespec[1]*wavenums**-3
+idealke2 = 2.*kespec[1]*wavenums**(-5./3,)
 
 for n in range(ktotmax):
     print n,kespec[n],kespec2[n]
 
 import matplotlib.pyplot as plt
 import numpy as np
-plt.loglog(wavenums,kespec,color='b',label='expt')
-plt.loglog(wavenums,kespec2,color='r',label='control')
-plt.loglog(wavenums,idealke1,color='k')
+plt.loglog(wavenums,kespec,color='b',label='aliased')
+plt.loglog(wavenums,kespec2,color='r',label='dealiased')
+#plt.loglog(wavenums,idealke1,color='k')
 plt.loglog(wavenums,idealke2,color='k')
 plt.legend()
-plt.xlim(0,32)
 plt.show()
