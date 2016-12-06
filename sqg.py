@@ -117,11 +117,12 @@ class SQG:
             # by 1/N in each direction).
             self.ik_pad = 2.25*(1.j*k_pad).astype(np.complex64)
             self.il_pad = 2.25*(1.j*l_pad).astype(np.complex64)
-        self.mu = np.sqrt(ksqlsq)*np.sqrt(self.nsq)*self.H/self.f
-        self.mu = self.mu.clip(np.finfo(self.mu.dtype).eps) # clip to avoid NaN
-        self.Hovermu = self.H/self.mu
-        self.tanhmu = np.tanh(self.mu)
-        self.sinhmu = np.sinh(self.mu)
+        mu = np.sqrt(ksqlsq)*np.sqrt(self.nsq)*self.H/self.f
+        mu = mu.clip(np.finfo(mu.dtype).eps) # clip to avoid NaN
+        self.Hovermu = self.H/mu
+        mu = mu.astype(np.float64) # cast to avoid overflow in sinh
+        self.tanhmu = np.tanh(mu).astype(np.float32) # cast back to float32
+        self.sinhmu = np.sinh(mu).astype(np.float32)
         self.diff_order = np.array(diff_order,np.float32) # hyperdiffusion order
         self.diff_efold = np.array(diff_efold,np.float32) # hyperdiff time scale
         ktot = np.sqrt(ksqlsq)
