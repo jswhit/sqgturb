@@ -258,10 +258,17 @@ if __name__ == "__main__":
     print(pvspec[10,:])
     print()
 
-    #pv = np.random.normal(0,100.,size=(2,3*N/2,3*N/2)).astype(np.float32)
     N2 = 3*N/2
     scalefact = (float(N2)/float(N))**2
-    print(scalefact)
+    pv = np.zeros((2,N2,N2)).astype(np.float32)
+    pvspec_pad = rfft2(pv[1])
+    pvspec_pad[:,:] = 0.
+    pvspec_pad[0:N/2,0:N/2] = scalefact*pvspec[0:N/2,0:N/2]
+    pvspec_pad[-N/2:,0:N/2] = scalefact*pvspec[-N/2:,0:N/2]
+    pvspec_pad[0:N/2,N/2]=np.conjugate(pvspec[0:N/2,-1])
+    pvspec_pad[-N/2:,N/2]=np.conjugate(pvspec[-N/2:,-1])
+
+    #pv = np.random.normal(0,100.,size=(2,3*N/2,3*N/2)).astype(np.float32)
     pv = np.zeros((2,N2,N2)).astype(np.float32)
     # add isolated blob on lid
     nexp = 40
@@ -270,11 +277,14 @@ if __name__ == "__main__":
     x,y = np.meshgrid(x,y)
     x = x.astype(np.float32); y = y.astype(np.float32)
     pv[1] = pv[1]+2000.*(np.sin(x/2)**(2*nexp)*np.sin(y)**nexp)
+    pv[1] = irfft2(pvspec_pad)
     pvspec2 = rfft2(pv[1])
     pvspec[:,:] = 0
     pvspec[0:N/2,0:N/2] = pvspec2[0:N/2,0:N/2]/scalefact
     pvspec[-N/2:,0:N/2] = pvspec2[-N/2:,0:N/2]/scalefact
     # include negative Nyquist frequency.
+    pvspec[0:N/2,-1] = (pvspec2[0:N/2,N/2])/scalefact
+    pvspec[-N/2:,-1] = (pvspec2[-N/2:,N/2])/scalefact
     pvspec[0:N/2,-1] = np.conjugate(pvspec2[0:N/2,N/2])/scalefact
     pvspec[-N/2:,-1] = np.conjugate(pvspec2[-N/2:,N/2])/scalefact
     print(pvspec.shape)
@@ -283,7 +293,7 @@ if __name__ == "__main__":
     print(pv1.min(), pv1.max())
     print(pv2.min(), pv2.max())
     diff = pv2-pv1
-    print(diff.min(), diff.max())
+    print(diff.min(), diff.max(), np.sqrt((diff**2).mean()))
     raise SystemExit
 
     # remove area mean from each level.
