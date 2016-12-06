@@ -170,12 +170,14 @@ class SQG:
             pvspec_pad = np.zeros((2,)+self.ik_pad.shape, pvspec.dtype)
             psispec_pad[:,0:self.N/2,0:self.N/2] = psispec[:,0:self.N/2,0:self.N/2]
             psispec_pad[:,-self.N/2:,0:self.N/2] = psispec[:,-self.N/2:,0:self.N/2]
-            #psispec_pad[:,0:self.N/2,self.N/2]=np.conjugate(psispec[:,0:self.N/2,-1])
-            #psispec_pad[:,-self.N/2:,self.N/2]=np.conjugate(psispec[:,-self.N/2:,-1])
+            # include negative Nyquist frequency.
+            psispec_pad[:,0:self.N/2,self.N/2]=np.conjugate(psispec[:,0:self.N/2,-1])
+            psispec_pad[:,-self.N/2:,self.N/2]=np.conjugate(psispec[:,-self.N/2:,-1])
             pvspec_pad[:,0:self.N/2,0:self.N/2] = pvspec[:,0:self.N/2,0:self.N/2]
             pvspec_pad[:,-self.N/2:,0:self.N/2] = pvspec[:,-self.N/2:,0:self.N/2]
-            #pvspec_pad[:,0:self.N/2,self.N/2]=np.conjugate(pvspec[:,0:self.N/2,-1])
-            #pvspec_pad[:,-self.N/2:,self.N/2]=np.conjugate(pvspec[:,-self.N/2:,-1])
+            # include negative Nyquist frequency.
+            pvspec_pad[:,0:self.N/2,self.N/2]=np.conjugate(pvspec[:,0:self.N/2,-1])
+            pvspec_pad[:,-self.N/2:,self.N/2]=np.conjugate(pvspec[:,-self.N/2:,-1])
             u = irfft2(-self.il_pad*psispec_pad,threads=self.threads)
             v = irfft2(self.ik_pad*psispec_pad,threads=self.threads)
             pvx = irfft2(self.ik_pad*pvspec_pad,threads=self.threads)
@@ -187,8 +189,8 @@ class SQG:
             advspec[:,0:self.N/2,0:self.N/2] = tmpspec[:,0:self.N/2,0:self.N/2]
             advspec[:,-self.N/2:,0:self.N/2] = tmpspec[:,-self.N/2:,0:self.N/2]
             # include negative Nyquist frequency.
-            #advspec[:,0:self.N/2,-1] = np.conjugate(tmpspec[:,0:self.N/2,self.N/2])
-            #advspec[:,-self.N/2:,-1] = np.conjugate(tmpspec[:,-self.N/2:,self.N/2])
+            advspec[:,0:self.N/2,-1] = np.conjugate(tmpspec[:,0:self.N/2,self.N/2])
+            advspec[:,-self.N/2:,-1] = np.conjugate(tmpspec[:,-self.N/2:,self.N/2])
         else:
             advspec = tmpspec
         dpvspecdt = (1./self.tdiab)*(self.pvspec_eq-pvspec)-advspec
