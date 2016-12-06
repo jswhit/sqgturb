@@ -12,7 +12,7 @@ pv has units of meters per second.
 scale by f*theta0/g to convert to temperature.
 
 FFT spectral collocation method with 4th order Runge Kutta
-time stepping (dealiasing with 3/2 rule, hyperdiffusion treated implicitly).
+time stepping (dealiasing with 2/3 rule, hyperdiffusion treated implicitly).
 
 Jeff Whitaker December, 2016 <jeffrey.s.whitaker@noaa.gov>
 """
@@ -32,7 +32,6 @@ except ImportError: # fall back on numpy fft.
     def irfft2(*args, **kwargs):
         kwargs.pop('threads',None)
         return np.fft.irfft2(*args,**kwargs)
-
 
 class SQG:
 
@@ -60,7 +59,7 @@ class SQG:
         self.U = np.array(U,np.float32) # basic state velocity at z = H
         self.L = np.array(L,np.float32) # size of square domain.
         self.dt = np.array(dt,np.float32) # time step (seconds)
-        self.dealias = dealias  # if True, dealiasing applied using 3/2 rule.
+        self.dealias = dealias  # if True, dealiasing applied using 2/3 rule.
         if r < 1.e-10:
             self.ekman = False
         else:
@@ -116,8 +115,8 @@ class SQG:
             # add factor of (3/2)**2 to account for rescaling
             # of padded inverse transform (inverse transform is normalized
             # by 1/N in each direction).
-            self.ik_pad = 2.25*(1.j*k_pad).astype(np.complex64)
-            self.il_pad = 2.25*(1.j*l_pad).astype(np.complex64)
+            self.ik_pad = (1.j*k_pad).astype(np.complex64)
+            self.il_pad = (1.j*l_pad).astype(np.complex64)
         mu = np.sqrt(ksqlsq)*np.sqrt(self.nsq)*self.H/self.f
         mu = mu.clip(np.finfo(mu.dtype).eps) # clip to avoid NaN
         self.Hovermu = self.H/mu
@@ -155,6 +154,25 @@ class SQG:
             self.timestep()
         return irfft2(self.pvspec,threads=self.threads)
 
+    def specpad(self, specarr):
+        # pad spectral arrays with zeros to get
+        # interpolation to 3/2 larger grid using inverse fft.
+        # take care of normalization factor for inverse transform.
+        specarr_pad = np.zeros((2, 3*self.N/2, 3*self.N/4+1), specarr.dtype)
+        specarr_pad[:,0:self.N/2,0:self.N/2] = 2.25*specarr[:,0:self.N/2,0:self.N/2]
+        specarr_pad[:,-self.N/2:,0:self.N/2] = 2.25*specarr[:,-self.N/2:,0:self.N/2]
+        # include negative Nyquist frequency.
+        specarr_pad[:,0:self.N/2,self.N/2]=np.conjugate(2.25*specarr[:,0:self.N/2,-1])
+        specarr_pad[:,-self.N/2:,self.N/2]=np.conjugate(2.25*specarr[:,-self.N/2:,-1])
+        return specarr_pad
+
+    def spectrunc(self, specarr):
+        # truncate spectral array using 2/3 rule.
+        specarr_trunc = np.zeros((2, self.N, (self.N/2)+1), specarr.dtype)
+        specarr_trunc[:,0:self.N/2,0:self.N/2] = specarr[:,0:self.N/2,0:self.N/2]
+        specarr_trunc[:,-self.N/2:,0:self.N/2] = specarr[:,-self.N/2:,0:self.N/2]
+        return specarr_trunc
+
     def gettend(self,pvspec=None):
         # compute tendencies of pv on z=0,H
         # invert pv to get streamfunction
@@ -168,41 +186,24 @@ class SQG:
             pvx = irfft2(self.ik*pvspec,threads=self.threads)
             pvy = irfft2(self.il*pvspec,threads=self.threads)
         else: # pad spectral coeffs with zeros for dealiased jacobian
-            psispec_pad = np.zeros((2,)+self.ik_pad.shape, psispec.dtype)
-            pvspec_pad = np.zeros((2,)+self.ik_pad.shape, pvspec.dtype)
-            psispec_pad[:,0:self.N/2,0:self.N/2] = psispec[:,0:self.N/2,0:self.N/2]
-            psispec_pad[:,-self.N/2:,0:self.N/2] = psispec[:,-self.N/2:,0:self.N/2]
-            # include negative Nyquist frequency.
-            psispec_pad[:,0:self.N/2,self.N/2]=np.conjugate(psispec[:,0:self.N/2,-1])
-            psispec_pad[:,-self.N/2:,self.N/2]=np.conjugate(psispec[:,-self.N/2:,-1])
-            pvspec_pad[:,0:self.N/2,0:self.N/2] = pvspec[:,0:self.N/2,0:self.N/2]
-            pvspec_pad[:,-self.N/2:,0:self.N/2] = pvspec[:,-self.N/2:,0:self.N/2]
-            # include negative Nyquist frequency.
-            pvspec_pad[:,0:self.N/2,self.N/2]=np.conjugate(pvspec[:,0:self.N/2,-1])
-            pvspec_pad[:,-self.N/2:,self.N/2]=np.conjugate(pvspec[:,-self.N/2:,-1])
+            psispec_pad = self.specpad(psispec)
+            pvspec_pad  = self.specpad(pvspec)
             u = irfft2(-self.il_pad*psispec_pad,threads=self.threads)
             v = irfft2(self.ik_pad*psispec_pad,threads=self.threads)
             pvx = irfft2(self.ik_pad*pvspec_pad,threads=self.threads)
             pvy = irfft2(self.il_pad*pvspec_pad,threads=self.threads)
-        advection = u*pvx+v*pvy
-        tmpspec = rfft2(advection,threads=self.threads)
-        if self.dealias: # truncate spectral coefficients of jacobian.
-            advspec = np.zeros(pvspec.shape, pvspec.dtype)
-            advspec[:,0:self.N/2,0:self.N/2] = tmpspec[:,0:self.N/2,0:self.N/2]
-            advspec[:,-self.N/2:,0:self.N/2] = tmpspec[:,-self.N/2:,0:self.N/2]
-            # include negative Nyquist frequency.
-            advspec[:,0:self.N/2,-1] = np.conjugate(tmpspec[:,0:self.N/2,self.N/2])
-            advspec[:,-self.N/2:,-1] = np.conjugate(tmpspec[:,-self.N/2:,self.N/2])
-            advspec[0,-1] = advspec[0,-1].real # toss imaginary part
-        else:
-            advspec = tmpspec
-        dpvspecdt = (1./self.tdiab)*(self.pvspec_eq-pvspec)-advspec
+        advection = u*pvx + v*pvy
+        jacobianspec = rfft2(advection,threads=self.threads)
+        if self.dealias: # 2/3 rule: truncate spectral coefficients of jacobian
+            jacobianspec = self.spectrunc(jacobianspec)
+        dpvspecdt = (1./self.tdiab)*(self.pvspec_eq-pvspec)-jacobianspec
         # Ekman damping at boundaries.
         if self.ekman:
             dpvspecdt[0] += self.r*self.ksqlsq*psispec[0]
             # for asymmetric jet (U=0 at sfc), no Ekman layer at lid
             if self.symmetric:
                 dpvspecdt[1] -= self.r*self.ksqlsq*psispec[1]
+        # save wind field
         self.u = u; self.v = v
         return dpvspecdt
 
@@ -228,7 +229,7 @@ if __name__ == "__main__":
     dt = 240 # time step in seconds
     # efolding time scale (seconds) for smallest wave (N/2) in del**norder hyperdiffusion
     norder = 8; diff_efold = 2400
-    dealias = True # dealiased with 3/2 rule?
+    dealias = True # dealiased with 2/3 rule?
     # Ekman damping coefficient r=dek*N**2/f, dek = ekman depth = sqrt(2.*Av/f))
     # Av (turb viscosity) = 2.5 gives dek = sqrt(5/f) = 223
     # for ocean Av is 1-5, land 5-50 (Lin and Pierrehumbert, 1988)
