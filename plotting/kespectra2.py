@@ -1,7 +1,6 @@
 from netCDF4 import Dataset
 from sqg import rfft2, irfft2, SQG
 import numpy as np
-import anfft
 levplot = None
 nc = Dataset('data/sqg_N64_symek_ord12.nc')
 nc2 = Dataset('data/sqg_N256_N64_symek.nc')
