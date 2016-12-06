@@ -192,6 +192,7 @@ class SQG:
             # include negative Nyquist frequency.
             advspec[:,0:self.N/2,-1] = np.conjugate(tmpspec[:,0:self.N/2,self.N/2])
             advspec[:,-self.N/2:,-1] = np.conjugate(tmpspec[:,-self.N/2:,self.N/2])
+            advspec[0,-1] = advspec[0,-1].real # toss imaginary part
         else:
             advspec = tmpspec
         dpvspecdt = (1./self.tdiab)*(self.pvspec_eq-pvspec)-advspec
