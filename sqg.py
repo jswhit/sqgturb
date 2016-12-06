@@ -53,6 +53,7 @@ class SQG:
         # number of openmp threads to use for FFTs (only for pyfftw)
         self.threads = threads
         self.N = N
+        # force arrays to be float32 (ffts are twice as fast)
         self.nsq = np.array(nsq,np.float32) # Brunt-Vaisalla (buoyancy) freq squared
         self.f = np.array(f,np.float32) # coriolis
         self.H = np.array(H,np.float32) # height of upper boundary
