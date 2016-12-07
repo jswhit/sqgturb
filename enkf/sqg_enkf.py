@@ -2,7 +2,7 @@ from __future__ import print_function
 from sqgturb import SQG
 import numpy as np
 from netCDF4 import Dataset
-import sys, time
+import sys, time, os
 from enkf_utils import  cartdist,enkf_update,gaspcohn
 
 # EnKF cycling for SQG turbulence model model with boundary temp obs,
@@ -17,19 +17,15 @@ python sqg_enkf.py hcovlocal_scale covinflate1 covinflate2
    """
    raise SystemExit(msg)
 
-# covariance localization length scale in meters.
+# horizontal covariance localization length scale in meters.
 hcovlocal_scale = float(sys.argv[1])
+# vertical covariance localization factor
+vcovlocal_fact = float(sys.argv[2])
 # inflation parameters
 # (covinflate2 <= 0 for RTPS, otherwise use Hodyss and Campbell)
-covinflate1 = float(sys.argv[2])
-covinflate2 = float(sys.argv[3])
-# representativity error
-if len(sys.argv) > 4:
-    oberrextra = float(sys.argv[4])
-else:
-    oberrextra = 0.0
+covinflate1 = float(sys.argv[3])
+covinflate2 = float(sys.argv[4])
 
-vcovlocal_fact = 1.0 # no vertical localization
 diff_efold = None # use diffusion from climo file
 
 savedata = None # if not None, netcdf filename to save data.
@@ -42,8 +38,8 @@ use_letkf = False # use serial EnSRF
 # if nobs > 0, each ob time nobs ob locations are randomly sampled (without
 # replacement) from the model grid
 # if nobs < 0, fixed network of every Nth grid point used (N = -nobs)
-#nobs = 256 # number of obs to assimilate (randomly distributed)
-nobs = -4 # fixed network, every -nobs grid points. nobs=-1 obs at all pts.
+nobs = 1024 # number of obs to assimilate (randomly distributed)
+#nobs = -8 # fixed network, every -nobs grid points. nobs=-1 obs at all pts.
 
 # if levob=0, sfc temp obs used.  if 1, lid temp obs used. If [0,1] obs at both
 # boundaries.
@@ -56,17 +52,16 @@ nanals = 20 # ensemble members
 
 oberrstdev = 1.0 # ob error standard deviation in K
 
-nassim = 800 # assimilation times to run
+nassim = 100 # assimilation times to run
 
-filename_climo = 'data/sqg_N64.nc' # file name for forecast model climo
+filename_climo = 'sqg_N256.nc' # file name for forecast model climo
 # perfect model
-filename_truth = 'data/sqg_N64.nc' # file name for nature run to draw obs
+filename_truth = 'sqg_N256.nc' # file name for nature run to draw obs
 # model error
-#filename_truth = 'data/sqg_N256_N64.nc' # file name for nature run to draw obs
+#filename_truth = 'sqg_N512_N256.nc' # file name for nature run to draw obs
 
 print('# filename_modelclimo=%s' % filename_climo)
 print('# filename_truth=%s' % filename_truth)
-print('# nobs=%s levob=%s oberrextra=%s' % (nobs,levob,oberrextra))
 
 # fix random seed for reproducibility.
 np.random.seed(42)
@@ -86,13 +81,15 @@ nx = len(x); ny = len(y)
 pvens = np.empty((nanals,2,ny,nx),np.float32)
 dt = nc_climo.dt
 if diff_efold == None: diff_efold=nc_climo.diff_efold
+# get OMP_NUM_THREADS (threads to use) from environment.
+threads = int(os.getenv('OMP_NUM_THREADS','1'))
 for nanal in range(nanals):
     pvens[nanal] = pv_climo[indxran[nanal]]
     models.append(\
     SQG(pvens[nanal],\
     nsq=nc_climo.nsq,f=nc_climo.f,dt=dt,U=nc_climo.U,H=nc_climo.H,\
     r=nc_climo.r,tdiab=nc_climo.tdiab,symmetric=nc_climo.symmetric,\
-    diff_order=nc_climo.diff_order,diff_efold=diff_efold))
+    diff_order=nc_climo.diff_order,diff_efold=diff_efold,threads=threads))
 
 print("# hcovlocal=%g vcovlocal=%s diff_efold=%s levob=%s covinf1=%s covinf2=%s nanals=%s" %\
      (hcovlocal_scale/1000.,vcovlocal_fact,diff_efold,levob,covinflate1,covinflate2,nanals))
@@ -110,7 +107,7 @@ if nobs < 0:
     fixed = True
 else:
     fixed = False
-oberrvar = oberrstdev**2*np.ones(nobs,np.float) + oberrextra**2
+oberrvar = oberrstdev**2*np.ones(nobs,np.float)
 pvob = np.empty((len(levob),nobs),np.float)
 covlocal = np.empty((ny,nx),np.float)
 covlocal_tmp = np.empty((nobs,nx*ny),np.float)
@@ -122,6 +119,7 @@ else:
 obtimes = nc_truth.variables['t'][:]
 assim_interval = obtimes[1]-obtimes[0]
 assim_timesteps = int(np.round(assim_interval/models[0].dt))
+print('# ntime,pverr_a,pvsprd_a,pverr_b,pvsprd_b,obinc_b,osprd_b,obinc_a,obsprd_a,omaomb/oberr,obbias_b')
 
 # initialize model clock
 for nanal in range(nanals):
