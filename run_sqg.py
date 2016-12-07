@@ -47,10 +47,14 @@ for k in range(2):
 # get OMP_NUM_THREADS (threads to use) from environment.
 threads = int(os.getenv('OMP_NUM_THREADS','1'))
 
+# single or double precision
+precision='single' # pyfftw FFTs twice as fast as double
+
 # initialize qg model instance
 model = SQG(pv,nsq=nsq,f=f,U=U,H=H,r=r,tdiab=tdiab,dt=dt,
             diff_order=norder,diff_efold=diff_efold,
-            dealias=dealias,symmetric=symmetric,threads=threads)
+            dealias=dealias,symmetric=symmetric,threads=threads,
+            precision=precision)
 
 #  initialize figure.
 outputinterval = 3600. # interval between frames in seconds
@@ -59,10 +63,7 @@ tmax = 200.*86400. # time to stop (in days)
 nsteps = int(tmax/outputinterval) # number of time steps to animate
 # set number of timesteps to integrate for each call to model.advance
 model.timesteps = int(outputinterval/model.dt)
-if dealias:
-    savedata = 'data/sqg_N%s_dealiased.nc' % N # save data plotted in a netcdf file.
-else:
-    savedata = 'data/sqg_N%s_aliased.nc' % N # save data plotted in a netcdf file.
+savedata = 'data/sqg_N%s.nc' % N # save data plotted in a netcdf file.
 #savedata = None # don't save data
 plot = True # animate data as model is running?
 
