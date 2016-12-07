@@ -1,5 +1,7 @@
 constant PV f-plane QG turbulence (a.k.a surface QG turbulence).
 
+![SQG Turbulence](sqgturb.png?raw=true "SQG Turbulence")
+
 Doubly periodic geometry with sin(2*pi/L) jet basic state.
 
 References:
