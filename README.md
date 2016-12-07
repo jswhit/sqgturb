@@ -3,8 +3,9 @@ constant PV f-plane QG turbulence (a.k.a surface QG turbulence).
 Doubly periodic geometry with sin(2*pi/L) jet basic state.
 
 References:
-http://journals.ametsoc.org/doi/pdf/10.1175/2008JAS2921.1 (section 3)
-http://journals.ametsoc.org/doi/pdf/10.1175/1520-0469%281978%29035%3C0774%3AUPVFPI%3E2.0.CO%3B2
+
+* http://journals.ametsoc.org/doi/pdf/10.1175/2008JAS2921.1 (section 3)
+* http://journals.ametsoc.org/doi/pdf/10.1175/1520-0469%281978%29035%3C0774%3AUPVFPI%3E2.0.CO%3B2
 
 includes Ekman damping, linear thermal relaxation back
 to equilibrium jet, and hyperdiffusion.
