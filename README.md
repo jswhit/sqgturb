@@ -17,7 +17,9 @@ FFT spectral collocation method with 4th order Runge Kutta
 time stepping (dealiasing with 2/3 rule, hyperdiffusion treated implicitly).
 
 example code to run model and animate the solution in ``examples/run_sqg.py``.
+
 code for performing EnKF data assimilation in ``enkf``.
+
 some plotting scripts in ``plotting``.
 
 
