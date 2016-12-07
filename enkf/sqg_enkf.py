@@ -22,7 +22,10 @@ hcovlocal_scale = float(sys.argv[1])
 # vertical covariance localization factor
 vcovlocal_fact = float(sys.argv[2])
 # inflation parameters
-# (covinflate2 <= 0 for RTPS, otherwise use Hodyss and Campbell)
+# (covinflate2 <= 0 for RTPS inflation
+# (http://journals.ametsoc.org/doi/10.1175/MWR-D-11-00276.1),
+# otherwise use Hodyss et al inflation
+# (http://journals.ametsoc.org/doi/abs/10.1175/MWR-D-15-0329.1)
 covinflate1 = float(sys.argv[3])
 covinflate2 = float(sys.argv[4])
 
@@ -52,7 +55,7 @@ nanals = 40 # ensemble members
 
 oberrstdev = 1.0 # ob error standard deviation in K
 
-nassim = 100 # assimilation times to run
+nassim = 500 # assimilation times to run
 
 filename_climo = 'sqg_N256.nc' # file name for forecast model climo
 # perfect model
@@ -299,12 +302,12 @@ for ntime in range(nassim):
     pvprime = pvens-pvensmean_a
     asprd = (pvprime**2).sum(axis=0)/(nanals-1)
     if covinflate2 < 0:
-        # relaxation to prior stdev (Whitaker & Hamill)
+        # relaxation to prior stdev (Whitaker & Hamill 2012)
         asprd = np.sqrt(asprd); fsprd = np.sqrt(fsprd)
         inflation_factor = 1.+covinflate1*(fsprd-asprd)/asprd
     else:
-        # Hodyss and Campbell (covinflate1=covinflate2=1 works best in perfect
-        # model scenario)
+        # Hodyss et al 2016 inflation (covinflate1=covinflate2=1 works well in perfect
+        # model, linear gaussian scenario)
         inc = pvensmean_a - pvensmean_b
         inflation_factor = covinflate1*asprd + \
         (asprd/fsprd)**2*((fsprd/nanals) + covinflate2*(2.*inc**2/(nanals-1)))
