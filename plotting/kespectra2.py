@@ -1,5 +1,5 @@
 from netCDF4 import Dataset
-from sqg import rfft2, irfft2, SQG
+from sqgturb import rfft2, irfft2, SQG
 import numpy as np
 levplot = None
 nc = Dataset('data/sqg_N256_aliased.nc')

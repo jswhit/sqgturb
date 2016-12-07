@@ -1,5 +1,5 @@
 from netCDF4 import Dataset
-from sqg import rfft2, irfft2, SQG
+from sqgturb import rfft2, irfft2, SQG
 import numpy as np
 nc = Dataset('data/sqg_N256_dealiased.nc')
 print nc
