@@ -121,9 +121,6 @@ class SQG:
             k_pad,l_pad = np.meshgrid(k_pad,l_pad)
             k_pad = k_pad.astype(dtype); l_pad = l_pad.astype(dtype)
             k_pad = 2.*pi*k_pad/self.L; l_pad = 2.*pi*l_pad/self.L
-            # add factor of (3/2)**2 to account for rescaling
-            # of padded inverse transform (inverse transform is normalized
-            # by 1/N in each direction).
             self.ik_pad = (1.j*k_pad).astype(np.complex64)
             self.il_pad = (1.j*l_pad).astype(np.complex64)
         mu = np.sqrt(ksqlsq)*np.sqrt(self.nsq)*self.H/self.f
