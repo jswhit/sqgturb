@@ -168,7 +168,7 @@ class SQG:
 
     def spectrunc(self, specarr):
         # truncate spectral array using 2/3 rule.
-        specarr_trunc = np.zeros((2, self.N, (self.N/2)+1), specarr.dtype)
+        specarr_trunc = np.zeros((2, self.N, self.N/2+1), specarr.dtype)
         specarr_trunc[:,0:self.N/2,0:self.N/2] = specarr[:,0:self.N/2,0:self.N/2]
         specarr_trunc[:,-self.N/2:,0:self.N/2] = specarr[:,-self.N/2:,0:self.N/2]
         return specarr_trunc
