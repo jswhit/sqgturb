@@ -48,7 +48,7 @@ levob = [0,1]; levob = list(levob); levob.sort()
 direct_insertion = False # only relevant for nobs=-1, levob=[0,1]
 if direct_insertion: print('# direct insertion!')
 
-nanals = 20 # ensemble members
+nanals = 40 # ensemble members
 
 oberrstdev = 1.0 # ob error standard deviation in K
 
