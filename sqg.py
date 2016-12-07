@@ -37,7 +37,7 @@ class SQG:
 
     def __init__(self,pv,f=1.e-4,nsq=1.e-4,L=20.e6,H=10.e3,U=30.,\
                  r=0.,tdiab=10.*86400,diff_order=8,diff_efold=None,
-                 symmetric=True,dt=None,dealias=True,threads=1):
+                 symmetric=True,dt=None,dealias=True,threads=1,precision='single'):
         # initialize SQG model.
         if pv.shape[0] != 2:
             raise ValueError('1st dim of pv should be 2')
@@ -52,26 +52,35 @@ class SQG:
         # number of openmp threads to use for FFTs (only for pyfftw)
         self.threads = threads
         self.N = N
-        # force arrays to be float32 (ffts are twice as fast)
-        self.nsq = np.array(nsq,np.float32) # Brunt-Vaisalla (buoyancy) freq squared
-        self.f = np.array(f,np.float32) # coriolis
-        self.H = np.array(H,np.float32) # height of upper boundary
-        self.U = np.array(U,np.float32) # basic state velocity at z = H
-        self.L = np.array(L,np.float32) # size of square domain.
-        self.dt = np.array(dt,np.float32) # time step (seconds)
+        if precision == 'single':
+            # ffts in single precision (faster)
+            dtype = np.float32
+        elif precision == 'double':
+            # ffts in double precision
+            dtype = np.float64
+        else:
+            msg="precision must be 'single' or 'double'"
+            raise ValueError(msg)
+        # force arrays to be float32 for precision='single' (ffts are twice as fast)
+        self.nsq = np.array(nsq,dtype) # Brunt-Vaisalla (buoyancy) freq squared
+        self.f = np.array(f,dtype) # coriolis
+        self.H = np.array(H,dtype) # height of upper boundary
+        self.U = np.array(U,dtype) # basic state velocity at z = H
+        self.L = np.array(L,dtype) # size of square domain.
+        self.dt = np.array(dt,dtype) # time step (seconds)
         self.dealias = dealias  # if True, dealiasing applied using 2/3 rule.
         if r < 1.e-10:
             self.ekman = False
         else:
             self.ekman = True
-        self.r = np.array(r,np.float32) # Ekman damping (at z=0)
-        self.tdiab = np.array(tdiab,np.float32) # thermal relaxation damping.
+        self.r = np.array(r,dtype) # Ekman damping (at z=0)
+        self.tdiab = np.array(tdiab,dtype) # thermal relaxation damping.
         self.t = 0 # initialize time counter
         # setup basic state pv (for thermal relaxation)
         self.symmetric = symmetric # symmetric jet, or jet with U=0 at sfc.
-        y = np.arange(0,L,L/N,dtype=np.float32)
-        pvbar = np.zeros((2,N),np.float32)
-        pi = np.array(np.pi,np.float32)
+        y = np.arange(0,L,L/N,dtype=dtype)
+        pvbar = np.zeros((2,N),dtype)
+        pi = np.array(np.pi,dtype)
         l = 2.*pi/L; mu = l*np.sqrt(nsq)*H/f
         if symmetric:
             # symmetric version, no difference between upper and lower
@@ -91,7 +100,7 @@ class SQG:
             pvbar[:]   = -(mu*U/(l*H))*np.cos(l*y)/np.sinh(mu)
             pvbar[1,:] = pvbar[0,:]*np.cosh(mu)
         pvbar.shape = (2,N,1)
-        pvbar = pvbar*np.ones((2,N,N),np.float32)
+        pvbar = pvbar*np.ones((2,N,N),dtype)
         self.pvbar = pvbar
         self.pvspec_eq = rfft2(pvbar) # state to relax to with timescale tdiab
         self.pvspec = rfft2(pv) # initial pv field (spectral)
@@ -99,7 +108,7 @@ class SQG:
         k = (N*np.fft.fftfreq(N))[0:(N/2)+1]
         l = N*np.fft.fftfreq(N)
         k,l = np.meshgrid(k,l)
-        k = k.astype(np.float32); l = l.astype(np.float32)
+        k = k.astype(dtype); l = l.astype(dtype)
         # dimensionalize wavenumbers.
         k = 2.*pi*k/self.L; l = 2.*pi*l/self.L
         ksqlsq = k**2+l**2
@@ -110,7 +119,7 @@ class SQG:
             k_pad = ((3*N/2)*np.fft.fftfreq(3*N/2))[0:(3*N/4)+1]
             l_pad = (3*N/2)*np.fft.fftfreq(3*N/2)
             k_pad,l_pad = np.meshgrid(k_pad,l_pad)
-            k_pad = k_pad.astype(np.float32); l_pad = l_pad.astype(np.float32)
+            k_pad = k_pad.astype(dtype); l_pad = l_pad.astype(dtype)
             k_pad = 2.*pi*k_pad/self.L; l_pad = 2.*pi*l_pad/self.L
             # add factor of (3/2)**2 to account for rescaling
             # of padded inverse transform (inverse transform is normalized
@@ -121,12 +130,12 @@ class SQG:
         mu = mu.clip(np.finfo(mu.dtype).eps) # clip to avoid NaN
         self.Hovermu = self.H/mu
         mu = mu.astype(np.float64) # cast to avoid overflow in sinh
-        self.tanhmu = np.tanh(mu).astype(np.float32) # cast back to float32
-        self.sinhmu = np.sinh(mu).astype(np.float32)
-        self.diff_order = np.array(diff_order,np.float32) # hyperdiffusion order
-        self.diff_efold = np.array(diff_efold,np.float32) # hyperdiff time scale
+        self.tanhmu = np.tanh(mu).astype(dtype) # cast back to float32
+        self.sinhmu = np.sinh(mu).astype(dtype)
+        self.diff_order = np.array(diff_order,dtype) # hyperdiffusion order
+        self.diff_efold = np.array(diff_efold,dtype) # hyperdiff time scale
         ktot = np.sqrt(ksqlsq)
-        ktotcutoff = np.array(pi*N/self.L, np.float32)
+        ktotcutoff = np.array(pi*N/self.L, dtype)
         # integrating factor for hyperdiffusion
         # with efolding time scale for diffusion of shortest wave (N/2)
         self.hyperdiff =\
