@@ -22,6 +22,6 @@ Requires numpy (pyfftw, netcdf4-python and matplotlib  highly recommended).
 
 example code to run model and animate the solution in ``examples/run_sqg.py``.
 
-code for performing EnKF data assimilation in ``enkf``.
+code for performing EnKF data assimilation in ``enkf/sqg_enkf.py``.
 
-some plotting scripts in ``plotting``.
+some plotting scripts in ``plotting`` (``sqg_animate.py`` animates data in netCDF file).
