@@ -21,6 +21,3 @@ example code to run model and animate the solution in ``examples/run_sqg.py``.
 code for performing EnKF data assimilation in ``enkf``.
 
 some plotting scripts in ``plotting``.
-
-
-Jeff Whitaker December, 2016 <jeffrey.s.whitaker@noaa.gov>
