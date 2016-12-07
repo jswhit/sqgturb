@@ -8,7 +8,7 @@ setup(
   author_email = 'jeffrey dot s dot whitaker at noaa dot gov',
   url = 'https://github.com/jswhit/sqgturb',
   packages = ['sqgturb'],
-  requires = ['numpy','pyfftw']
+  requires = ['numpy']
 )
 
 
