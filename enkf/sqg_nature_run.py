@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
-from sqg import SQG, rfft2, irfft2
+from sqgturb import SQG, rfft2, irfft2
 from netCDF4 import Dataset
 from scipy import ndimage
 

@@ -1,5 +1,5 @@
 from __future__ import print_function
-from sqg import SQG, rfft2, irfft2
+from sqgturb import SQG, rfft2, irfft2
 import numpy as np
 from scipy import linalg
 from netCDF4 import Dataset

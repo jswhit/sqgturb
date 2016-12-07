@@ -1,4 +1,4 @@
-from sqg import SQG,rfft2,irfft2
+from sqgturb import SQG,rfft2,irfft2
 import numpy as np
 from netCDF4 import Dataset
 import sys, time

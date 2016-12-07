@@ -1,5 +1,5 @@
 from __future__ import print_function
-from sqg import SQG
+from sqgturb import SQG
 import numpy as np
 from netCDF4 import Dataset
 import sys, time
