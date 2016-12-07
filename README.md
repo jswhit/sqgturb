@@ -16,7 +16,7 @@ scale by f*theta0/g to convert to temperature.
 FFT spectral collocation method with 4th order Runge Kutta
 time stepping (dealiasing with 2/3 rule, hyperdiffusion treated implicitly).
 
-Requires numpy (pyfftw highly recommended).
+Requires numpy (pyfftw, netcdf4-python and matplotlib  highly recommended).
 
 example code to run model and animate the solution in ``examples/run_sqg.py``.
 
