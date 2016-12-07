@@ -127,7 +127,7 @@ class SQG:
         mu = mu.clip(np.finfo(mu.dtype).eps) # clip to avoid NaN
         self.Hovermu = self.H/mu
         mu = mu.astype(np.float64) # cast to avoid overflow in sinh
-        self.tanhmu = np.tanh(mu).astype(dtype) # cast back to float32
+        self.tanhmu = np.tanh(mu).astype(dtype) # cast back to original type
         self.sinhmu = np.sinh(mu).astype(dtype)
         self.diff_order = np.array(diff_order,dtype) # hyperdiffusion order
         self.diff_efold = np.array(diff_efold,dtype) # hyperdiff time scale
