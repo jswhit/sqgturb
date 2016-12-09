@@ -20,6 +20,8 @@ python sqg_enkf.py hcovlocal_scale covinflate1 covinflate2
 # horizontal covariance localization length scale in meters.
 hcovlocal_scale = float(sys.argv[1])
 # vertical covariance localization factor
+# if < 0, default used (vcovlocal_fact = L_r/hcovlocal_scale,
+# where L_r is Rossby radius)
 vcovlocal_fact = float(sys.argv[2])
 # inflation parameters
 # (covinflate2 <= 0 for RTPS inflation
