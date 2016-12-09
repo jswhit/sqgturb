@@ -94,6 +94,11 @@ for nanal in range(nanals):
     r=nc_climo.r,tdiab=nc_climo.tdiab,symmetric=nc_climo.symmetric,\
     diff_order=nc_climo.diff_order,diff_efold=diff_efold,threads=threads))
 
+# default vertical localization scale
+Lr = np.sqrt(models[0].nsq)*models[0].H/models[0].f
+if vcovlocal_fact < 0:
+    vcovlocal_fact = gaspcohn(np.array(Lr/hcovlocal_scale))
+
 print("# hcovlocal=%g vcovlocal=%s diff_efold=%s levob=%s covinf1=%s covinf2=%s nanals=%s" %\
      (hcovlocal_scale/1000.,vcovlocal_fact,diff_efold,levob,covinflate1,covinflate2,nanals))
 
