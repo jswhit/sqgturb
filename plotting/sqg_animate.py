@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from netCDF4 import Dataset
 
-filename = 'data/sqg_N256_aliased.nc'
+filename = '../examples/sqg_N256.nc'
 vmin = -25; vmax = 25; levplot = 1
 
 nc = Dataset(filename)
@@ -20,7 +20,7 @@ def initfig():
     ax = fig.add_subplot(111)
     ax.axis('off')
     pv = scalefact*pv_var[0,levplot,...]
-    im = ax.imshow(pv,interpolation='nearest',origin='lower',vmin=vmin,vmax=vmax)
+    im = ax.imshow(pv,cmap=plt.cm.jet,interpolation='nearest',origin='lower',vmin=vmin,vmax=vmax)
     return im,
 
 def updatefig(*args):
