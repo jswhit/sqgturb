@@ -404,11 +404,11 @@ class SQGpert:
                 amp = np.random.normal(loc=0,scale=self.pert_amp)
                 if self.pert_shift > 0:
                     pvpert = irfft2(pvspec - self.hyperdiff_pert*pvspec)
-                    pvpert = pert_amp_current*ndimage.shift(pvpert,\
-                             pert_shift_current, output=None, order=1, mode='wrap')
+                    pvpert = ndimage.shift(pvpert,\
+                                           pert_shift_current, order=1, mode='wrap')
                     pvpertspec = rfft2(pvpert)
                 else:
-                    pvpertspec = pert_amp_current*(pvspec - self.hyperdiff_pert*pvspec)
+                    pvpertspec = pvspec - self.hyperdiff_pert*pvspec
                 psispec_pert = self.invert(pvpertspec)
                 if not self.dealias:
                     self.upert = irfft2(-self.il*psispec_pert,threads=self.threads)
@@ -417,6 +417,8 @@ class SQGpert:
                     psispec_pad = self.specpad(psispec_pert)
                     self.upert = irfft2(-self.il_pad*psispec_pad,threads=self.threads)
                     self.vpert = irfft2(self.ik_pad*psispec_pad,threads=self.threads)
+                self.upert = pert_amp_current*self.upert
+                self.vpert = pert_amp_current*self.vpert
                 self.pert_amp_prev  = pert_amp_current
                 self.pert_shift_prev  = pert_shift_current
                 if self.windpert_max < 1.e10:
