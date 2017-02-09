@@ -320,7 +320,11 @@ class SQGpert:
         self.windpert_max = windpert_max
         self.pert_amp_prev = np.random.normal(loc=0,scale=pert_amp)
         self.pert_shift_prev = np.random.normal(loc=0,scale=pert_shift)
-        self.pert_corr = np.exp(-1)**(1./pert_corr)
+        # lag one autocorrelation of noise parameters.
+        if pert_corr == 0:
+            self.pert_corr = 0.
+        else:
+            self.pert_corr = np.exp(-1)**(1./pert_corr)
         if diff_order_pert is not None and diff_efold_pert is not None:
             self.hyperdiff_pert =\
             np.exp((-self.dt/self.diff_efold_pert)*(ktot/ktotcutoff)**self.diff_order_pert)
@@ -418,7 +422,7 @@ class SQGpert:
                 if self.windpert_max < 1.e10:
                     self.upert = np.clip(self.upert,-self.windpert_max,self.windpert_max)
                     self.vpert = np.clip(self.vpert,-self.windpert_max,self.windpert_max)
-                #print(self.vpert.min(), self.vpert.max())
+            #print(self.vpert.min(), self.vpert.max())
             u += self.upert
             v += self.vpert
         advection = u*pvx + v*pvy
