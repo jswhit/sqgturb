@@ -212,7 +212,7 @@ class SQGpert:
     def __init__(self,pv,f=1.e-4,nsq=1.e-4,L=20.e6,H=10.e3,U=30.,
                  r=0.,tdiab=10.*86400,diff_order=8,diff_efold=None,
                  diff_efold_pert=8,diff_order_pert=None,pert_shift=1.0,pert_amp=0.0,pert_corr=1.,
-                 windpert_max=30.,
+                 windpert_max=1.e30,
                  symmetric=True,dt=None,dealias=True,threads=1,precision='single'):
         # initialize SQG model.
         if pv.shape[0] != 2:
@@ -415,8 +415,9 @@ class SQGpert:
                     self.vpert = irfft2(self.ik_pad*psispec_pad,threads=self.threads)
                 self.pert_amp_prev  = pert_amp_current
                 self.pert_shift_prev  = pert_shift_current
-                self.upert = np.clip(self.upert,-self.windpert_max,self.windpert_max)
-                self.vpert = np.clip(self.vpert,-self.windpert_max,self.windpert_max)
+                if self.windpert_max < 1.e10:
+                    self.upert = np.clip(self.upert,-self.windpert_max,self.windpert_max)
+                    self.vpert = np.clip(self.vpert,-self.windpert_max,self.windpert_max)
                 #print(self.vpert.min(), self.vpert.max())
             u += self.upert
             v += self.vpert
