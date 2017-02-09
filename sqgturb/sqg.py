@@ -209,9 +209,10 @@ class SQG:
 
 class SQGpert:
 
-    def __init__(self,pv,f=1.e-4,nsq=1.e-4,L=20.e6,H=10.e3,U=30.,\
+    def __init__(self,pv,f=1.e-4,nsq=1.e-4,L=20.e6,H=10.e3,U=30.,
                  r=0.,tdiab=10.*86400,diff_order=8,diff_efold=None,
-                 diff_efold_pert=None,diff_order_pert=None,rshift=1.0,
+                 diff_efold_pert=8,diff_order_pert=None,pert_shift=1.0,pert_amp=0.0,pert_corr=1.,
+                 windpert_max=30.,
                  symmetric=True,dt=None,dealias=True,threads=1,precision='single'):
         # initialize SQG model.
         if pv.shape[0] != 2:
@@ -314,7 +315,12 @@ class SQGpert:
         np.exp((-self.dt/self.diff_efold)*(ktot/ktotcutoff)**self.diff_order)
         self.diff_order_pert = diff_order_pert
         self.diff_efold_pert = diff_efold_pert
-        self.rshift = rshift
+        self.pert_shift = pert_shift
+        self.pert_amp = pert_amp
+        self.windpert_max = windpert_max
+        self.pert_amp_prev = np.random.normal(loc=0,scale=pert_amp)
+        self.pert_shift_prev = np.random.normal(loc=0,scale=pert_shift)
+        self.pert_corr = np.exp(-1)**(1./pert_corr)
         if diff_order_pert is not None and diff_efold_pert is not None:
             self.hyperdiff_pert =\
             np.exp((-self.dt/self.diff_efold_pert)*(ktot/ktotcutoff)**self.diff_order_pert)
@@ -382,26 +388,38 @@ class SQGpert:
             v = irfft2(self.ik_pad*psispec_pad,threads=self.threads)
             pvx = irfft2(self.ik_pad*pvspec_pad,threads=self.threads)
             pvy = irfft2(self.il_pad*pvspec_pad,threads=self.threads)
-        if self.diff_order_pert is not None and \
-                self.diff_efold_pert is not None:
-            if self.rshift > 0:
-                pvpert = irfft2(pvspec - self.hyperdiff_pert*pvspec)
-                shiftval = np.random.normal(self.rshift)
-                pvpert = ndimage.shift(pvpert, shiftval, output=None, order=1, mode='wrap')
-                pvpertspec = rfft2(pvpert)
-            else:
-                pvpertspec = pvspec - self.hyperdiff_pert*pvspec
-            psispec_pert = self.invert(pvpertspec)
-            if not self.dealias:
-                upert = irfft2(-self.il*psispec_pert,threads=self.threads)
-                vpert = irfft2(self.ik*psispec_pert,threads=self.threads)
-            else: # pad spectral coeffs with zeros for dealiased jacobian
-                psispec_pad = self.specpad(psispec_pert)
-                upert = irfft2(-self.il_pad*psispec_pad,threads=self.threads)
-                vpert = irfft2(self.ik_pad*psispec_pad,threads=self.threads)
-            #print(vpert.min(), vpert.max())
-            u += upert
-            v += vpert
+        if self.pert_amp > 0:
+            if self.rkfirst:
+                pert_amp_current =\
+                np.sqrt(1.-self.pert_corr**2)*np.random.normal(loc=0,scale=self.pert_amp) +\
+                self.pert_corr*self.pert_amp_prev
+                pert_shift_current =\
+                np.sqrt(1.-self.pert_corr**2)*np.random.normal(loc=0,scale=self.pert_shift) +\
+                self.pert_corr*self.pert_shift_prev
+                shiftval = np.random.normal(loc=0,scale=self.pert_shift)
+                amp = np.random.normal(loc=0,scale=self.pert_amp)
+                if self.pert_shift > 0:
+                    pvpert = irfft2(pvspec - self.hyperdiff_pert*pvspec)
+                    pvpert = pert_amp_current*ndimage.shift(pvpert,\
+                             pert_shift_current, output=None, order=1, mode='wrap')
+                    pvpertspec = rfft2(pvpert)
+                else:
+                    pvpertspec = pert_amp_current*(pvspec - self.hyperdiff_pert*pvspec)
+                psispec_pert = self.invert(pvpertspec)
+                if not self.dealias:
+                    self.upert = irfft2(-self.il*psispec_pert,threads=self.threads)
+                    self.vpert = irfft2(self.ik*psispec_pert,threads=self.threads)
+                else: # pad spectral coeffs with zeros for dealiased jacobian
+                    psispec_pad = self.specpad(psispec_pert)
+                    self.upert = irfft2(-self.il_pad*psispec_pad,threads=self.threads)
+                    self.vpert = irfft2(self.ik_pad*psispec_pad,threads=self.threads)
+                self.pert_amp_prev  = pert_amp_current
+                self.pert_shift_prev  = pert_shift_current
+                self.upert = np.clip(self.upert,-self.windpert_max,self.windpert_max)
+                self.vpert = np.clip(self.vpert,-self.windpert_max,self.windpert_max)
+                #print(self.vpert.min(), self.vpert.max())
+            u += self.upert
+            v += self.vpert
         advection = u*pvx + v*pvy
         jacobianspec = rfft2(advection,threads=self.threads)
         if self.dealias: # 2/3 rule: truncate spectral coefficients of jacobian
@@ -420,7 +438,9 @@ class SQGpert:
     def timestep(self):
         # update pv using 4th order runge-kutta time step with
         # implicit "integrating factor" treatment of hyperdiffusion.
+        self.rkfirst = True
         k1 = self.dt*self.gettend(self.pvspec)
+        self.rkfirst = False
         k2 = self.dt*self.gettend(self.pvspec + 0.5*k1)
         k3 = self.dt*self.gettend(self.pvspec + 0.5*k2)
         k4 = self.dt*self.gettend(self.pvspec + k3)
