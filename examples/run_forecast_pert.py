@@ -9,16 +9,15 @@ threads = int(os.getenv('OMP_NUM_THREADS','1'))
 # spectrally truncate data in filenamein, write to filenameout on Nout x Nout
 # grid.
 filenamein = sys.argv[1]
-#fcstlen = int(sys.argv[2])
-fcstlen = 1
+fcstlen = int(sys.argv[2])
 
 nc = Dataset(filenamein)
 # initialize qg model instance
 pv = nc['pv'][0]
 dt = 600 # time step in seconds
 norder = 8; diff_efold = 5400
-norder_pert = 2; diff_efold_pert = diff_efold; pert_amp=60; pert_shift=8.0
-pert_corr = 4; windpert_max=1.e30
+norder_pert = 4; diff_efold_pert = diff_efold; pert_amp=100; pert_shift=8.0
+pert_corr = 3; windpert_max=200.
 model = SQGpert(pv,nsq=nc.nsq,f=nc.f,U=nc.U,H=nc.H,r=nc.r,tdiab=nc.tdiab,dt=dt,
             diff_order=norder,diff_efold=diff_efold,
             diff_order_pert=norder_pert,diff_efold_pert=diff_efold_pert,
@@ -35,26 +34,9 @@ model.timesteps = int(outputinterval/model.dt)
 modeld.timesteps = int(outputinterval/model.dt)
 scalefact = nc.f*nc.theta0/nc.g
 ntimes = len(nc.dimensions['t'])
-N = pv.shape[1]
-#meanerr = 0.
-#for n in range(ntimes-fcstlen):
-#    model.advance(pv=nc['pv'][n])
-#    pvfcst = irfft2(model.pvspec)
-#    pvtruth = nc['pv'][n+fcstlen]
-#    pverr = scalefact*(pvfcst - pvtruth)
-#    err = np.sqrt((pverr**2).mean())
-#    meanerr += err/(ntimes-fcstlen)
-#    print n,np.sqrt((pverr**2).mean())
-#print 'mean = ',meanerr
-
-N = model.N
-k = np.abs((N*np.fft.fftfreq(N))[0:(N/2)+1])
-l = N*np.fft.fftfreq(N)
-k,l = np.meshgrid(k,l)
-ktot = np.sqrt(k**2+l**2)
 
 nanals = 10
-fcstlen = 1
+N = model.N
 pverrsq_mean = np.zeros((2,N,N),np.float32)
 pverrsqd_mean = np.zeros((2,N,N),np.float32)
 pvspread_mean = np.zeros((2,N,N),np.float32)
@@ -105,6 +87,10 @@ plt.figure()
 im = plt.imshow(np.sqrt(pverrsq_mean[1]),cmap=plt.cm.hot_r,interpolation='nearest',origin='lower',vmin=vmin,vmax=vmax)
 plt.title('mean error')
 
+k = np.abs((N*np.fft.fftfreq(N))[0:(N/2)+1])
+l = N*np.fft.fftfreq(N)
+k,l = np.meshgrid(k,l)
+ktot = np.sqrt(k**2+l**2)
 ktotmax = (model.N/2)+1
 kespec_err = np.zeros(ktotmax,np.float)
 kespec_sprd = np.zeros(ktotmax,np.float)

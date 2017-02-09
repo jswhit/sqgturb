@@ -403,10 +403,15 @@ class SQGpert:
                 shiftval = np.random.normal(loc=0,scale=self.pert_shift)
                 amp = np.random.normal(loc=0,scale=self.pert_amp)
                 if self.pert_shift > 0:
-                    pvpert = irfft2(pvspec - self.hyperdiff_pert*pvspec)
-                    pvpert = ndimage.shift(pvpert,\
-                                           pert_shift_current, order=1, mode='wrap')
-                    pvpertspec = rfft2(pvpert)
+                    #pvpert = irfft2(pvspec - self.hyperdiff_pert*pvspec)
+                    #pvpert = ndimage.shift(pvpert,\
+                    #                       pert_shift_current, order=1, mode='wrap')
+                    #pvpertspec = rfft2(pvpert)
+                    pv = irfft2(pvspec)
+                    pvshift = ndimage.shift(pv,\
+                                            pert_shift_current, order=1, mode='wrap')
+                    pvshiftspec = rfft2(pvshift)
+                    pvpertspec = pvshiftspec - self.hyperdiff_pert*pvshiftspec
                 else:
                     pvpertspec = pvspec - self.hyperdiff_pert*pvspec
                 psispec_pert = self.invert(pvpertspec)
