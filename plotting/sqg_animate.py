@@ -20,7 +20,7 @@ def initfig():
     ax = fig.add_subplot(111)
     ax.axis('off')
     pv = scalefact*pv_var[0,levplot,...]
-    im = ax.imshow(pv,interpolation='nearest',origin='lower',vmin=vmin,vmax=vmax)
+    im = ax.imshow(pv,cmap=plt.cm.jet,interpolation='nearest',origin='lower',vmin=vmin,vmax=vmax)
     return im,
 
 def updatefig(*args):
