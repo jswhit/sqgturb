@@ -12,6 +12,7 @@ N = 256 # number of grid points in each direction (waves=N/2)
 dt = 240 # time step in seconds
 # efolding time scale (seconds) for smallest wave (N/2) in del**norder hyperdiffusion
 norder = 8; diff_efold = 2400
+#N = 512; dt = 90; efold = 1800.
 dealias = True # dealiased with 2/3 rule?
 # Ekman damping coefficient r=dek*N**2/f, dek = ekman depth = sqrt(2.*Av/f))
 # Av (turb viscosity) = 2.5 gives dek = sqrt(5/f) = 223
