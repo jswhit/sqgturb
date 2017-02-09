@@ -17,8 +17,8 @@ nc = Dataset(filenamein)
 pv = nc['pv'][0]
 dt = 600 # time step in seconds
 norder = 8; diff_efold = 5400
-norder_pert = 4; diff_efold_pert = diff_efold; pert_amp=200; pert_shift=8.0
-pert_corr = 3.0; windpert_max=50
+norder_pert = 2; diff_efold_pert = diff_efold; pert_amp=50; pert_shift=8.0
+pert_corr = 3.0; windpert_max=1.e30
 model = SQGpert(pv,nsq=nc.nsq,f=nc.f,U=nc.U,H=nc.H,r=nc.r,tdiab=nc.tdiab,dt=dt,
             diff_order=norder,diff_efold=diff_efold,
             diff_order_pert=norder_pert,diff_efold_pert=diff_efold_pert,
