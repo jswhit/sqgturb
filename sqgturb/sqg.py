@@ -319,7 +319,8 @@ class SQGpert:
         self.pert_amp = pert_amp
         self.windpert_max = windpert_max
         self.pert_amp_prev = np.random.normal(loc=0,scale=pert_amp)
-        self.pert_shift_prev = np.random.normal(loc=0,scale=pert_shift)
+        self.pert_shift_prevx = np.random.normal(loc=0,scale=pert_shift)
+        self.pert_shift_prevy = np.random.normal(loc=0,scale=pert_shift)
         # lag one autocorrelation of noise parameters.
         if pert_corr == 0:
             self.pert_corr = 0.
@@ -397,11 +398,12 @@ class SQGpert:
                 pert_amp_current =\
                 np.sqrt(1.-self.pert_corr**2)*np.random.normal(loc=0,scale=self.pert_amp) +\
                 self.pert_corr*self.pert_amp_prev
-                pert_shift_current =\
+                pert_shift_currentx =\
                 np.sqrt(1.-self.pert_corr**2)*np.random.normal(loc=0,scale=self.pert_shift) +\
-                self.pert_corr*self.pert_shift_prev
-                shiftval = np.random.normal(loc=0,scale=self.pert_shift)
-                amp = np.random.normal(loc=0,scale=self.pert_amp)
+                self.pert_corr*self.pert_shift_prevx
+                pert_shift_currenty =\
+                np.sqrt(1.-self.pert_corr**2)*np.random.normal(loc=0,scale=self.pert_shift) +\
+                self.pert_corr*self.pert_shift_prevy
                 if self.pert_shift > 0:
                     #pvpert = irfft2(pvspec - self.hyperdiff_pert*pvspec)
                     #pvpert = ndimage.shift(pvpert,\
@@ -409,7 +411,7 @@ class SQGpert:
                     #pvpertspec = rfft2(pvpert)
                     pv = irfft2(pvspec)
                     pvshift = ndimage.shift(pv,\
-                                            pert_shift_current, order=1, mode='wrap')
+                              (0,pert_shift_currentx,pert_shift_currenty), order=1, mode='wrap')
                     pvshiftspec = rfft2(pvshift)
                     pvpertspec = pvshiftspec - self.hyperdiff_pert*pvshiftspec
                 else:
@@ -425,11 +427,14 @@ class SQGpert:
                 self.upert = pert_amp_current*self.upert
                 self.vpert = pert_amp_current*self.vpert
                 self.pert_amp_prev  = pert_amp_current
-                self.pert_shift_prev  = pert_shift_current
+                self.pert_shift_prevx  = pert_shift_currentx
+                self.pert_shift_prevy  = pert_shift_currenty
                 if self.windpert_max < 1.e10:
                     self.upert = np.clip(self.upert,-self.windpert_max,self.windpert_max)
                     self.vpert = np.clip(self.vpert,-self.windpert_max,self.windpert_max)
-            #print(self.vpert.min(), self.vpert.max())
+                #spd = np.sqrt(self.upert**2+self.vpert**2)
+                #spd2 = np.sqrt(u**2+v**2)
+                #print('max pert spd',spd.max(),spd2.max())
             u += self.upert
             v += self.vpert
         advection = u*pvx + v*pvy
