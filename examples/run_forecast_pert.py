@@ -17,10 +17,13 @@ nc = Dataset(filenamein)
 pv = nc['pv'][0]
 dt = 600 # time step in seconds
 norder = 8; diff_efold = 5400
-norder_pert =None; diff_efold_pert = 60; rshift=2.0
+norder_pert = 4; diff_efold_pert = diff_efold; pert_amp=200; pert_shift=8.0
+pert_corr = 3.0; windpert_max=50
 model = SQGpert(pv,nsq=nc.nsq,f=nc.f,U=nc.U,H=nc.H,r=nc.r,tdiab=nc.tdiab,dt=dt,
             diff_order=norder,diff_efold=diff_efold,
-            diff_order_pert=norder_pert,diff_efold_pert=diff_efold_pert,rshift=rshift,
+            diff_order_pert=norder_pert,diff_efold_pert=diff_efold_pert,
+            pert_shift=pert_shift,pert_amp=pert_amp,pert_corr=pert_corr,
+            windpert_max=windpert_max,
             dealias=True,symmetric=bool(nc.symmetric),threads=threads,
             precision='single')
 outputinterval = fcstlen*(nc['t'][1]-nc['t'][0])
@@ -40,19 +43,27 @@ N = pv.shape[1]
 #print 'mean = ',meanerr
 
 nanals = 10
-print (nanals,2,N,N)
-pvens = np.empty((nanals,2,N,N),np.float32)
-for nanal in range(nanals):
-    pvens[nanal] = model.advance(nc['pv'][0])
-    print nanal
-pvfcstmean = pvens.mean(axis=0)
-pvtruth = nc['pv'][1]
-pverr = scalefact*(pvfcstmean - pvtruth)
-pvspread = ((scalefact*(pvens-pvfcstmean))**2).sum(axis=0)/(nanals-1)
-print np.sqrt((pverr**2).mean())
-print np.sqrt(pvspread.mean())
-print pvspread.min(), pvspread.max()
-vmin = -1; vmax = 1
+fcstlen = 1
+pverrsq_mean = np.zeros((2,N,N),np.float32)
+pvspread_mean = np.zeros((2,N,N),np.float32)
+pvens = np.zeros((nanals,2,N,N),np.float32)
+#ntimes = 10+fcstlen
+for n in range(ntimes-fcstlen):
+    for nanal in range(nanals):
+        pvens[nanal] = model.advance(nc['pv'][n])
+    pvfcstmean = pvens.mean(axis=0)
+    pvtruth = nc['pv'][n+fcstlen]
+    pverrsq = (scalefact*(pvfcstmean - pvtruth))**2
+    pvspread = ((scalefact*(pvens-pvfcstmean))**2).sum(axis=0)/(nanals-1)
+    print n,np.sqrt(pverrsq.mean()),np.sqrt(pvspread.mean())
+    pvspread_mean += pvspread/(ntimes-fcstlen)
+    pverrsq_mean += pverrsq/(ntimes-fcstlen)
+print 'mean',np.sqrt(pverrsq_mean.mean()),np.sqrt(pvspread_mean.mean())
+vmin = 0; vmax = 4
 import matplotlib.pyplot as plt
-im = plt.imshow(np.sqrt(pvspread[1]),cmap=plt.cm.hot_r,interpolation='nearest',origin='lower',vmin=vmin,vmax=vmax)
+im = plt.imshow(np.sqrt(pvspread_mean[1]),cmap=plt.cm.hot_r,interpolation='nearest',origin='lower',vmin=vmin,vmax=vmax)
+plt.title('mean spread')
+plt.figure()
+im = plt.imshow(np.sqrt(pverrsq_mean[1]),cmap=plt.cm.hot_r,interpolation='nearest',origin='lower',vmin=vmin,vmax=vmax)
+plt.title('mean error')
 plt.show()
