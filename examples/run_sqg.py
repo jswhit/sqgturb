@@ -114,7 +114,7 @@ if plot:
         ax = fig.add_subplot(111)
         ax.axis('off')
         pv = irfft2(model.pvspec[levplot])  # spectral to grid
-        im = ax.imshow(scalefact*pv,interpolation='nearest',origin='lower',vmin=vmin,vmax=vmax)
+        im = ax.imshow(scalefact*pv,cmap=plt.cm.jet,interpolation='nearest',origin='lower',vmin=vmin,vmax=vmax)
         return im,
     def updatefig(*args):
         global nout
