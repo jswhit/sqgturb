@@ -43,10 +43,10 @@ scaledevecs = evecs*np.sqrt(evals)
 # construct random sample.
 nsamples = 10
 xens = np.zeros((nsamples,nmax*nmax),np.float64)
+coeffs = np.random.normal(size=(nsamples,len(evals)))
 for n in range(nsamples):
-    coeffs = np.random.normal(size=len(evals))
-    for j in range(len(coeffs)):
-        xens[n] = xens[n]+coeffs[j]*scaledevecs[:,j]
+    for j in range(len(evals)):
+        xens[n] = xens[n]+coeffs[n,j]*scaledevecs[:,j]
 
 # plot random sample.
 minmax = max(np.abs(xens.min()), np.abs(xens.max()))
@@ -55,6 +55,24 @@ for n in range(nsamples):
     plt.figure()
     plt.imshow(x,plt.cm.bwr,interpolation='nearest',origin='lower',vmin=-minmax,vmax=minmax)
     plt.title('pattern %s' % n)
+    plt.colorbar()
+
+# evolve in time with specified temporal autocorrelation
+ntimes = 10
+alpha = np.exp(-1)**(1./5.)
+for nt in range(ntimes):
+    xens = np.zeros((nsamples,nmax*nmax),np.float64)
+    for n in range(nsamples):
+        for j in range(len(evals)):
+            xens[n] = xens[n]+coeffs[n,j]*scaledevecs[:,j]
+    coeffs =\
+    np.sqrt(1.-alpha**2)*np.random.normal(size=(nsamples,len(evals))) + \
+    alpha*coeffs
+    x = xens[0].reshape((nmax,nmax))
+    print nt,x.min(), x.max()
+    plt.figure()
+    plt.imshow(x,plt.cm.bwr,interpolation='nearest',origin='lower',vmin=-minmax,vmax=minmax)
+    plt.title('first pattern time %s' % nt)
     plt.colorbar()
 
 plt.show()
