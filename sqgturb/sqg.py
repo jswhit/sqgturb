@@ -317,8 +317,6 @@ class SQGpert:
         self.diff_efold_pert = diff_efold_pert
         self.pert_shift = pert_shift
         self.pert_amp = pert_amp
-        self.windpert_max = windpert_max
-        self.pert_amp_prev = np.random.normal(loc=0,scale=pert_amp)
         self.pert_shift_prevx = np.random.normal(loc=0,scale=pert_shift)
         self.pert_shift_prevy = np.random.normal(loc=0,scale=pert_shift)
         # lag one autocorrelation of noise parameters.
@@ -395,9 +393,6 @@ class SQGpert:
             pvy = irfft2(self.il_pad*pvspec_pad,threads=self.threads)
         if self.pert_amp > 0:
             if self.rkfirst:
-                pert_amp_current =\
-                np.sqrt(1.-self.pert_corr**2)*np.random.normal(loc=0,scale=self.pert_amp) +\
-                self.pert_corr*self.pert_amp_prev
                 pert_shift_currentx =\
                 np.sqrt(1.-self.pert_corr**2)*np.random.normal(loc=0,scale=self.pert_shift) +\
                 self.pert_corr*self.pert_shift_prevx
@@ -405,14 +400,12 @@ class SQGpert:
                 np.sqrt(1.-self.pert_corr**2)*np.random.normal(loc=0,scale=self.pert_shift) +\
                 self.pert_corr*self.pert_shift_prevy
                 if self.pert_shift > 0:
-                    #pvpert = irfft2(pvspec - self.hyperdiff_pert*pvspec)
-                    #pvpert = ndimage.shift(pvpert,\
-                    #                       pert_shift_current, order=1, mode='wrap')
-                    #pvpertspec = rfft2(pvpert)
                     pv = irfft2(pvspec)
+                    # shift pv randomly in x,y direction
                     pvshift = ndimage.shift(pv,\
                               (0,pert_shift_currentx,pert_shift_currenty), order=1, mode='wrap')
                     pvshiftspec = rfft2(pvshift)
+                    # high-pass filter
                     pvpertspec = pvshiftspec - self.hyperdiff_pert*pvshiftspec
                 else:
                     pvpertspec = pvspec - self.hyperdiff_pert*pvspec
@@ -424,14 +417,16 @@ class SQGpert:
                     psispec_pad = self.specpad(psispec_pert)
                     self.upert = irfft2(-self.il_pad*psispec_pad,threads=self.threads)
                     self.vpert = irfft2(self.ik_pad*psispec_pad,threads=self.threads)
-                self.upert = pert_amp_current*self.upert
-                self.vpert = pert_amp_current*self.vpert
-                self.pert_amp_prev  = pert_amp_current
+                self.upert = self.pert_amp*self.upert
+                self.vpert = self.pert_amp*self.vpert
+                #import matplotlib.pyplot as plt
+                #im = plt.imshow(self.upert[1],cmap=plt.cm.bwr,interpolation='nearest',origin='lower',vmin=-60,vmax=60)
+                #plt.figure()
+                #im = plt.imshow(self.vpert[1],cmap=plt.cm.bwr,interpolation='nearest',origin='lower',vmin=-60,vmax=60)
+                #plt.show()
+                #raise SystemExit
                 self.pert_shift_prevx  = pert_shift_currentx
                 self.pert_shift_prevy  = pert_shift_currenty
-                if self.windpert_max < 1.e10:
-                    self.upert = np.clip(self.upert,-self.windpert_max,self.windpert_max)
-                    self.vpert = np.clip(self.vpert,-self.windpert_max,self.windpert_max)
                 #spd = np.sqrt(self.upert**2+self.vpert**2)
                 #spd2 = np.sqrt(u**2+v**2)
                 #print('max pert spd',spd.max(),spd2.max())
