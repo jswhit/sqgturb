@@ -56,15 +56,21 @@ class RandomPattern:
         self.coeffs = np.random.normal(size=(self.nsamples,self.nevecs))
 
     def random_sample(self):
+        """
+        return random sample
+        """
         xens = np.dot(self.stdev*self.coeffs,self.scaledevecs.T)
         #xens = np.zeros((nsamples,self.N*self.N),np.float32)
         #for n in range(nsamples):
         #    xens[n] = np.dot((self.stdev*self.coeffs).T,self.scaledevecs)
         #    for j in range(self.nevecs):
         #        xens[n] = xens[n]+self.stdev*self.coeffs[n,j]*self.scaledevecs[:,j]
-        return np.squeeze(xens.reshape((nsamples, self.N, self.N)))
+        return xens.reshape((nsamples, self.N, self.N)).squeeze()
 
     def evolve(self):
+        """
+        evolve sample one time step
+        """
         self.coeffs = \
         np.sqrt(1.-self.lag1corr**2)* \
         np.random.normal(size=(self.nsamples,self.nevecs)) + \
@@ -84,11 +90,11 @@ if __name__ == "__main__":
     # plot random sample.
     xens = rp.random_sample()
     minmax = max(np.abs(xens.min()), np.abs(xens.max()))
-    #for n in range(nsamples):
-    #    plt.figure()
-    #    plt.imshow(xens[n],plt.cm.bwr,interpolation='nearest',origin='lower',vmin=-minmax,vmax=minmax)
-    #    plt.title('pattern %s' % n)
-    #    plt.colorbar()
+    for n in range(nsamples):
+        plt.figure()
+        plt.imshow(xens[n],plt.cm.bwr,interpolation='nearest',origin='lower',vmin=-minmax,vmax=minmax)
+        plt.title('pattern %s' % n)
+        plt.colorbar()
     print 'variance =', ((xens**2).sum(axis=0)/(nsamples-1)).mean()
     print '(expected ',stdev**2,')'
     plt.show()
