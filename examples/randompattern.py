@@ -82,18 +82,26 @@ if __name__ == "__main__":
     # plot random sample.
     xens = rp.random_sample()
     minmax = max(np.abs(xens.min()), np.abs(xens.max()))
-    for n in range(nsamples):
-        plt.figure()
-        plt.imshow(xens[n],plt.cm.bwr,interpolation='nearest',origin='lower',vmin=-minmax,vmax=minmax)
-        plt.title('pattern %s' % n)
-        plt.colorbar()
+    #for n in range(nsamples):
+    #    plt.figure()
+    #    plt.imshow(xens[n],plt.cm.bwr,interpolation='nearest',origin='lower',vmin=-minmax,vmax=minmax)
+    #    plt.title('pattern %s' % n)
+    #    plt.colorbar()
     print 'variance =', ((xens**2).sum(axis=0)/(nsamples-1)).mean()
     print '(expected ',stdev**2,')'
     plt.show()
     nsamples = 1; stdev = 2
     rp = RandomPattern(1000.e3,3600.,20.e6,64,1800,nsamples=nsamples,stdev=stdev)
     ntimes = 100
+    x = rp.random_sample()
+    lag1cov = np.zeros(x.shape, x.dtype)
+    lag1var = np.zeros(x.shape, x.dtype)
     for nt in range(ntimes):
-        x = rp.random_sample()
-        print nt,x.shape,x.min(), x.max()
+        xold = x.copy()
         rp.evolve()
+        x = rp.random_sample()
+        lag1cov = lag1cov + x*xold/(ntimes-1)
+        lag1var = lag1var + x*x/(ntimes-1)
+    lag1corr = lag1cov/lag1var
+    print 'lag 1 autocorr = ',lag1corr.mean(), ', expected ',rp.lag1corr
+    print 'variance = ',lag1var.mean()
