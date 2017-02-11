@@ -70,8 +70,15 @@ class RandomPattern:
 
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
+    import cPickle
     nsamples = 10; stdev = 2
-    rp = RandomPattern(1000.e3,3600.,20.e6,64,1800,nsamples=nsamples,stdev=stdev)
+    rp1 = RandomPattern(1000.e3,3600.,20.e6,64,1800,nsamples=nsamples,stdev=stdev)
+    f = open('saved_rp.pickle','wb')
+    cPickle.dump(rp1, f, protocol=cPickle.HIGHEST_PROTOCOL)
+    f.close()
+    f = open('saved_rp.pickle','rb')
+    rp = cPickle.load(f)
+    f.close()
     # plot random sample.
     xens = rp.random_sample()
     minmax = max(np.abs(xens.min()), np.abs(xens.max()))
