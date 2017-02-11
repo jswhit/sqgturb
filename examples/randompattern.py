@@ -66,7 +66,7 @@ class RandomPattern:
         self.coeffs = \
         np.sqrt(1.-self.lag1corr**2)* \
         np.random.normal(size=(self.nsamples,self.nevecs)) + \
-        self.lag1corr*coeffs
+        self.lag1corr*self.coeffs
 
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
@@ -90,3 +90,10 @@ if __name__ == "__main__":
     print 'variance =', ((xens**2).sum(axis=0)/(nsamples-1)).mean()
     print '(expected ',stdev**2,')'
     plt.show()
+    nsamples = 1; stdev = 2
+    rp = RandomPattern(1000.e3,3600.,20.e6,64,1800,nsamples=nsamples,stdev=stdev)
+    ntimes = 100
+    for nt in range(ntimes):
+        x = rp.random_sample()
+        print nt,x.shape,x.min(), x.max()
+        rp.evolve()
