@@ -31,14 +31,14 @@ class RandomPattern:
         y1 = np.arange(0,self.L,self.L/self.N)
         x, y = np.meshgrid(x1, y1)
         x2 = x.flatten(); y2 = y.flatten()
-        self.cov = np.zeros((N**2,N**2),np.float64)
+        cov = np.zeros((N**2,N**2),np.float64)
         n = 0
         for x0,y0 in zip(x2,y2):
             r = _cartdist(x0,y0,x2,y2,self.L,self.L)
-            self.cov[n,:] = _gaussian(r,self.hcorr)
+            cov[n,:] = _gaussian(r,self.hcorr)
             n = n + 1
         # eigenanalysis
-        evals, evecs = eigh(self.cov)
+        evals, evecs = eigh(cov)
         evals = np.where(evals > 1.e-10, evals, 1.e-10)
         if self.thresh == 1.0:
             self.scaledevecs = evecs*np.sqrt(evals)
@@ -56,10 +56,12 @@ class RandomPattern:
         self.coeffs = np.random.normal(size=(self.nsamples,self.nevecs))
 
     def random_sample(self):
-        xens = np.zeros((nsamples,self.N*self.N),np.float32)
-        for n in range(nsamples):
-            for j in range(self.nevecs):
-                xens[n] = xens[n]+self.stdev*self.coeffs[n,j]*self.scaledevecs[:,j]
+        xens = np.dot(self.stdev*self.coeffs,self.scaledevecs.T)
+        #xens = np.zeros((nsamples,self.N*self.N),np.float32)
+        #for n in range(nsamples):
+        #    xens[n] = np.dot((self.stdev*self.coeffs).T,self.scaledevecs)
+        #    for j in range(self.nevecs):
+        #        xens[n] = xens[n]+self.stdev*self.coeffs[n,j]*self.scaledevecs[:,j]
         return np.squeeze(xens.reshape((nsamples, self.N, self.N)))
 
     def evolve(self):
