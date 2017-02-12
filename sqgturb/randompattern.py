@@ -26,12 +26,6 @@ class RandomPattern:
         self.pattern =\
         self.pattern*(self.filter_stdev*2.*np.sqrt(np.pi))
 
-    def random_sample(self):
-        """
-        return random sample
-        """
-        return self.pattern
-
     def evolve(self):
         """
         evolve sample one time step
@@ -44,28 +38,28 @@ class RandomPattern:
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
     nsamples = 100; stdev = 2
-    rp=RandomPattern(500.e3,3600.,20.e6,64,1800,nsamples=nsamples,stdev=stdev)
+    rp=RandomPattern(200.e3,3600.,20.e6,128,1800,nsamples=nsamples,stdev=stdev)
     # plot random sample.
-    xens = rp.random_sample()
-    #minmax = max(np.abs(xens.min()), np.abs(xens.max()))
-    #for n in range(5):
-    #    plt.figure()
-    #    plt.imshow(xens[n],plt.cm.bwr,interpolation='nearest',origin='lower',vmin=-minmax,vmax=minmax)
-    #    plt.title('pattern %s' % n)
-    #    plt.colorbar()
+    xens = rp.pattern
+    minmax = max(np.abs(xens.min()), np.abs(xens.max()))
+    for n in range(5):
+        plt.figure()
+        plt.imshow(xens[n],plt.cm.bwr,interpolation='nearest',origin='lower',vmin=-minmax,vmax=minmax)
+        plt.title('pattern %s' % n)
+        plt.colorbar()
     print 'variance =', ((xens**2).sum(axis=0)/(nsamples-1)).mean()
     print '(expected ',stdev**2,')'
     plt.show()
     nsamples = 1; stdev = 2
-    rp = RandomPattern(500.e3,3600.,20.e6,64,1800,nsamples=nsamples,stdev=stdev)
+    rp = RandomPattern(200.e3,3600.,20.e6,128,1800,nsamples=nsamples,stdev=stdev)
     ntimes = 100
-    x = rp.random_sample()
+    x = rp.pattern
     lag1cov = np.zeros(x.shape, x.dtype)
     lag1var = np.zeros(x.shape, x.dtype)
     for nt in range(ntimes):
         xold = x.copy()
         rp.evolve()
-        x = rp.random_sample()
+        x = rp.pattern
         lag1cov = lag1cov + x*xold/(ntimes-1)
         lag1var = lag1var + x*x/(ntimes-1)
     lag1corr = lag1cov/lag1var

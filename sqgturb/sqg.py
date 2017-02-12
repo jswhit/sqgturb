@@ -631,10 +631,9 @@ class SQGrandom:
             pvy = irfft2(self.il_pad*pvspec_pad,threads=self.threads)
         if self.random_pattern is not None:
             if self.rkfirst:
-                # generate random streamfunction field.
-                psi_pert = self.random_pattern.random_sample()
-                # compute u,v winds
-                psispec_pert = rfft2(psi_pert)
+                # generate random streamfunction field,
+                # then compute u,v winds
+                psispec_pert = rfft2(self.random_pattern.pattern)
                 if not self.dealias:
                     self.upert = irfft2(-self.il*psispec_pert,threads=self.threads)
                     self.vpert = irfft2(self.ik*psispec_pert,threads=self.threads)
