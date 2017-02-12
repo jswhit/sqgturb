@@ -16,7 +16,7 @@ def _cartdist(x1,y1,x2,y2,xmax,ymax):
 
 class RandomPattern:
     def __init__(self, spatial_corr_efold, temporal_corr_efold, L, N,\
-                 dt, nsamples=1, stdev=1.0, thresh = 0.99):
+                 dt, nsamples=1, stdev=1.0, thresh = 0.99, verbose=False):
         self.hcorr = spatial_corr_efold
         self.tcorr = temporal_corr_efold
         self.dt = dt
@@ -49,8 +49,9 @@ class RandomPattern:
                 frac = evals[self.N**2-neig-1:self.N**2].sum()/evalsum
                 neig += 1
             self.scaledevecs = (evecs*np.sqrt(evals/frac))[:,self.N**2-neig:self.N**2]
-            print '%s eigenvectors explain %s percent of variance' %\
-            (neig,100*self.thresh)
+            if verbose:
+                print '%s eigenvectors explain %s percent of variance' %\
+                (neig,100*self.thresh)
             self.nevecs = neig
         # initialize random coefficients.
         self.coeffs = np.random.normal(size=(self.nsamples,self.nevecs))
@@ -80,7 +81,7 @@ if __name__ == "__main__":
     import matplotlib.pyplot as plt
     import cPickle
     nsamples = 10; stdev = 2
-    rp1 = RandomPattern(1000.e3,3600.,20.e6,64,1800,nsamples=nsamples,stdev=stdev)
+    rp1=RandomPattern(1000.e3,3600.,20.e6,64,1800,nsamples=nsamples,stdev=stdev,verbose=True)
     f = open('saved_rp.pickle','wb')
     cPickle.dump(rp1, f, protocol=cPickle.HIGHEST_PROTOCOL)
     f.close()
