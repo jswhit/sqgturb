@@ -631,11 +631,9 @@ class SQGrandom:
             pvy = irfft2(self.il_pad*pvspec_pad,threads=self.threads)
         if self.random_pattern is not None:
             if self.rkfirst:
+                # generate random streamfunction field.
                 psi_pert = self.random_pattern.random_sample()
-                #import matplotlib.pyplot as plt
-                #im = plt.imshow(psi_pert[1],cmap=plt.cm.bwr,interpolation='nearest',origin='lower')
-                #plt.show()
-                #raise SystemExit
+                # compute u,v winds
                 psispec_pert = rfft2(psi_pert)
                 if not self.dealias:
                     self.upert = irfft2(-self.il*psispec_pert,threads=self.threads)
@@ -644,11 +642,10 @@ class SQGrandom:
                     psispec_pad = self.specpad(psispec_pert)
                     self.upert = irfft2(-self.il_pad*psispec_pad,threads=self.threads)
                     self.vpert = irfft2(self.ik_pad*psispec_pad,threads=self.threads)
+                # evolve random streamfunction pattern to next time step.
                 self.random_pattern.evolve()
                 #import matplotlib.pyplot as plt
                 #im = plt.imshow(self.upert[1],cmap=plt.cm.bwr,interpolation='nearest',origin='lower')
-                #plt.figure()
-                #im = plt.imshow(self.vpert[1],cmap=plt.cm.bwr,interpolation='nearest',origin='lower')
                 #spd = np.sqrt(self.upert**2+self.vpert**2)
                 #spd2 = np.sqrt(u**2+v**2)
                 #print('max pert spd',spd.max(),spd2.max())
