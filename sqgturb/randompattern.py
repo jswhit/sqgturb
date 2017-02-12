@@ -39,8 +39,8 @@ class RandomPattern:
             n = n + 1
         # eigenanalysis
         evals, evecs = eigh(cov)
-        evals = np.where(evals > 1.e-10, evals, 1.e-10)
         if self.thresh == 1.0:
+            evals = np.where(evals > 1.e-10, evals, 1.e-10)
             self.scaledevecs = evecs*np.sqrt(evals)
             self.nevecs = self.N**2
         else:
@@ -82,6 +82,7 @@ if __name__ == "__main__":
     import cPickle
     nsamples = 10; stdev = 2
     rp1=RandomPattern(1000.e3,3600.,20.e6,64,1800,nsamples=nsamples,stdev=stdev,verbose=True)
+    # test pickling/unpickling
     f = open('saved_rp.pickle','wb')
     cPickle.dump(rp1, f, protocol=cPickle.HIGHEST_PROTOCOL)
     f.close()
@@ -91,11 +92,11 @@ if __name__ == "__main__":
     # plot random sample.
     xens = rp.random_sample()
     minmax = max(np.abs(xens.min()), np.abs(xens.max()))
-    for n in range(nsamples):
-        plt.figure()
-        plt.imshow(xens[n],plt.cm.bwr,interpolation='nearest',origin='lower',vmin=-minmax,vmax=minmax)
-        plt.title('pattern %s' % n)
-        plt.colorbar()
+    #for n in range(nsamples):
+    #    plt.figure()
+    #    plt.imshow(xens[n],plt.cm.bwr,interpolation='nearest',origin='lower',vmin=-minmax,vmax=minmax)
+    #    plt.title('pattern %s' % n)
+    #    plt.colorbar()
     print 'variance =', ((xens**2).sum(axis=0)/(nsamples-1)).mean()
     print '(expected ',stdev**2,')'
     plt.show()
