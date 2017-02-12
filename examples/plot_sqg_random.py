@@ -2,7 +2,7 @@ from sqgturb import SQGrandom, SQG, RandomPattern
 import matplotlib.pyplot as plt
 import numpy as np
 from netCDF4 import Dataset
-import sys, os, cPickle
+import sys, os, cPickle, time
 
 # get OMP_NUM_THREADS (threads to use) from environment.
 threads = int(os.getenv('OMP_NUM_THREADS','1'))
@@ -25,17 +25,7 @@ scalefact = nc.f*nc.theta0/nc.g
 
 
 stdev = 0.25e6
-#rp = RandomPattern(200.e3,3.*nc.dt,nc.L,pv.shape[-1],dt=nc.dt,stdev=stdev,nsamples=2)
-#f = open('rp.pickle','wb')
-#cPickle.dump(rp, f, protocol=cPickle.HIGHEST_PROTOCOL)
-#f.close()
-#raise SystemExit
-f = open('rp.pickle','rb')
-rp = cPickle.load(f)
-rp.stdev = 0.25e6
-f.close()
-#print rp.dt, rp.L, rp.N, rp.dt, rp.hcorr, rp.tcorr
-#rp = None
+rp = RandomPattern(200.e3,3.*nc.dt,nc.L,pv.shape[-1],dt=nc.dt,stdev=stdev,nsamples=2)
 
 modelr = SQGrandom(pv,nsq=nc.nsq,f=nc.f,U=nc.U,H=nc.H,r=nc.r,tdiab=nc.tdiab,dt=nc.dt,
             diff_order=nc.diff_order,diff_efold=nc.diff_efold,
