@@ -37,7 +37,7 @@ class RandomPattern:
         """
         newpattern = self.stdev*np.random.normal(\
                      size=(self.nsamples,self.N,self.N))
-        for n in range(nsamples):
+        for n in range(self.nsamples):
             newpattern[n] = gaussian_filter(newpattern[n], 
             self.filter_stdev, order=0, output=None,
             mode='wrap', cval=0.0, truncate=4.0)
