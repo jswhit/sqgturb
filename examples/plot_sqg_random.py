@@ -10,7 +10,7 @@ threads = int(os.getenv('OMP_NUM_THREADS','1'))
 filenamein = sys.argv[1]
 
 n = 0
-fcstlen = 1
+fcstlen = 3
 
 nc = Dataset(filenamein)
 # initialize qg model instance
@@ -24,7 +24,7 @@ modeld = SQG(pv,nsq=nc.nsq,f=nc.f,U=nc.U,H=nc.H,r=nc.r,tdiab=nc.tdiab,dt=nc.dt,
 scalefact = nc.f*nc.theta0/nc.g
 
 
-stdev = 10000.
+stdev = 0.25e6
 #rp = RandomPattern(200.e3,3.*nc.dt,nc.L,pv.shape[-1],dt=nc.dt,stdev=stdev,nsamples=2)
 #f = open('rp.pickle','wb')
 #cPickle.dump(rp, f, protocol=cPickle.HIGHEST_PROTOCOL)
