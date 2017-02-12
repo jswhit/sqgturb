@@ -63,7 +63,6 @@ class RandomPattern:
         xens = np.dot(self.stdev*self.coeffs,self.scaledevecs.T)
         #xens = np.zeros((nsamples,self.N*self.N),np.float32)
         #for n in range(nsamples):
-        #    xens[n] = np.dot((self.stdev*self.coeffs).T,self.scaledevecs)
         #    for j in range(self.nevecs):
         #        xens[n] = xens[n]+self.stdev*self.coeffs[n,j]*self.scaledevecs[:,j]
         return xens.reshape((self.nsamples, self.N, self.N)).squeeze()
