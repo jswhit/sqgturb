@@ -186,7 +186,7 @@ class SQG:
         if self.random_pattern is not None:
             # add random velocity to advection.
             # (held constant over RK4 time step)
-            if self._rkfirst:
+            if self._rkfirst or self.random_pattern.tcorr == 0:
                 # generate random streamfunction field,
                 # then compute u,v winds
                 psispec_pert = rfft2(self.random_pattern.pattern)
