@@ -17,8 +17,8 @@ nc = Dataset(filenamein)
 pv = nc['pv'][n]
 dt = 600 # time step in seconds
 norder = 8; diff_efold = 5400
-stdev = 0.3e6
-rp = RandomPattern(150.e3,2.*dt,nc.L,pv.shape[-1],dt=dt,stdev=stdev,nsamples=2)
+stdev = 0.2e6
+rp = RandomPattern(100.e3,2.*dt,nc.L,pv.shape[-1],dt=dt,stdev=stdev,nsamples=2)
 print 'random pattern hcorr,tcorr,stdev = ',rp.hcorr, rp.tcorr, rp.stdev
 model = SQG(pv,nsq=nc.nsq,f=nc.f,U=nc.U,H=nc.H,r=nc.r,tdiab=nc.tdiab,dt=dt,
             diff_order=norder,diff_efold=diff_efold,random_pattern=rp,

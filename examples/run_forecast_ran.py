@@ -15,14 +15,15 @@ if len(sys.argv) > 3:
     ntimes = ntimes+fcstlen
 else:
     ntimes = -999
+nanals = 10
 
 nc = Dataset(filenamein)
 # initialize qg model instance
 pv = nc['pv'][0]
 dt = 600 # time step in seconds
 norder = 8; diff_efold = 5400
-stdev = 0.3e6
-rp = RandomPattern(150.e3,2.*dt,nc.L,pv.shape[-1],dt=nc.dt,stdev=stdev,nsamples=2)
+stdev = 0.2e6
+rp = RandomPattern(100.e3,2*dt,nc.L,pv.shape[-1],dt=nc.dt,stdev=stdev,nsamples=2)
 print 'random pattern hcorr,tcorr,stdev = ',rp.hcorr, rp.tcorr, rp.stdev
 model = SQG(pv,nsq=nc.nsq,f=nc.f,U=nc.U,H=nc.H,r=nc.r,tdiab=nc.tdiab,dt=dt,
             diff_order=norder,diff_efold=diff_efold,
@@ -30,9 +31,9 @@ model = SQG(pv,nsq=nc.nsq,f=nc.f,U=nc.U,H=nc.H,r=nc.r,tdiab=nc.tdiab,dt=dt,
             dealias=bool(nc.dealias),symmetric=bool(nc.symmetric),threads=threads,
             precision='single')
 modeld = SQG(pv,nsq=nc.nsq,f=nc.f,U=nc.U,H=nc.H,r=nc.r,tdiab=nc.tdiab,dt=dt,
-            diff_order=norder,diff_efold=diff_efold,
-            dealias=True,symmetric=bool(nc.symmetric),threads=threads,
-            precision='single')
+             diff_order=norder,diff_efold=diff_efold,
+             dealias=True,symmetric=bool(nc.symmetric),threads=threads,
+             precision='single')
 outputinterval = fcstlen*(nc['t'][1]-nc['t'][0])
 model.timesteps = int(outputinterval/model.dt)
 modeld.timesteps = int(outputinterval/model.dt)
@@ -40,7 +41,6 @@ scalefact = nc.f*nc.theta0/nc.g
 if ntimes < 0:
     ntimes = len(nc.dimensions['t'])
 
-nanals = 10
 N = model.N
 pverrsq_mean = np.zeros((2,N,N),np.float32)
 pverrsqd_mean = np.zeros((2,N,N),np.float32)
