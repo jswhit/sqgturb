@@ -121,7 +121,8 @@ class SQG:
         np.exp((-self.dt/self.diff_efold)*(ktot/ktotcutoff)**self.diff_order)
         # number of timesteps to advance each call to 'advance' method.
         self.timesteps = 1
-        # random patter class for stochastic advection
+        # random pattern class for stochastic advection
+        # (default None, no stochastic advection)
         self.random_pattern = random_pattern
 
     def invert(self,pvspec=None):
