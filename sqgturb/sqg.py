@@ -184,7 +184,8 @@ class SQG:
             pvy = irfft2(self.il_pad*pvspec_pad,threads=self.threads)
         if self.random_pattern is not None:
             # add random velocity to advection.
-            if self.rkfirst:
+            # (held constant over RK4 time step)
+            if self._rkfirst:
                 # generate random streamfunction field,
                 # then compute u,v winds
                 psispec_pert = rfft2(self.random_pattern.pattern)
@@ -217,7 +218,9 @@ class SQG:
     def timestep(self):
         # update pv using 4th order runge-kutta time step with
         # implicit "integrating factor" treatment of hyperdiffusion.
+        self._rkfirst = True # indicates 1st RK4 step
         k1 = self.dt*self.gettend(self.pvspec)
+        self._rkfirst = False
         k2 = self.dt*self.gettend(self.pvspec + 0.5*k1)
         k3 = self.dt*self.gettend(self.pvspec + 0.5*k2)
         k4 = self.dt*self.gettend(self.pvspec + k3)
