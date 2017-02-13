@@ -8,7 +8,7 @@ class RandomPattern:
         define an ensemble of random patterns with specified temporal
         and spatial covariance structure by applying Gaussian blur to
         white noise.
-        spatial_corr_efold:  horizontal efolding scale for 
+        spatial_corr_efold:  horizontal efolding scale for
         isotropic spatial correlation structure.
         temporal_corr_efold:  efolding time scale for temporal
         correlation.
@@ -21,7 +21,10 @@ class RandomPattern:
         self.hcorr = spatial_corr_efold
         self.tcorr = temporal_corr_efold
         self.dt = dt
-        self.lag1corr = np.exp(-1)**(self.dt/self.tcorr)
+        if self.tcorr == 0:
+            self.lag1corr = 0.
+        else:
+            self.lag1corr = np.exp(-1)**(self.dt/self.tcorr)
         self.L = L
         self.stdev = stdev
         self.nsamples = nsamples
@@ -30,15 +33,16 @@ class RandomPattern:
         # generate white noise.
         self.pattern = self.stdev*np.random.normal(\
                        size=(self.nsamples,self.N,self.N))
-        # apply gaussian filter
-        self.filter_stdev = self.hcorr*self.N/(self.L*np.sqrt(4.))
-        for n in range(nsamples):
-            self.pattern[n] = gaussian_filter(self.pattern[n], 
-            self.filter_stdev, order=0, output=None,
-            mode='wrap', cval=0.0, truncate=4.0)
-        # restore variance removed by gaussian blur.
-        self.pattern =\
-        self.pattern*(self.filter_stdev*2.*np.sqrt(np.pi))
+        if self.hcorr > 0:
+            # apply gaussian filter
+            self.filter_stdev = self.hcorr*self.N/(self.L*np.sqrt(4.))
+            for n in range(nsamples):
+                self.pattern[n] = gaussian_filter(self.pattern[n],
+                self.filter_stdev, order=0, output=None,
+                mode='wrap', cval=0.0, truncate=4.0)
+            # restore variance removed by gaussian blur.
+            self.pattern =\
+            self.pattern*(self.filter_stdev*2.*np.sqrt(np.pi))
 
     def evolve(self):
         """
@@ -47,14 +51,15 @@ class RandomPattern:
         # generate white noise.
         newpattern = self.stdev*np.random.normal(\
                      size=(self.nsamples,self.N,self.N))
-        # apply gaussian filter
-        for n in range(self.nsamples):
-            newpattern[n] = gaussian_filter(newpattern[n], 
-            self.filter_stdev, order=0, output=None,
-            mode='wrap', cval=0.0, truncate=4.0)
-        # restore variance removed by gaussian blur.
-        newpattern =\
-        newpattern*(self.filter_stdev*2.*np.sqrt(np.pi))
+        if self.hcorr > 0:
+            # apply gaussian filter
+            for n in range(self.nsamples):
+                newpattern[n] = gaussian_filter(newpattern[n],
+                self.filter_stdev, order=0, output=None,
+                mode='wrap', cval=0.0, truncate=4.0)
+            # restore variance removed by gaussian blur.
+            newpattern =\
+            newpattern*(self.filter_stdev*2.*np.sqrt(np.pi))
         # blend new pattern with old pattern.
         self.pattern = \
         np.sqrt(1.-self.lag1corr**2)*newpattern + \
