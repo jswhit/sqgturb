@@ -62,17 +62,16 @@ class RandomPattern:
 
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
-    nsamples = 100; stdev = 2
-    rp=RandomPattern(1000.e3,3600.,20.e6,128,1800,nsamples=nsamples,stdev=stdev)
+    nsamples = 10; stdev = 2
+    rp=RandomPattern(500.e3,3600.,20.e6,128,1800,nsamples=nsamples,stdev=stdev)
     # plot random sample.
     xens = rp.pattern
     minmax = max(np.abs(xens.min()), np.abs(xens.max()))
-    for n in range(1):
+    for n in range(nsamples):
         plt.figure()
         plt.imshow(xens[n],plt.cm.bwr,interpolation='nearest',origin='lower',vmin=-minmax,vmax=minmax)
         plt.title('pattern %s' % n)
         plt.colorbar()
-    #plt.show()
     print 'variance =', ((xens**2).sum(axis=0)/(nsamples-1)).mean()
     print '(expected ',stdev**2,')'
     nsamples = 1; stdev = 1
@@ -86,20 +85,15 @@ if __name__ == "__main__":
         xold = x.copy()
         rp.evolve()
         x = rp.pattern[0]
-        #plt.figure()
-        #plt.imshow(x,plt.cm.bwr,interpolation='nearest',origin='lower')
-        #plt.show()
-        #raise SystemExit
         lag1cov = lag1cov + x*xold/(ntimes-1)
         lag1var = lag1var + x*x/(ntimes-1)
         spatial_cov = spatial_cov + x[rp.N/2,rp.N/2]*x/(ntimes-1)
     plt.figure()
     x = (rp.L/rp.N)*np.arange(rp.N)-rp.L/2
-    plt.plot(x,spatial_cov[:,rp.N/2],'r')
+    plt.plot(x,0.5*(spatial_cov[:,rp.N/2]+spatial_cov[rp.N/2,:]),'r')
     plt.plot(x,np.exp(-(x/rp.hcorr)**2),'k')
     plt.axhline(0); plt.axvline(0)
-    #plt.imshow(spatial_cov,plt.cm.bwr,interpolation='nearest',origin='lower',vmin=-1.,vmax=1.)
     plt.show()
     lag1corr = lag1cov/lag1var
     print 'lag 1 autocorr = ',lag1corr.mean(), ', expected ',rp.lag1corr
-    print 'variance = ',lag1var.mean()
+    print 'variance = ',lag1var.mean(),' (expected ',stdev**2,')'
