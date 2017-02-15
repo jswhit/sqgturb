@@ -2,8 +2,8 @@ from netCDF4 import Dataset
 from sqgturb import rfft2, irfft2, SQG
 import numpy as np
 levplot = None
-nc = Dataset('data/sqg_N256_aliased.nc')
-nc2 = Dataset('data/sqg_N256_dealiased.nc')
+nc = Dataset('../examples/sqg_N512_N128_6hrly.nc')
+nc2 = Dataset('../examples/sqg_N128_6hrly.nc')
 #nc2 = Dataset('sqg.nc')
 #print nc
 pv = nc.variables['pv']
@@ -76,8 +76,8 @@ for n in range(ktotmax):
 
 import matplotlib.pyplot as plt
 import numpy as np
-plt.loglog(wavenums,kespec,color='b',label='aliased')
-plt.loglog(wavenums,kespec2,color='r',label='dealiased')
+plt.loglog(wavenums[:-1],kespec[:-1],color='b',label='N512')
+plt.loglog(wavenums[:-1],kespec2[:-1],color='r',label='N128')
 #plt.loglog(wavenums,idealke1,color='k')
 plt.loglog(wavenums,idealke2,color='k')
 plt.legend()
