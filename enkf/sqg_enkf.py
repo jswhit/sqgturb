@@ -43,8 +43,8 @@ use_letkf = False # use serial EnSRF
 # if nobs > 0, each ob time nobs ob locations are randomly sampled (without
 # replacement) from the model grid
 # if nobs < 0, fixed network of every Nth grid point used (N = -nobs)
-nobs = 1024 # number of obs to assimilate (randomly distributed)
-#nobs = -8 # fixed network, every -nobs grid points. nobs=-1 obs at all pts.
+#nobs = 1024 # number of obs to assimilate (randomly distributed)
+nobs = -2 # fixed network, every -nobs grid points. nobs=-1 obs at all pts.
 
 # if levob=0, sfc temp obs used.  if 1, lid temp obs used. If [0,1] obs at both
 # boundaries.
@@ -57,13 +57,12 @@ nanals = 40 # ensemble members
 
 oberrstdev = 1.0 # ob error standard deviation in K
 
-nassim = 500 # assimilation times to run
+nassim = 100 # assimilation times to run
 
-filename_climo = 'sqg_N256.nc' # file name for forecast model climo
+filename_climo = '../examples/sqg_N128_6hrly.nc' # file name for forecast model climo
 # perfect model
-filename_truth = 'sqg_N256.nc' # file name for nature run to draw obs
-# model error
-#filename_truth = 'sqg_N512_N256.nc' # file name for nature run to draw obs
+filename_truth = '../examples/sqg_N128_6hrly.nc' # file name for nature run to draw obs
+#filename_truth = '../examples/sqg_N512_N128_6hrly.nc' # file name for nature run to draw obs
 
 print('# filename_modelclimo=%s' % filename_climo)
 print('# filename_truth=%s' % filename_truth)
@@ -210,7 +209,12 @@ for ntime in range(nassim):
     else:
         mask = np.zeros((ny,nx),np.bool)
         nskip = int(nx/np.sqrt(nobs))
-        mask[0:ny:nskip,0:nx:nskip] = True
+        # if every other grid point observed, shift every other time step
+        # so every grid point is observed in 2 cycle.
+        if nskip == 2 and ntime%2:
+            mask[1:ny:nskip,1:nx:nskip] = True
+        else:
+            mask[0:ny:nskip,0:nx:nskip] = True
         tmp = np.arange(0,nx*ny).reshape(ny,nx)
         indxob = tmp[mask.nonzero()].ravel()
     for k in range(len(levob)):
