@@ -1,5 +1,5 @@
 from __future__ import print_function
-from sqgturb import SQG
+from sqgturb import SQG, RandomPattern, RandomPatternSample
 import numpy as np
 from netCDF4 import Dataset
 import sys, time, os
@@ -43,8 +43,8 @@ use_letkf = False # use serial EnSRF
 # if nobs > 0, each ob time nobs ob locations are randomly sampled (without
 # replacement) from the model grid
 # if nobs < 0, fixed network of every Nth grid point used (N = -nobs)
-#nobs = 1024 # number of obs to assimilate (randomly distributed)
-nobs = -2 # fixed network, every -nobs grid points. nobs=-1 obs at all pts.
+#nobs = 2048 # number of obs to assimilate (randomly distributed)
+nobs = -1 # fixed network, every -nobs grid points. nobs=-1 obs at all pts.
 
 # if levob=0, sfc temp obs used.  if 1, lid temp obs used. If [0,1] obs at both
 # boundaries.
@@ -57,12 +57,13 @@ nanals = 40 # ensemble members
 
 oberrstdev = 1.0 # ob error standard deviation in K
 
-nassim = 100 # assimilation times to run
+nassim = 200 # assimilation times to run
 
-filename_climo = '../examples/sqg_N128_6hrly.nc' # file name for forecast model climo
+filename_climo = '../examples/sqg_N128_3hrly.nc' # file name for forecast model climo
 # perfect model
-filename_truth = '../examples/sqg_N128_6hrly.nc' # file name for nature run to draw obs
-#filename_truth = '../examples/sqg_N512_N128_6hrly.nc' # file name for nature run to draw obs
+#filename_truth = '../examples/sqg_N128_3hrly.nc' # file name for nature run to draw obs
+# truncated model
+filename_truth = '../examples/sqg_N512_N128_3hrly.nc' # file name for nature run to draw obs
 
 print('# filename_modelclimo=%s' % filename_climo)
 print('# filename_truth=%s' % filename_truth)
@@ -87,10 +88,13 @@ dt = nc_climo.dt
 if diff_efold == None: diff_efold=nc_climo.diff_efold
 # get OMP_NUM_THREADS (threads to use) from environment.
 threads = int(os.getenv('OMP_NUM_THREADS','1'))
+stdev = 0.2e6
+rp = RandomPattern(nc_climo.L/nx,6.*nc_climo.dt,nc_climo.L,nx,dt,nsamples=2,stdev=stdev)
+#rp = None
 for nanal in range(nanals):
     pvens[nanal] = pv_climo[indxran[nanal]]
     models.append(\
-    SQG(pvens[nanal],\
+    SQG(pvens[nanal],random_pattern=rp,\
     nsq=nc_climo.nsq,f=nc_climo.f,dt=dt,U=nc_climo.U,H=nc_climo.H,\
     r=nc_climo.r,tdiab=nc_climo.tdiab,symmetric=nc_climo.symmetric,\
     diff_order=nc_climo.diff_order,diff_efold=diff_efold,threads=threads))
