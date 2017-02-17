@@ -18,7 +18,7 @@ nc = Dataset(filenamein)
 pv = nc['pv'][n]
 N = pv.shape[-1]
 dt = 600 # time step in seconds
-norder = 8; diff_efold = 5400
+norder = 8; diff_efold = 86400./2.
 scale = 2.
 temp_corr = 3.*dt
 ncin = Dataset(datain)
@@ -28,6 +28,7 @@ model = SQG(pv,nsq=nc.nsq,f=nc.f,U=nc.U,H=nc.H,r=nc.r,tdiab=nc.tdiab,dt=dt,
             diff_order=norder,diff_efold=diff_efold,random_pattern=rp,
             dealias=True,symmetric=bool(nc.symmetric),threads=threads,
             precision='single')
+diff_efold=5400.
 modeld = SQG(pv,nsq=nc.nsq,f=nc.f,U=nc.U,H=nc.H,r=nc.r,tdiab=nc.tdiab,dt=dt,
             diff_order=norder,diff_efold=diff_efold,
             dealias=True,symmetric=bool(nc.symmetric),threads=threads,
@@ -41,7 +42,7 @@ N = pv.shape[1]
 
 pvfcst_d = modeld.advance(nc['pv'][n])
 pvfcst_s = model.advance(nc['pv'][n])
-vmin = -25; vmax = 25.
+vmin = -20; vmax = 20.
 import matplotlib.pyplot as plt
 im = plt.imshow(scalefact*pvfcst_d[1],cmap=plt.cm.jet,interpolation='nearest',origin='lower',vmin=vmin,vmax=vmax)
 plt.title('deterministic')
@@ -60,7 +61,7 @@ im = plt.imshow(scalefact*pvdiff[1],cmap=plt.cm.bwr,interpolation='nearest',orig
 plt.title('deterministic error')
 plt.figure()
 pvdiff = pvfcst_s-pvfcst_d
-vmin = 0.5*vmin; vmax = 0.5*vmax
+#vmin = 0.5*vmin; vmax = 0.5*vmax
 print scalefact*pvdiff.min(), scalefact*pvdiff.max()
 im = plt.imshow(scalefact*pvdiff[1],cmap=plt.cm.bwr,interpolation='nearest',origin='lower',vmin=vmin,vmax=vmax)
 plt.title('difference')

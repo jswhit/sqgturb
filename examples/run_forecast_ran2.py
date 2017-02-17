@@ -22,17 +22,19 @@ nc = Dataset(filenamein)
 # initialize qg model instance
 pv = nc['pv'][0]
 dt = 600 # time step in seconds
-norder = 8; diff_efold = 5400
-scale = 5.
-temp_corr = 2.*dt
+norder = 8
+scale = 2.5
+temp_corr = dt
 ncin = Dataset(datain)
 ncvar = ncin['psi']
 rp = RandomPattern(ncvar,temporal_corr_efold=temp_corr,dt=dt,scale=scale)
+diff_efold=86400./2.
 model = SQG(pv,nsq=nc.nsq,f=nc.f,U=nc.U,H=nc.H,r=nc.r,tdiab=nc.tdiab,dt=dt,
             diff_order=norder,diff_efold=diff_efold,
             random_pattern=rp,
             dealias=bool(nc.dealias),symmetric=bool(nc.symmetric),threads=threads,
             precision='single')
+diff_efold = 5400.
 modeld = SQG(pv,nsq=nc.nsq,f=nc.f,U=nc.U,H=nc.H,r=nc.r,tdiab=nc.tdiab,dt=dt,
              diff_order=norder,diff_efold=diff_efold,
              dealias=True,symmetric=bool(nc.symmetric),threads=threads,

@@ -20,17 +20,19 @@ nanals = 10
 nc = Dataset(filenamein)
 # initialize qg model instance
 pv = nc['pv'][0]
-dt = 600 # time step in seconds
-norder = 8; diff_efold = 5400
+dt = 600. # time step in seconds
+norder = 8
 N = pv.shape[-1]
-stdev = 0.25e6
-rp = RandomPattern(0.5*nc.L/N,2*dt,nc.L,pv.shape[-1],dt=nc.dt,stdev=stdev,nsamples=2)
+stdev = 0.2e6
+rp = RandomPattern(nc.L/N,6.*dt,nc.L,N,dt,nsamples=2,stdev=stdev)
 print 'random pattern hcorr,tcorr,stdev = ',rp.hcorr, rp.tcorr, rp.stdev
+diff_efold=2.*86400./3.
 model = SQG(pv,nsq=nc.nsq,f=nc.f,U=nc.U,H=nc.H,r=nc.r,tdiab=nc.tdiab,dt=dt,
             diff_order=norder,diff_efold=diff_efold,
             random_pattern=rp,
             dealias=bool(nc.dealias),symmetric=bool(nc.symmetric),threads=threads,
             precision='single')
+diff_efold=5400
 modeld = SQG(pv,nsq=nc.nsq,f=nc.f,U=nc.U,H=nc.H,r=nc.r,tdiab=nc.tdiab,dt=dt,
              diff_order=norder,diff_efold=diff_efold,
              dealias=True,symmetric=bool(nc.symmetric),threads=threads,
@@ -85,6 +87,8 @@ for n in range(ntimes-fcstlen):
 
 print 'mean',np.sqrt(pverrsq_mean.mean()),np.sqrt(pverrsqd_mean.mean()),np.sqrt(pvspread_mean.mean())
 vmin = 0; vmax = 4
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 im = plt.imshow(np.sqrt(pvspread_mean[1]),cmap=plt.cm.hot_r,interpolation='nearest',origin='lower',vmin=vmin,vmax=vmax)
 plt.title('mean spread')
@@ -117,4 +121,4 @@ plt.loglog(wavenums,kespec_sprd,color='b')
 #plt.loglog(wavenums,idealke,color='r')
 plt.title('error (black) and spread (blue) spectra for day %s' % fcstlen)
 
-plt.show()
+plt.savefig('day%serr_spectrum_3.png' % fcstlen)
