@@ -8,10 +8,13 @@ import os
 # netcdf file.
 
 # model parameters.
-N = 256 # number of grid points in each direction (waves=N/2)
-dt = 240 # time step in seconds
+N = 512 # number of grid points in each direction (waves=N/2)
+dt = 90 # time step in seconds
+norder = 8; diff_efold = 1800.
+N = 128
+dt = 600
+norder = 8; diff_efold = 86400./2.
 # efolding time scale (seconds) for smallest wave (N/2) in del**norder hyperdiffusion
-norder = 8; diff_efold = 2400
 #N = 512; dt = 90; efold = 1800.
 dealias = True # dealiased with 2/3 rule?
 # Ekman damping coefficient r=dek*N**2/f, dek = ekman depth = sqrt(2.*Av/f))
@@ -58,13 +61,13 @@ model = SQG(pv,nsq=nsq,f=f,U=U,H=H,r=r,tdiab=tdiab,dt=dt,
             precision=precision)
 
 #  initialize figure.
-outputinterval = 3600. # interval between frames in seconds
+outputinterval = 10800. # interval between frames in seconds
 tmin = 100.*86400. # time to start saving data (in days)
-tmax = 200.*86400. # time to stop (in days)
+tmax = 300.*86400. # time to stop (in days)
 nsteps = int(tmax/outputinterval) # number of time steps to animate
 # set number of timesteps to integrate for each call to model.advance
 model.timesteps = int(outputinterval/model.dt)
-savedata = 'sqg_N%s.nc' % N # save data plotted in a netcdf file.
+savedata = 'sqg_N%s_3hrly.nc' % N # save data plotted in a netcdf file.
 #savedata = None # don't save data
 plot = True # animate data as model is running?
 
