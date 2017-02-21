@@ -57,13 +57,13 @@ nanals = 40 # ensemble members
 
 oberrstdev = 1.0 # ob error standard deviation in K
 
-nassim = 200 # assimilation times to run
+nassim = 880 # assimilation times to run
 
 filename_climo = '../examples/sqg_N128_3hrly.nc' # file name for forecast model climo
 # perfect model
 #filename_truth = '../examples/sqg_N128_3hrly.nc' # file name for nature run to draw obs
 # truncated model
-filename_truth = '../examples/sqg_N512_N128_3hrly.nc' # file name for nature run to draw obs
+filename_truth = '../examples/sqg_N512_N128_3hrly_blockmean.nc' # file name for nature run to draw obs
 
 print('# filename_modelclimo=%s' % filename_climo)
 print('# filename_truth=%s' % filename_truth)
@@ -88,7 +88,7 @@ dt = nc_climo.dt
 if diff_efold == None: diff_efold=nc_climo.diff_efold
 # get OMP_NUM_THREADS (threads to use) from environment.
 threads = int(os.getenv('OMP_NUM_THREADS','1'))
-stdev = 0.2e6
+stdev = 0.25e6
 rp = RandomPattern(nc_climo.L/nx,6.*nc_climo.dt,nc_climo.L,nx,dt,nsamples=2,stdev=stdev)
 #rp = None
 for nanal in range(nanals):
