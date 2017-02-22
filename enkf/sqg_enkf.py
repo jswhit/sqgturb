@@ -88,8 +88,11 @@ dt = nc_climo.dt
 if diff_efold == None: diff_efold=nc_climo.diff_efold
 # get OMP_NUM_THREADS (threads to use) from environment.
 threads = int(os.getenv('OMP_NUM_THREADS','1'))
-stdev = 0.25e6
-rp = RandomPattern(nc_climo.L/nx,6.*nc_climo.dt,nc_climo.L,nx,dt,nsamples=2,stdev=stdev)
+#stdev = 0.25e6
+#rp = RandomPattern(nc_climo.L/nx,6.*nc_climo.dt,nc_climo.L,nx,dt,nsamples=2,stdev=stdev)
+scale = 1.75
+ncvar = Dataset('../examples/sqg_N128_perts1.nc')['psi']
+rp = RandomPatternSample(ncvar,temporal_corr_efold=6.*nc_climo.dt,dt=dt,scale=scale)
 #rp = None
 for nanal in range(nanals):
     pvens[nanal] = pv_climo[indxran[nanal]]
@@ -97,6 +100,7 @@ for nanal in range(nanals):
     SQG(pvens[nanal],random_pattern=rp,\
     nsq=nc_climo.nsq,f=nc_climo.f,dt=dt,U=nc_climo.U,H=nc_climo.H,\
     r=nc_climo.r,tdiab=nc_climo.tdiab,symmetric=nc_climo.symmetric,\
+    diff_order_neg=2,diff_efold_neg=None,
     diff_order=nc_climo.diff_order,diff_efold=diff_efold,threads=threads))
 
 # default vertical localization scale
