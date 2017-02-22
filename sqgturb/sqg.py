@@ -70,16 +70,17 @@ class SQG:
             # boundary.
             # l = 2.*pi/L and mu = l*N*H/f
             # u = -0.5*U*np.sin(l*y)*np.sinh(mu*(z-0.5*H)/H)*np.sin(l*y)/np.sinh(0.5*mu)
-            # theta = (f*theta0/g)*(0.5*U*mu/(l*H))*np.cosh(mu*(z-0.5*H)/H)*np.cos(l*y)/np.sinh(0.5*mu) + \
-            #         theta0 + (theta0*nsq*z/g)
+            # theta = (f*theta0/g)*(0.5*U*mu/(l*H))*np.cosh(mu*(z-0.5*H)/H)*
+            # np.cos(l*y)/np.sinh(0.5*mu)
+            # + theta0 + (theta0*nsq*z/g)
             pvbar[:] = -(mu*0.5*U/(l*H))*np.cosh(0.5*mu)*np.cos(l*y)/np.sinh(0.5*mu)
         else:
             # asymmetric version, equilibrium state has no flow at surface and
             # temp gradient slightly weaker at sfc.
-            # l = 2.*pi/L and mu = l*N*H/f
             # u = U*np.sin(l*y)*np.sinh(mu*z/H)*np.sin(l*y)/np.sinh(mu)
-            # theta = (f*theta0/g)*(U*mu/(l*H))*np.cosh(mu*z/H)*np.cos(l*y)/np.sinh(mu) +\
-            # theta0 + (theta0*nsq*z/g)
+            # theta = (f*theta0/g)*(U*mu/(l*H))*np.cosh(mu*z/H)*
+            # np.cos(l*y)/np.sinh(mu) 
+            # + theta0 + (theta0*nsq*z/g)
             pvbar[:]   = -(mu*U/(l*H))*np.cos(l*y)/np.sinh(mu)
             pvbar[1,:] = pvbar[0,:]*np.cosh(mu)
         pvbar.shape = (2,N,1)
@@ -126,6 +127,7 @@ class SQG:
         # with efolding time scale for diffusion of shortest wave (N/2)
         self.hyperdiff =\
         np.exp((-self.dt/self.diff_efold)*(ktot/ktotcutoff)**self.diff_order)
+        # anti-diffusion (negative viscosity).
         if self.diff_efold_neg is not None:
             self.hyperdiff_neg =\
             (1./self.diff_efold_neg)*(ktot/ktotcutoff)**(self.diff_order_neg/2)
@@ -224,7 +226,7 @@ class SQG:
             # for asymmetric jet (U=0 at sfc), no Ekman layer at lid
             if self.symmetric:
                 dpvspecdt[1] -= self.r*self.ksqlsq*psispec[1]
-        # negative viscosity
+        # anti-diffusion (negative viscosity).
         if self.diff_efold_neg is not None:
             dpvspecdt += self.hyperdiff_neg*pvspec
         # save wind field
