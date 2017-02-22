@@ -19,6 +19,7 @@ class SQG:
 
     def __init__(self,pv,f=1.e-4,nsq=1.e-4,L=20.e6,H=10.e3,U=30.,\
                  r=0.,tdiab=10.*86400,diff_order=8,diff_efold=None,random_pattern=None,
+                 diff_order_neg=2,diff_efold_neg=None,
                  symmetric=True,dt=None,dealias=True,threads=1,precision='single'):
         # initialize SQG model.
         if pv.shape[0] != 2:
@@ -113,12 +114,23 @@ class SQG:
         self.sinhmu = np.sinh(mu).astype(dtype)
         self.diff_order = np.array(diff_order,dtype) # hyperdiffusion order
         self.diff_efold = np.array(diff_efold,dtype) # hyperdiff time scale
+        # anti-diffusion parameters.
+        self.diff_order_neg = np.array(diff_order_neg,dtype)
+        if diff_efold_neg is not None:
+            self.diff_efold_neg = np.array(diff_efold_neg,dtype) # hyperdiff time scale
+        else:
+            self.diff_efold_neg = None
         ktot = np.sqrt(ksqlsq)
         ktotcutoff = np.array(pi*N/self.L, dtype)
         # integrating factor for hyperdiffusion
         # with efolding time scale for diffusion of shortest wave (N/2)
         self.hyperdiff =\
         np.exp((-self.dt/self.diff_efold)*(ktot/ktotcutoff)**self.diff_order)
+        if self.diff_efold_neg is not None:
+            self.hyperdiff_neg =\
+            (1./self.diff_efold_neg)*(ktot/ktotcutoff)**(self.diff_order_neg/2)
+        else:
+            self.hyperdiff_neg = None
         # number of timesteps to advance each call to 'advance' method.
         self.timesteps = 1
         # random pattern class for stochastic advection
@@ -212,6 +224,9 @@ class SQG:
             # for asymmetric jet (U=0 at sfc), no Ekman layer at lid
             if self.symmetric:
                 dpvspecdt[1] -= self.r*self.ksqlsq*psispec[1]
+        # negative viscosity
+        if self.diff_efold_neg is not None:
+            dpvspecdt += self.hyperdiff_neg*pvspec
         # save wind field
         self.u = u; self.v = v
         return dpvspecdt
