@@ -8,10 +8,13 @@ threads = int(os.getenv('OMP_NUM_THREADS','1'))
 
 # spectrally truncate data in filenamein, write to filenameout on Nout x Nout
 # grid.
+verbose=False
+
 filenamein = sys.argv[1]
 fcstlen = int(sys.argv[2])
 if len(sys.argv) > 3:
     ntimes = int(sys.argv[3])
+    if verbose: print fcstlen,ntimes
     ntimes = ntimes+fcstlen
 else:
     ntimes = -999
@@ -23,10 +26,10 @@ pv = nc['pv'][0]
 dt = 600. # time step in seconds
 norder = 8
 N = pv.shape[-1]
-stdev = 0.2e6
+stdev = 0.25e6
 rp = RandomPattern(nc.L/N,6.*dt,nc.L,N,dt,nsamples=2,stdev=stdev)
-print 'random pattern hcorr,tcorr,stdev = ',rp.hcorr, rp.tcorr, rp.stdev
-diff_efold=2.*86400./3.
+#print 'random pattern hcorr,tcorr,stdev = ',rp.hcorr, rp.tcorr, rp.stdev
+diff_efold=1.*86400./2.
 model = SQG(pv,nsq=nc.nsq,f=nc.f,U=nc.U,H=nc.H,r=nc.r,tdiab=nc.tdiab,dt=dt,
             diff_order=norder,diff_efold=diff_efold,
             random_pattern=rp,
@@ -59,7 +62,7 @@ for n in range(ntimes-fcstlen):
     pverrsq = (scalefact*(pvfcstmean - pvtruth))**2
     pverrsqd = (scalefact*(pvfcstd - pvtruth))**2
     pvspread = ((scalefact*(pvens-pvfcstmean))**2).sum(axis=0)/(nanals-1)
-    print n,np.sqrt(pverrsq.mean()),np.sqrt(pverrsqd.mean()),np.sqrt(pvspread.mean())
+    if verbose: print n,np.sqrt(pverrsq.mean()),np.sqrt(pverrsqd.mean()),np.sqrt(pvspread.mean())
     pvspread_mean += pvspread/(ntimes-fcstlen)
     pverrsq_mean += pverrsq/(ntimes-fcstlen)
     pverrsqd_mean += pverrsqd/(ntimes-fcstlen)
@@ -85,7 +88,8 @@ for n in range(ntimes-fcstlen):
         else:
             kespec_sprdmean = kespec_sprdmean+kespec/(nanals*(ntimes-fcstlen))
 
-print 'mean',np.sqrt(pverrsq_mean.mean()),np.sqrt(pverrsqd_mean.mean()),np.sqrt(pvspread_mean.mean())
+#print 'fcstlen = ',fcstlen, 'mean error =',np.sqrt(pverrsq_mean.mean()),np.sqrt(pverrsqd_mean.mean()),np.sqrt(pvspread_mean.mean())
+print fcstlen,np.sqrt(pverrsq_mean.mean()),np.sqrt(pverrsqd_mean.mean()),np.sqrt(pvspread_mean.mean())
 vmin = 0; vmax = 4
 import matplotlib
 matplotlib.use('Agg')
@@ -121,4 +125,4 @@ plt.loglog(wavenums,kespec_sprd,color='b')
 #plt.loglog(wavenums,idealke,color='r')
 plt.title('error (black) and spread (blue) spectra for day %s' % fcstlen)
 
-plt.savefig('day%serr_spectrum_3.png' % fcstlen)
+plt.savefig('day%serr_spectrum1.png' % fcstlen)

@@ -6,13 +6,14 @@ from sqgturb import SQG, RandomPattern, rfft2, irfft2
 # get OMP_NUM_THREADS (threads to use) from environment.
 threads = int(os.getenv('OMP_NUM_THREADS','1'))
 
-# spectrally truncate data in filenamein, write to filenameout on Nout x Nout
-# grid.
-filenamein = sys.argv[1]
-fcstlen = int(sys.argv[2])
-diff_efold = float(sys.argv[3])
-if len(sys.argv) > 4:
-    ntimes = int(sys.argv[4])
+#filenamein = sys.argv[1]
+#fcstlen = int(sys.argv[2])
+#diff_efold = float(sys.argv[3])
+diff_efold = float(sys.argv[1])
+filenamein = 'sqg_N512_N128_3hrly_blockmean.nc'
+fcstlen = 8
+if len(sys.argv) > 2:
+    ntimes = int(sys.argv[2])
     ntimes = ntimes+fcstlen
 else:
     ntimes = -999
