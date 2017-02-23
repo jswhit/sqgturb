@@ -96,6 +96,7 @@ class SQG:
         # dimensionalize wavenumbers.
         k = 2.*pi*k/self.L; l = 2.*pi*l/self.L
         ksqlsq = k**2+l**2
+        self.ksqlsq = ksqlsq
         self.k = k; self.l = l; self.ksqlsq = ksqlsq
         self.ik = (1.j*k).astype(np.complex64)
         self.il = (1.j*l).astype(np.complex64)
@@ -201,7 +202,7 @@ class SQG:
         if self.random_pattern is not None:
             if self.skebs:
                 if self._rkfirst or self.random_pattern.tcorr == 0:
-                    self.pvspec_forcing = self.skebs*rfft2(self.random_pattern.pattern)
+                    self.pvspec_forcing = self.ksqlsq*rfft2(self.random_pattern.pattern)
             else:
                 # add random velocity to advection.
                 # (held constant over RK4 time step)
