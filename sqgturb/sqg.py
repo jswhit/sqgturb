@@ -203,6 +203,7 @@ class SQG:
             if self.skebs:
                 if self._rkfirst or self.random_pattern.tcorr == 0:
                     self.pvspec_forcing = self.ksqlsq*rfft2(self.random_pattern.pattern)
+                    self.random_pattern.evolve()
             else:
                 # add random velocity to advection.
                 # (held constant over RK4 time step)
