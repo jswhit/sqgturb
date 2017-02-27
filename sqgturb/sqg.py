@@ -139,7 +139,7 @@ class SQG:
         # random pattern class for stochastic advection
         # (default None, no stochastic advection)
         self.random_pattern_adv = random_pattern_adv # random advection noise
-        self.random_patter_skebs = random_pattern_skebs # SKEBS additive noise
+        self.random_pattern_skebs = random_pattern_skebs # SKEBS additive noise
 
     def invert(self,pvspec=None):
         if pvspec is None: pvspec = self.pvspec
