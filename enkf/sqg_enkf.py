@@ -43,8 +43,8 @@ use_letkf = False # use serial EnSRF
 # if nobs > 0, each ob time nobs ob locations are randomly sampled (without
 # replacement) from the model grid
 # if nobs < 0, fixed network of every Nth grid point used (N = -nobs)
-#nobs = 2048 # number of obs to assimilate (randomly distributed)
-nobs = -1 # fixed network, every -nobs grid points. nobs=-1 obs at all pts.
+nobs = 4096 # number of obs to assimilate (randomly distributed)
+#nobs = -1 # fixed network, every -nobs grid points. nobs=-1 obs at all pts.
 
 # if levob=0, sfc temp obs used.  if 1, lid temp obs used. If [0,1] obs at both
 # boundaries.
@@ -88,16 +88,15 @@ dt = nc_climo.dt
 if diff_efold == None: diff_efold=nc_climo.diff_efold
 # get OMP_NUM_THREADS (threads to use) from environment.
 threads = int(os.getenv('OMP_NUM_THREADS','1'))
-#stdev = 0.25e6
-#rp = RandomPattern(nc_climo.L/nx,6.*nc_climo.dt,nc_climo.L,nx,dt,nsamples=2,stdev=stdev)
-scale = 1.75
-ncvar = Dataset('../examples/sqg_N128_perts1.nc')['psi']
-rp = RandomPatternSample(ncvar,temporal_corr_efold=6.*nc_climo.dt,dt=dt,scale=scale)
-#rp = None
+stdev = 2.0e5   
+rp_adv = RandomPattern(nc_climo.L/nx,24.*nc_climo.dt,nc_climo.L,nx,dt,nsamples=1,stdev=stdev)
+stdev = 2.0e8
+rp_skebs = RandomPattern(nc_climo.L/nx,24.*nc_climo.dt,nc_climo.L,nx,dt,nsamples=2,stdev=stdev)
+#rp_skebs = None
 for nanal in range(nanals):
     pvens[nanal] = pv_climo[indxran[nanal]]
     models.append(\
-    SQG(pvens[nanal],random_pattern=rp,\
+    SQG(pvens[nanal],random_pattern_adv=rp_adv,random_pattern_skebs=rp_skebs,\
     nsq=nc_climo.nsq,f=nc_climo.f,dt=dt,U=nc_climo.U,H=nc_climo.H,\
     r=nc_climo.r,tdiab=nc_climo.tdiab,symmetric=nc_climo.symmetric,\
     diff_order_neg=2,diff_efold_neg=None,
@@ -136,7 +135,11 @@ else:
 obtimes = nc_truth.variables['t'][:]
 assim_interval = obtimes[1]-obtimes[0]
 assim_timesteps = int(np.round(assim_interval/models[0].dt))
-print('# ntime,pverr_a,pvsprd_a,pverr_b,pvsprd_b,obinc_b,osprd_b,obinc_a,obsprd_a,omaomb/oberr,obbias_b')
+print('# ntime,pverr_a,pvsprd_a,pverr_b,pvsprd_b,obinc_b,osprd_b,obinc_a,obsprd_a,omaomb/oberr,obbias_b,inflation')
+if rp_adv is not None:
+    print('# random pattern (adv): hcorr,tcorr,stdev,nsamps=%s,%s,%s,%s' % (rp_adv.hcorr,rp_adv.tcorr,rp_adv.stdev,rp_adv.nsamples))
+elif rp_skevs is not None:
+    print('# random pattern (skevs): hcorr,tcorr,stdev,nsamps=%s,%s,%s,%s' % (rp_skebs.hcorr,rp_skebs.tcorr,rp_skebs.stdev,rp_skebs.nsamples))
 
 # initialize model clock
 for nanal in range(nanals):
@@ -337,10 +340,10 @@ for ntime in range(nassim):
     # print out analysis error, spread and innov stats for background
     pverr_a = (scalefact*(pvensmean_a-pv_truth[ntime]))**2
     pvsprd_a = ((scalefact*(pvensmean_a-pvens))**2).sum(axis=0)/(nanals-1)
-    print("%s %g %g %g %g %g %g %g %g %g %g" %\
+    print("%s %g %g %g %g %g %g %g %g %g %g %g" %\
     (ntime,np.sqrt(pverr_a.mean()),np.sqrt(pvsprd_a.mean()),\
      np.sqrt(pverr_b.mean()),np.sqrt(pvsprd_b.mean()),\
-     obinc_b,obsprd_b,obinc_a,obsprd_a,omaomb/oberrvar.mean(),obbias_b))
+     obinc_b,obsprd_b,obinc_a,obsprd_a,omaomb/oberrvar.mean(),obbias_b,inflation_factor.mean()))
 
     # save data.
     if savedata is not None:
