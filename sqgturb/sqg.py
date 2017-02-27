@@ -205,7 +205,7 @@ class SQG:
             if self._rkfirst or self.random_pattern_adv.tcorr == 0:
                 # generate random streamfunction field,
                 # then compute u,v winds
-                psispec_pert = rfft2(self.random_pattern.pattern_adv)
+                psispec_pert = rfft2(self.random_pattern_adv.pattern)
                 if not self.dealias:
                     self.upert = irfft2(-self.il*psispec_pert,threads=self.threads)
                     self.vpert = irfft2(self.ik*psispec_pert,threads=self.threads)
