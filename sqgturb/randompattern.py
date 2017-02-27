@@ -15,7 +15,9 @@ class RandomPattern:
         L: size of square domain (m)
         N: number of grid points in each periodic direction
         dt: time step to evolve paptern.
-        nsamples:  number of ensemble members.
+        nsamples:  number of ensemble members. Can be 1 or 2.  If set to 1,
+        then pattern is duplicated..  If set to 2, independent
+        patterns are generated for each boundary.
         stdev:  spatial standard deviation (amplitude).
         """
         self.hcorr = spatial_corr_efold
@@ -32,7 +34,13 @@ class RandomPattern:
         # initialize patterns.
         # generate white noise.
         self.pattern = self.stdev*np.random.normal(\
-                       size=(self.nsamples,self.N,self.N))
+                       size=(2,self.N,self.N))
+        if self.nsamples == 2:
+            pass
+        elif nsamples == 1:
+            self.pattern[1] = self.pattern[0]
+        else:
+            raise ValueError('nsamples must be 1 or 2')
         if self.hcorr > 0:
             # apply gaussian filter
             self.filter_stdev = self.hcorr*self.N/(self.L*np.sqrt(4.))
@@ -50,13 +58,21 @@ class RandomPattern:
         """
         # generate white noise.
         newpattern = self.stdev*np.random.normal(\
-                     size=(self.nsamples,self.N,self.N))
+                     size=(2,self.N,self.N))
+        if self.nsamples == 1:
+            newpattern[1]=newpattern[0]
         if self.hcorr > 0:
             # apply gaussian filter
-            for n in range(self.nsamples):
-                newpattern[n] = gaussian_filter(newpattern[n],
+            if self.nsamples == 2:
+                for n in range(self.nsamples):
+                    newpattern[n] = gaussian_filter(newpattern[n],
+                    self.filter_stdev, order=0, output=None,
+                    mode='wrap', cval=0.0, truncate=4.0)
+            else:
+                newpattern[0] = gaussian_filter(newpattern[0],
                 self.filter_stdev, order=0, output=None,
                 mode='wrap', cval=0.0, truncate=4.0)
+                newpattern[1]=newpattern[0]
             # restore variance removed by gaussian blur.
             newpattern =\
             newpattern*(self.filter_stdev*2.*np.sqrt(np.pi))
@@ -67,18 +83,16 @@ class RandomPattern:
 
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
-    nsamples = 10; stdev = 2
+    nsamples = 2; stdev = 2
     rp=RandomPattern(500.e3,3600.,20.e6,128,1800,nsamples=nsamples,stdev=stdev)
     # plot random sample.
     xens = rp.pattern
     minmax = max(np.abs(xens.min()), np.abs(xens.max()))
-    for n in range(nsamples):
+    for n in range(2):
         plt.figure()
         plt.imshow(xens[n],plt.cm.bwr,interpolation='nearest',origin='lower',vmin=-minmax,vmax=minmax)
         plt.title('pattern %s' % n)
         plt.colorbar()
-    print 'variance =', ((xens**2).sum(axis=0)/(nsamples-1)).mean()
-    print '(expected ',stdev**2,')'
     nsamples = 1; stdev = 1
     rp = RandomPattern(1000.e3,3600.,20.e6,128,1800,nsamples=nsamples,stdev=stdev)
     ntimes = 1000
