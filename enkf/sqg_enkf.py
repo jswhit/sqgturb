@@ -57,7 +57,7 @@ nanals = 40 # ensemble members
 
 oberrstdev = 1.0 # ob error standard deviation in K
 
-nassim = 880 # assimilation times to run
+nassim = 440 # assimilation times to run
 
 filename_climo = '../examples/sqg_N128_3hrly.nc' # file name for forecast model climo
 # perfect model
@@ -138,8 +138,8 @@ assim_timesteps = int(np.round(assim_interval/models[0].dt))
 print('# ntime,pverr_a,pvsprd_a,pverr_b,pvsprd_b,obinc_b,osprd_b,obinc_a,obsprd_a,omaomb/oberr,obbias_b,inflation')
 if rp_adv is not None:
     print('# random pattern (adv): hcorr,tcorr,stdev,nsamps=%s,%s,%s,%s' % (rp_adv.hcorr,rp_adv.tcorr,rp_adv.stdev,rp_adv.nsamples))
-elif rp_skevs is not None:
-    print('# random pattern (skevs): hcorr,tcorr,stdev,nsamps=%s,%s,%s,%s' % (rp_skebs.hcorr,rp_skebs.tcorr,rp_skebs.stdev,rp_skebs.nsamples))
+elif rp_skebs is not None:
+    print('# random pattern (skebs): hcorr,tcorr,stdev,nsamps=%s,%s,%s,%s' % (rp_skebs.hcorr,rp_skebs.tcorr,rp_skebs.stdev,rp_skebs.nsamples))
 
 # initialize model clock
 for nanal in range(nanals):
