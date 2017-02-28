@@ -151,6 +151,18 @@ class SQG:
                                    (pvspec[0]/self.sinhmu))
         return psispec
 
+    def invert_inverse(self,psispec=None):
+        if psispec is None: psispec = self.invert(self.pvspec)
+        # given streamfunction, return PV
+        pvspec = np.empty((2,self.N,self.N/2+1),dtype=psispec.dtype)
+        alpha = self.Hovermu; th = self.tanhmu; sh = self.sinhmu
+        tmp1 = 1./sh**2 - 1./th**2
+        tmp1[0,0]=1.
+        pvspec[0] = ((psispec[0]/th)-(psispec[1]/sh))/(alpha*tmp1)
+        pvspec[1] = ((psispec[0]/sh)-(psispec[1]/th))/(alpha*tmp1)
+        pvspec[:,0,0] = 0.
+        return pvspec
+
     def advance(self,pv=None):
         # given total pv on grid, advance forward
         # number of timesteps given by 'timesteps' instance var.
