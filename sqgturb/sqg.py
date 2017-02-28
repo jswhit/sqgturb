@@ -18,8 +18,8 @@ except ImportError: # fall back on numpy fft.
 class SQG:
 
     def __init__(self,pv,f=1.e-4,nsq=1.e-4,L=20.e6,H=10.e3,U=30.,\
-                 r=0.,tdiab=10.*86400,diff_order=8,diff_efold=None,random_pattern_adv=None,
-                 diff_order_neg=2,diff_efold_neg=None,random_pattern_skebs=None,
+                 r=0.,tdiab=10.*86400,diff_order=8,diff_efold=None,random_pattern=None,
+                 diff_order_neg=2,diff_efold_neg=None,pvpert=False,
                  symmetric=True,dt=None,dealias=True,threads=1,precision='single'):
         # initialize SQG model.
         if pv.shape[0] != 2:
@@ -136,10 +136,13 @@ class SQG:
             self.hyperdiff_neg = None
         # number of timesteps to advance each call to 'advance' method.
         self.timesteps = 1
-        # random pattern class for stochastic advection
-        # (default None, no stochastic advection)
-        self.random_pattern_adv = random_pattern_adv # random advection noise
-        self.random_pattern_skebs = random_pattern_skebs # SKEBS additive noise
+        # random pattern class for stochastic forcing
+        # (default None, no stochastic forcing)
+        self.random_pattern = random_pattern
+        # if pvpert=True, stochastic PV perturbations added to PV
+        # field in calculation of advection.  If False, only
+        # wind perturbations are added.
+        self.pvpert = pvpert
 
     def invert(self,pvspec=None):
         if pvspec is None: pvspec = self.pvspec
@@ -156,11 +159,10 @@ class SQG:
         # given streamfunction, return PV
         pvspec = np.empty((2,self.N,self.N/2+1),dtype=psispec.dtype)
         alpha = self.Hovermu; th = self.tanhmu; sh = self.sinhmu
-        tmp1 = 1./sh**2 - 1./th**2
-        tmp1[0,0]=1.
+        tmp1 = 1./sh**2 - 1./th**2; tmp1[0,0]=1.
         pvspec[0] = ((psispec[0]/th)-(psispec[1]/sh))/(alpha*tmp1)
         pvspec[1] = ((psispec[0]/sh)-(psispec[1]/th))/(alpha*tmp1)
-        pvspec[:,0,0] = 0.
+        pvspec[:,0,0] = 0. # area mean PV not determined by streamfunction
         return pvspec
 
     def advance(self,pv=None):
@@ -211,38 +213,44 @@ class SQG:
             v = irfft2(self.ik_pad*psispec_pad,threads=self.threads)
             pvx = irfft2(self.ik_pad*pvspec_pad,threads=self.threads)
             pvy = irfft2(self.il_pad*pvspec_pad,threads=self.threads)
-        # add random velocity to advection.
+        # add sub-grid scale stochastic component to advection.
         # (held constant over RK4 time step)
-        if self.random_pattern_adv is not None:
-            if self._rkfirst or self.random_pattern_adv.tcorr == 0:
+        if self.random_pattern is not None:
+            if self._rkfirst or self.random_pattern.tcorr == 0:
                 # generate random streamfunction field,
-                # then compute u,v winds
-                psispec_pert = rfft2(self.random_pattern_adv.pattern)
+                # then compute perturbation u,v winds
+                psispec_pert = rfft2(self.random_pattern.pattern)
+                self.pvxpert = np.zeros(pvx.shape, pvx.dtype)
+                self.pvypert = np.zeros(pvy.shape, pvy.dtype)
+                if self.pvpert:
+                    # calculate pv perturbation from streamfunction
+                    # perturbation.
+                    pvspec_pert = self.invert_inverse(psispec_pert)
                 if not self.dealias:
                     self.upert = irfft2(-self.il*psispec_pert,threads=self.threads)
                     self.vpert = irfft2(self.ik*psispec_pert,threads=self.threads)
+                    if self.pvpert:
+                        self.pvxpert = irfft2(self.ik*pvspec_pert,threads=self.threads)
+                        self.pvypert = irfft2(self.il*pvspec_pert,threads=self.threads)
                 else: # pad spectral coeffs with zeros for dealiased jacobian
                     psispec_pad = self.specpad(psispec_pert)
                     self.upert = irfft2(-self.il_pad*psispec_pad,threads=self.threads)
                     self.vpert = irfft2(self.ik_pad*psispec_pad,threads=self.threads)
+                    if self.pvpert:
+                        pvspec_pad = self.specpad(pvspec_pert)
+                        self.pvxpert = irfft2(self.ik_pad*pvspec_pad,threads=self.threads)
+                        self.pvypert = irfft2(self.il_pad*pvspec_pad,threads=self.threads)
                 # evolve random streamfunction pattern to next time step.
-                self.random_pattern_adv.evolve()
+                self.random_pattern.evolve()
             u += self.upert
             v += self.vpert
+            pvx += self.pvxpert
+            pvy += self.pvypert
         advection = u*pvx + v*pvy
         jacobianspec = rfft2(advection,threads=self.threads)
         if self.dealias: # 2/3 rule: truncate spectral coefficients of jacobian
             jacobianspec = self.spectrunc(jacobianspec)
         dpvspecdt = (1./self.tdiab)*(self.pvspec_eq-pvspec)-jacobianspec
-        # additive random pv forcing (SKEBS)
-        # (held constant over RK4 time step)
-        if self.random_pattern_skebs is not None:
-            if self._rkfirst or self.random_pattern_skebs.tcorr == 0:
-                # convert streamfunction to vorticity
-                self.pvspec_forcing =\
-                self.ksqlsq*rfft2(self.random_pattern_skebs.pattern)
-                self.random_pattern_skebs.evolve()
-            dpvspecdt += self.pvspec_forcing
         # Ekman damping at boundaries.
         if self.ekman:
             dpvspecdt[0] += self.r*self.ksqlsq*psispec[0]
