@@ -23,13 +23,23 @@ hcovlocal_scale = float(sys.argv[1])
 # if < 0, default used (vcovlocal_fact = L_r/hcovlocal_scale,
 # where L_r is Rossby radius)
 vcovlocal_fact = float(sys.argv[2])
+# stochastic parameterization parameters
+amp = float(sys.argv[3])*1.e5
+hcorr = float(sys.argv[4])
+tcorr = float(sys.argv[5])
+pvpert = False
+nsamples = 2
 # inflation parameters
 # (covinflate2 <= 0 for RTPS inflation
 # (http://journals.ametsoc.org/doi/10.1175/MWR-D-11-00276.1),
 # otherwise use Hodyss et al inflation
 # (http://journals.ametsoc.org/doi/abs/10.1175/MWR-D-15-0329.1)
-covinflate1 = float(sys.argv[3])
-covinflate2 = float(sys.argv[4])
+if len(sys.argv) > 6:
+    covinflate1 = float(sys.argv[6])
+    covinflate2 = -1
+else:
+    covinflate1 = 1.
+    covinflate2 = 1.
 
 diff_efold = None # use diffusion from climo file
 
@@ -88,12 +98,10 @@ dt = nc_climo.dt
 if diff_efold == None: diff_efold=nc_climo.diff_efold
 # get OMP_NUM_THREADS (threads to use) from environment.
 threads = int(os.getenv('OMP_NUM_THREADS','1'))
-amp = 2.5e5   
-hcorr = 1.
-tcorr = 18.
-pvpert = False
-nsamples = 2
-rp = RandomPattern(hcorr*nc_climo.L/nx,tcorr*nc_climo.dt,nc_climo.L,nx,dt,nsamples=nsamples,stdev=amp)
+if amp == 0:
+    rp = None
+else:
+    rp = RandomPattern(hcorr*nc_climo.L/nx,tcorr*dt,nc_climo.L,nx,dt,nsamples=nsamples,stdev=amp)
 for nanal in range(nanals):
     pvens[nanal] = pv_climo[indxran[nanal]]
     models.append(\
