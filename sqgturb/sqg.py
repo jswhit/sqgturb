@@ -194,6 +194,16 @@ class SQG:
         specarr_trunc[:,-self.N/2:,0:self.N/2] = specarr[:,-self.N/2:,0:self.N/2]
         return specarr_trunc
 
+    def xyderiv(self, specarr):
+        if not self.dealias:
+           xderiv = irfft2(self.ik*specarr,threads=self.threads)
+           yderiv = irfft2(self.il*specarr,threads=self.threads)
+        else: # pad spectral coeffs with zeros for dealiased jacobian
+           specarr_pad = self.specpad(specarr)
+           xderiv = irfft2(self.ik_pad*specarr_pad,threads=self.threads)
+           yderiv = irfft2(self.il_pad*specarr_pad,threads=self.threads)
+        return xderiv,yderiv
+
     def gettend(self,pvspec=None):
         # compute tendencies of pv on z=0,H
         # invert pv to get streamfunction
@@ -201,51 +211,36 @@ class SQG:
             pvspec = self.pvspec
         psispec = self.invert(pvspec)
         # nonlinear jacobian and thermal relaxation
-        if not self.dealias:
-            u = irfft2(-self.il*psispec,threads=self.threads)
-            v = irfft2(self.ik*psispec,threads=self.threads)
-            pvx = irfft2(self.ik*pvspec,threads=self.threads)
-            pvy = irfft2(self.il*pvspec,threads=self.threads)
-        else: # pad spectral coeffs with zeros for dealiased jacobian
-            psispec_pad = self.specpad(psispec)
-            pvspec_pad  = self.specpad(pvspec)
-            u = irfft2(-self.il_pad*psispec_pad,threads=self.threads)
-            v = irfft2(self.ik_pad*psispec_pad,threads=self.threads)
-            pvx = irfft2(self.ik_pad*pvspec_pad,threads=self.threads)
-            pvy = irfft2(self.il_pad*pvspec_pad,threads=self.threads)
+        v,u = self.xyderiv(psispec); u = -u
+        pvx,pvy = self.xyderiv(pvspec)
         # add sub-grid scale stochastic component to advection.
         # (held constant over RK4 time step)
         if self.random_pattern is not None:
-            if self._rkfirst or self.random_pattern.tcorr == 0:
-                # generate random streamfunction field,
-                # then compute perturbation u,v winds
-                psispec_pert = rfft2(self.random_pattern.pattern)
-                self.pvxpert = np.zeros(pvx.shape, pvx.dtype)
-                self.pvypert = np.zeros(pvy.shape, pvy.dtype)
-                if self.pvpert:
-                    # calculate pv perturbation from streamfunction
-                    # perturbation.
-                    pvspec_pert = self.invert_inverse(psispec_pert)
-                if not self.dealias:
-                    self.upert = irfft2(-self.il*psispec_pert,threads=self.threads)
-                    self.vpert = irfft2(self.ik*psispec_pert,threads=self.threads)
-                    if self.pvpert:
-                        self.pvxpert = irfft2(self.ik*pvspec_pert,threads=self.threads)
-                        self.pvypert = irfft2(self.il*pvspec_pert,threads=self.threads)
-                else: # pad spectral coeffs with zeros for dealiased jacobian
-                    psispec_pad = self.specpad(psispec_pert)
-                    self.upert = irfft2(-self.il_pad*psispec_pad,threads=self.threads)
-                    self.vpert = irfft2(self.ik_pad*psispec_pad,threads=self.threads)
-                    if self.pvpert:
-                        pvspec_pad = self.specpad(pvspec_pert)
-                        self.pvxpert = irfft2(self.ik_pad*pvspec_pad,threads=self.threads)
-                        self.pvypert = irfft2(self.il_pad*pvspec_pad,threads=self.threads)
-                # evolve random streamfunction pattern to next time step.
-                self.random_pattern.evolve()
-            u += self.upert
-            v += self.vpert
-            pvx += self.pvxpert
-            pvy += self.pvypert
+            # generate random streamfunction field 
+            # for this RK4 substep (using linear interpolation)
+            if self.rkstep == 0:
+                psispec_pert0 = rfft2(self.random_pattern.pattern)
+                self.random_pattern_evolve()
+                psispec_pert1 = rfft2(self.random_pattern.pattern)
+                psispec_pert = psispec_pert0
+            if self.rkstep in [1,2]:
+                psispec_pert = 0.5*(psispec_pert0+psispec_pert1)
+            elif self.rkstep == 3:
+                psispec_pert = psispec_pert1
+            # compute perturbation u,v and pv gradient.
+            if self.pvpert:
+                # calculate pv perturbation from streamfunction
+                # perturbation.
+                pvspec_pert = self.invert_inverse(psispec_pert)
+                pvxpert, pvypert = xyderiv(pvspec_pert)
+            else:
+                pvxpert = np.zeros(pvx.shape, pvx.dtype)
+                pvypert = np.zeros(pvy.shape, pvy.dtype)
+            vpert, upert = xyderiv(psispec_pert); upert = -upert
+            u += upert
+            v += vpert
+            pvx += pvxpert
+            pvy += pvypert
         advection = u*pvx + v*pvy
         jacobianspec = rfft2(advection,threads=self.threads)
         if self.dealias: # 2/3 rule: truncate spectral coefficients of jacobian
@@ -267,11 +262,13 @@ class SQG:
     def timestep(self):
         # update pv using 4th order runge-kutta time step with
         # implicit "integrating factor" treatment of hyperdiffusion.
-        self._rkfirst = True # indicates 1st RK4 step
+        self.rkstep = 0
         k1 = self.dt*self.gettend(self.pvspec)
-        self._rkfirst = False
+        self.rkstep = 1
         k2 = self.dt*self.gettend(self.pvspec + 0.5*k1)
+        self.rkstep = 2
         k3 = self.dt*self.gettend(self.pvspec + 0.5*k2)
+        self.rkstep = 3
         k4 = self.dt*self.gettend(self.pvspec + k3)
         self.pvspec = self.hyperdiff*(self.pvspec + (k1+2.*k2+2.*k3+k4)/6.)
         self.t += self.dt # increment time
