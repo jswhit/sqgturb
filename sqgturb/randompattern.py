@@ -41,17 +41,24 @@ class RandomPattern:
         if self.hcorr > 0:
             # apply gaussian filter
             self.filter_stdev = self.hcorr*self.N/(self.L*np.sqrt(4.))
-            for n in range(nsamples):
-                self.pattern[n] = gaussian_filter(self.pattern[n],
-                self.filter_stdev, order=order, output=None,
+            if self.nsamples == 2:
+                for n in range(self.nsamples):
+                    self.pattern[n] = gaussian_filter(self.pattern[n],
+                    self.filter_stdev, order=self.order, output=None,
+                    mode='wrap', cval=0.0, truncate=6.0)
+            else:
+                self.pattern[0] = gaussian_filter(self.pattern[0],
+                self.filter_stdev, order=self.order, output=None,
                 mode='wrap', cval=0.0, truncate=6.0)
+                self.pattern[1]=self.pattern[0]
             # restore variance removed by gaussian blur.
             if order == 0:
                 self.pattern =\
                 self.pattern*(self.filter_stdev*2.*np.sqrt(np.pi))
             else:
-                stdev_computed = np.sqrt((self.pattern**2).mean())
-                self.pattern = self.pattern*stdev/stdev_computed
+                for n in range(2):
+                    stdev_computed = np.sqrt((self.pattern[n]**2).mean())
+                    self.pattern[n] = self.pattern[n]*stdev/stdev_computed
 
     def evolve(self,dt=None):
         """
@@ -80,8 +87,9 @@ class RandomPattern:
                 newpattern =\
                 newpattern*(self.filter_stdev*2.*np.sqrt(np.pi))
             else:
-                stdev_computed = np.sqrt((self.pattern**2).mean())
-                self.pattern = self.pattern*self.stdev/stdev_computed
+                for n in range(2):
+                    stdev_computed = np.sqrt((self.pattern[n]**2).mean())
+                    self.pattern[n] = self.pattern[n]*stdev/stdev_computed
         # blend new pattern with old pattern.
         lag1corr = np.exp(-1)**(dt/self.tcorr)
         self.pattern = np.sqrt(1.-lag1corr**2)*newpattern + lag1corr*self.pattern
@@ -119,5 +127,6 @@ if __name__ == "__main__":
     plt.axhline(0); plt.axvline(0)
     plt.show()
     lag1corr = lag1cov/lag1var
-    print 'lag 1 autocorr = ',lag1corr.mean(), ', expected ',rp.lag1corr
+    lag1corr_exp = np.exp(-1)**(rp.dt/rp.tcorr)
+    print 'lag 1 autocorr = ',lag1corr.mean(), ', expected ',lag1corr_exp
     print 'variance = ',lag1var.mean(),' (expected ',stdev**2,')'
