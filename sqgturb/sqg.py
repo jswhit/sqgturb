@@ -19,7 +19,7 @@ class SQG:
 
     def __init__(self,pv,f=1.e-4,nsq=1.e-4,L=20.e6,H=10.e3,U=30.,\
                  r=0.,tdiab=10.*86400,diff_order=8,diff_efold=None,random_pattern=None,
-                 pvpert=False,symmetric=True,dt=None,dealias=True,threads=1,precision='single'):
+                 symmetric=True,dt=None,dealias=True,threads=1,precision='single'):
         # initialize SQG model.
         if pv.shape[0] != 2:
             raise ValueError('1st dim of pv should be 2')
@@ -126,10 +126,6 @@ class SQG:
         # random pattern class for stochastic forcing
         # (default None, no stochastic forcing)
         self.random_pattern = random_pattern
-        # if pvpert=True, stochastic PV perturbations added to PV
-        # field in calculation of advection.  If False, only
-        # wind perturbations are added.
-        self.pvpert = pvpert
 
     def invert(self,pvspec=None):
         if pvspec is None: pvspec = self.pvspec
@@ -204,37 +200,20 @@ class SQG:
         # (held constant over RK4 time step)
         if self.random_pattern is not None:
             # generate random streamfunction field 
-            # for this RK4 substep (using linear interpolation)
-            # compute perturbation u,v and pv gradient.
+            # for this RK4 substep
+            # compute perturbation u,v for randomized advection.
             if self.rkstep == 0:
                 psispec_pert0 = rfft2(self.random_pattern.pattern)
                 self.random_pattern.evolve(dt=0.5*self.dt)
                 psispec_pert1 = rfft2(self.random_pattern.pattern)
                 self.random_pattern.evolve(dt=0.5*self.dt)
                 psispec_pert2 = rfft2(self.random_pattern.pattern)
-                if self.pvpert:
-                    # calculate pv perturbation from streamfunction
-                    # perturbation.
-                    self.pvspec_pert0 = self.invert_inverse(psispec_pert0)
-                    self.pvspec_pert1 = self.invert_inverse(psispec_pert1)
-                    self.pvspec_pert2 = self.invert_inverse(psispec_pert2)
-                    self.pvxpert0, self.pvypert0 = self.xyderiv(pvspec_pert0)
-                    self.pvxpert1, self.pvypert1 = self.xyderiv(pvspec_pert1)
-                    self.pvxpert2, self.pvypert2 = self.xyderiv(pvspec_pert2)
-                else:
-                    self.pvxpert0 = np.zeros(pvx.shape, pvx.dtype)
-                    self.pvypert0 = np.zeros(pvy.shape, pvy.dtype)
-                    self.pvxpert1 = np.zeros(pvx.shape, pvx.dtype)
-                    self.pvypert1 = np.zeros(pvy.shape, pvy.dtype)
-                    self.pvxpert2 = np.zeros(pvx.shape, pvx.dtype)
-                    self.pvypert2 = np.zeros(pvy.shape, pvy.dtype)
+                # winds at beginning, middle and end of RK4 step
                 self.vpert0, self.upert0 = self.xyderiv(psispec_pert0); self.upert0 = -self.upert0
                 self.vpert1, self.upert1 = self.xyderiv(psispec_pert1); self.upert1 = -self.upert1
                 self.vpert2, self.upert2 = self.xyderiv(psispec_pert2); self.upert2 = -self.upert2
                 upert = self.upert0
                 vpert = self.vpert0
-                pvxpert = self.pvxpert0
-                pvypert = self.pvypert0
                 # horizontally homogeneous diffusion to balance random advection
                 # (since it is homogenous, there is no drift correction to upert,vpert)
                 # this ensures variance of tracer not changed by randomized transport 
@@ -245,17 +224,11 @@ class SQG:
             if self.rkstep in [1,2]:
                 upert = self.upert1
                 vpert = self.vpert1
-                pvxpert = self.pvxpert1
-                pvypert = self.pvxpert1
             elif self.rkstep == 3:
                 upert = self.upert2
                 vpert = self.vpert2
-                pvxpert = self.pvxpert2
-                pvypert = self.pvypert2
             u += upert
             v += vpert
-            pvx += pvxpert
-            pvy += pvypert
         advection = u*pvx + v*pvy
         jacobianspec = rfft2(advection,threads=self.threads)
         if self.dealias: # 2/3 rule: truncate spectral coefficients of jacobian
