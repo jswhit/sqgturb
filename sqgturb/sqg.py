@@ -203,32 +203,40 @@ class SQG:
             # for this RK4 substep
             # compute perturbation u,v for randomized advection.
             if self.rkstep == 0:
-                psispec_pert0 = rfft2(self.random_pattern.pattern)
-                self.random_pattern.evolve(dt=0.5*self.dt)
-                psispec_pert1 = rfft2(self.random_pattern.pattern)
-                self.random_pattern.evolve(dt=0.5*self.dt)
-                psispec_pert2 = rfft2(self.random_pattern.pattern)
-                # winds at beginning, middle and end of RK4 step
-                self.vpert0, self.upert0 = self.xyderiv(psispec_pert0); self.upert0 = -self.upert0
-                self.vpert1, self.upert1 = self.xyderiv(psispec_pert1); self.upert1 = -self.upert1
-                self.vpert2, self.upert2 = self.xyderiv(psispec_pert2); self.upert2 = -self.upert2
-                upert = self.upert0
-                vpert = self.vpert0
-                # horizontally homogeneous diffusion to balance random advection
-                # (since it is homogenous, there is no drift correction to upert,vpert)
-                # this ensures variance of tracer not changed by randomized transport
-                ke0 = 0.5*(self.upert0**2+self.vpert0**2).mean()
-                ke1 = 0.5*(self.upert1**2+self.vpert1**2).mean()
-                ke2 = 0.5*(self.upert2**2+self.vpert2**2).mean()
-                self.diffcoeff = (1./3.)*(ke0+ke1+ke2)/self.dt
-            if self.rkstep in [1,2]:
-                upert = self.upert1
-                vpert = self.vpert1
-            elif self.rkstep == 3:
-                upert = self.upert2
-                vpert = self.vpert2
-            u += upert
-            v += vpert
+                # assume random winds constant over RK4 step
+                psispec_pert = rfft2(self.random_pattern.pattern)
+                self.vpert, self.upert = self.xyderiv(psispec_pert); self.upert = -self.upert
+                ke = 0.5*(self.upert**2+self.vpert**2).mean()
+                self.diffcoeff = ke/self.dt
+            #if self.rkstep == 0:
+            #    psispec_pert0 = rfft2(self.random_pattern.pattern)
+            #    self.random_pattern.evolve(dt=0.5*self.dt)
+            #    psispec_pert1 = rfft2(self.random_pattern.pattern)
+            #    self.random_pattern.evolve(dt=0.5*self.dt)
+            #    psispec_pert2 = rfft2(self.random_pattern.pattern)
+            #    # winds at beginning, middle and end of RK4 step
+            #    self.vpert0, self.upert0 = self.xyderiv(psispec_pert0); self.upert0 = -self.upert0
+            #    self.vpert1, self.upert1 = self.xyderiv(psispec_pert1); self.upert1 = -self.upert1
+            #    self.vpert2, self.upert2 = self.xyderiv(psispec_pert2); self.upert2 = -self.upert2
+            #    upert = self.upert0
+            #    vpert = self.vpert0
+            #    # horizontally homogeneous diffusion to balance random advection
+            #    # (since it is homogenous, there is no drift correction to upert,vpert)
+            #    # this ensures variance of tracer not changed by randomized transport
+            #    ke0 = 0.5*(self.upert0**2+self.vpert0**2).mean()
+            #    ke1 = 0.5*(self.upert1**2+self.vpert1**2).mean()
+            #    ke2 = 0.5*(self.upert2**2+self.vpert2**2).mean()
+            #    self.diffcoeff = (1./3.)*(ke0+ke1+ke2)/self.dt
+            #if self.rkstep in [1,2]:
+            #    upert = self.upert1
+            #    vpert = self.vpert1
+            #elif self.rkstep == 3:
+            #    upert = self.upert2
+            #    vpert = self.vpert2
+            #u += upert
+            #v += vpert
+            u += self.upert
+            v += self.vpert
         advection = u*pvx + v*pvy
         jacobianspec = rfft2(advection,threads=self.threads)
         if self.dealias: # 2/3 rule: truncate spectral coefficients of jacobian
