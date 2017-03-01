@@ -3,7 +3,7 @@ from scipy.ndimage import gaussian_filter
 
 class RandomPattern:
     def __init__(self, spatial_corr_efold, temporal_corr_efold, L, N, dt, \
-            nsamples=1, stdev=1.0):
+            nsamples=1, stdev=1.0, order=0):
         """
         define an ensemble of random patterns with specified temporal
         and spatial covariance structure by applying Gaussian blur to
@@ -27,6 +27,7 @@ class RandomPattern:
         self.stdev = stdev
         self.nsamples = nsamples
         self.N = N
+        self.order = order
         # initialize patterns.
         # generate white noise.
         self.pattern = self.stdev*np.random.normal(\
@@ -42,11 +43,15 @@ class RandomPattern:
             self.filter_stdev = self.hcorr*self.N/(self.L*np.sqrt(4.))
             for n in range(nsamples):
                 self.pattern[n] = gaussian_filter(self.pattern[n],
-                self.filter_stdev, order=0, output=None,
-                mode='wrap', cval=0.0, truncate=4.0)
+                self.filter_stdev, order=order, output=None,
+                mode='wrap', cval=0.0, truncate=6.0)
             # restore variance removed by gaussian blur.
-            self.pattern =\
-            self.pattern*(self.filter_stdev*2.*np.sqrt(np.pi))
+            if order == 0:
+                self.pattern =\
+                self.pattern*(self.filter_stdev*2.*np.sqrt(np.pi))
+            else:
+                stdev_computed = np.sqrt((self.pattern**2).mean())
+                self.pattern = self.pattern*stdev/stdev_computed
 
     def evolve(self,dt=None):
         """
@@ -63,16 +68,20 @@ class RandomPattern:
             if self.nsamples == 2:
                 for n in range(self.nsamples):
                     newpattern[n] = gaussian_filter(newpattern[n],
-                    self.filter_stdev, order=0, output=None,
-                    mode='wrap', cval=0.0, truncate=4.0)
+                    self.filter_stdev, order=self.order, output=None,
+                    mode='wrap', cval=0.0, truncate=6.0)
             else:
                 newpattern[0] = gaussian_filter(newpattern[0],
-                self.filter_stdev, order=0, output=None,
-                mode='wrap', cval=0.0, truncate=4.0)
+                self.filter_stdev, order=self.order, output=None,
+                mode='wrap', cval=0.0, truncate=6.0)
                 newpattern[1]=newpattern[0]
             # restore variance removed by gaussian blur.
-            newpattern =\
-            newpattern*(self.filter_stdev*2.*np.sqrt(np.pi))
+            if self.order == 0:
+                newpattern =\
+                newpattern*(self.filter_stdev*2.*np.sqrt(np.pi))
+            else:
+                stdev_computed = np.sqrt((self.pattern**2).mean())
+                self.pattern = self.pattern*self.stdev/stdev_computed
         # blend new pattern with old pattern.
         lag1corr = np.exp(-1)**(dt/self.tcorr)
         self.pattern = np.sqrt(1.-lag1corr**2)*newpattern + lag1corr*self.pattern
