@@ -19,8 +19,7 @@ class SQG:
 
     def __init__(self,pv,f=1.e-4,nsq=1.e-4,L=20.e6,H=10.e3,U=30.,\
                  r=0.,tdiab=10.*86400,diff_order=8,diff_efold=None,random_pattern=None,
-                 diff_order_neg=2,diff_efold_neg=None,pvpert=False,
-                 symmetric=True,dt=None,dealias=True,threads=1,precision='single'):
+                 pvpert=False,symmetric=True,dt=None,dealias=True,threads=1,precision='single'):
         # initialize SQG model.
         if pv.shape[0] != 2:
             raise ValueError('1st dim of pv should be 2')
@@ -116,24 +115,12 @@ class SQG:
         self.sinhmu = np.sinh(mu).astype(dtype)
         self.diff_order = np.array(diff_order,dtype) # hyperdiffusion order
         self.diff_efold = np.array(diff_efold,dtype) # hyperdiff time scale
-        # anti-diffusion parameters.
-        self.diff_order_neg = np.array(diff_order_neg,dtype)
-        if diff_efold_neg is not None:
-            self.diff_efold_neg = np.array(diff_efold_neg,dtype) # hyperdiff time scale
-        else:
-            self.diff_efold_neg = None
         ktot = np.sqrt(ksqlsq)
         ktotcutoff = np.array(pi*N/self.L, dtype)
         # integrating factor for hyperdiffusion
         # with efolding time scale for diffusion of shortest wave (N/2)
         self.hyperdiff =\
         np.exp((-self.dt/self.diff_efold)*(ktot/ktotcutoff)**self.diff_order)
-        # anti-diffusion (negative viscosity).
-        if self.diff_efold_neg is not None:
-            self.hyperdiff_neg =\
-            (1./self.diff_efold_neg)*(ktot/ktotcutoff)**(self.diff_order_neg/2)
-        else:
-            self.hyperdiff_neg = None
         # number of timesteps to advance each call to 'advance' method.
         self.timesteps = 1
         # random pattern class for stochastic forcing
@@ -218,25 +205,41 @@ class SQG:
         if self.random_pattern is not None:
             # generate random streamfunction field 
             # for this RK4 substep (using linear interpolation)
-            if self.rkstep == 0:
-                self.psispec_pert0 = rfft2(self.random_pattern.pattern)
-                self.random_pattern.evolve()
-                self.psispec_pert1 = rfft2(self.random_pattern.pattern)
-                psispec_pert = self.psispec_pert0
-            if self.rkstep in [1,2]:
-                psispec_pert = 0.5*(self.psispec_pert0+self.psispec_pert1)
-            elif self.rkstep == 3:
-                psispec_pert = self.psispec_pert1
             # compute perturbation u,v and pv gradient.
-            if self.pvpert:
-                # calculate pv perturbation from streamfunction
-                # perturbation.
-                pvspec_pert = self.invert_inverse(psispec_pert)
-                pvxpert, pvypert = self.xyderiv(pvspec_pert)
-            else:
-                pvxpert = np.zeros(pvx.shape, pvx.dtype)
-                pvypert = np.zeros(pvy.shape, pvy.dtype)
-            vpert, upert = self.xyderiv(psispec_pert); upert = -upert
+            if self.rkstep == 0:
+                psispec_pert0 = rfft2(self.random_pattern.pattern)
+                self.random_pattern.evolve()
+                psispec_pert1 = rfft2(self.random_pattern.pattern)
+                if self.pvpert:
+                    # calculate pv perturbation from streamfunction
+                    # perturbation.
+                    self.pvspec_pert0 = self.invert_inverse(psispec_pert0)
+                    self.pvspec_pert1 = self.invert_inverse(psispec_pert1)
+                    self.pvxpert0, self.pvypert0 = self.xyderiv(pvspec_pert0)
+                else:
+                    self.pvxpert0 = np.zeros(pvx.shape, pvx.dtype)
+                    self.pvypert0 = np.zeros(pvy.shape, pvy.dtype)
+                    self.pvxpert1 = np.zeros(pvx.shape, pvx.dtype)
+                    self.pvypert1 = np.zeros(pvy.shape, pvy.dtype)
+                self.vpert0, self.upert0 = self.xyderiv(psispec_pert0); self.upert0 = -self.upert0
+                self.vpert1, self.upert1 = self.xyderiv(psispec_pert0); self.upert1 = -self.upert1
+                upert = self.upert0
+                vpert = self.vpert0
+                pvxpert = self.pvxpert0
+                pvypert = self.pvypert0
+                # horizontally homogeneous diffusion to balance random advection
+                # (since it is homogenous, there is no drift correction to upert,vpert)
+                self.diffcoeff = 0.25*(self.upert0**2+self.vpert0**2+self.upert1**2+self.vpert1**2).mean()/self.dt
+            if self.rkstep in [1,2]:
+                upert = 0.5*(self.upert0+self.upert1)
+                vpert = 0.5*(self.vpert0+self.vpert1)
+                pvxpert = 0.5*(self.pvxpert0+self.pvxpert1)
+                pvypert = 0.5*(self.pvypert0+self.pvypert1)
+            elif self.rkstep == 3:
+                upert = self.upert1
+                vpert = self.vpert1
+                pvxpert = self.pvxpert1
+                pvypert = self.pvypert1
             u += upert
             v += vpert
             pvx += pvxpert
@@ -246,15 +249,14 @@ class SQG:
         if self.dealias: # 2/3 rule: truncate spectral coefficients of jacobian
             jacobianspec = self.spectrunc(jacobianspec)
         dpvspecdt = (1./self.tdiab)*(self.pvspec_eq-pvspec)-jacobianspec
+        # diffusion for random advection
+        dpvspecdt += -self.ksqlsq*self.diffcoeff*pvspec
         # Ekman damping at boundaries.
         if self.ekman:
             dpvspecdt[0] += self.r*self.ksqlsq*psispec[0]
             # for asymmetric jet (U=0 at sfc), no Ekman layer at lid
             if self.symmetric:
                 dpvspecdt[1] -= self.r*self.ksqlsq*psispec[1]
-        # anti-diffusion (negative viscosity).
-        if self.diff_efold_neg is not None:
-            dpvspecdt += self.hyperdiff_neg*pvspec
         # save wind field
         self.u = u; self.v = v
         return dpvspecdt
