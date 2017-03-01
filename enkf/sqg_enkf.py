@@ -27,8 +27,7 @@ vcovlocal_fact = float(sys.argv[2])
 amp = float(sys.argv[3])*1.e5
 hcorr = float(sys.argv[4])
 tcorr = float(sys.argv[5])
-pvpert = False
-nsamples = 2
+nsamples = 1
 # inflation parameters
 # (covinflate2 <= 0 for RTPS inflation
 # (http://journals.ametsoc.org/doi/10.1175/MWR-D-11-00276.1),
@@ -105,7 +104,7 @@ else:
 for nanal in range(nanals):
     pvens[nanal] = pv_climo[indxran[nanal]]
     models.append(\
-    SQG(pvens[nanal],random_pattern=rp,pvpert=pvpert,\
+    SQG(pvens[nanal],random_pattern=rp,\
     nsq=nc_climo.nsq,f=nc_climo.f,dt=dt,U=nc_climo.U,H=nc_climo.H,\
     r=nc_climo.r,tdiab=nc_climo.tdiab,symmetric=nc_climo.symmetric,\
     diff_order=nc_climo.diff_order,diff_efold=diff_efold,threads=threads))
@@ -145,7 +144,7 @@ assim_interval = obtimes[1]-obtimes[0]
 assim_timesteps = int(np.round(assim_interval/models[0].dt))
 print('# ntime,pverr_a,pvsprd_a,pverr_b,pvsprd_b,obinc_b,osprd_b,obinc_a,obsprd_a,omaomb/oberr,obbias_b,inflation')
 if rp is not None:
-    print('# random pattern: hcorr,tcorr,stdev,nsamps,pvpert=%s,%s,%s,%s,%s' % (rp.hcorr,rp.tcorr,rp.stdev,rp.nsamples,pvpert))
+    print('# random pattern: hcorr,tcorr,stdev,nsamps=%s,%s,%s,%s' % (rp.hcorr,rp.tcorr,rp.stdev,rp.nsamples))
 
 # initialize model clock
 for nanal in range(nanals):
