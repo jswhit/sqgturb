@@ -219,24 +219,24 @@ class SQG:
             # generate random streamfunction field 
             # for this RK4 substep (using linear interpolation)
             if self.rkstep == 0:
-                psispec_pert0 = rfft2(self.random_pattern.pattern)
-                self.random_pattern_evolve()
-                psispec_pert1 = rfft2(self.random_pattern.pattern)
-                psispec_pert = psispec_pert0
+                self.psispec_pert0 = rfft2(self.random_pattern.pattern)
+                self.random_pattern.evolve()
+                self.psispec_pert1 = rfft2(self.random_pattern.pattern)
+                psispec_pert = self.psispec_pert0
             if self.rkstep in [1,2]:
-                psispec_pert = 0.5*(psispec_pert0+psispec_pert1)
+                psispec_pert = 0.5*(self.psispec_pert0+self.psispec_pert1)
             elif self.rkstep == 3:
-                psispec_pert = psispec_pert1
+                psispec_pert = self.psispec_pert1
             # compute perturbation u,v and pv gradient.
             if self.pvpert:
                 # calculate pv perturbation from streamfunction
                 # perturbation.
                 pvspec_pert = self.invert_inverse(psispec_pert)
-                pvxpert, pvypert = xyderiv(pvspec_pert)
+                pvxpert, pvypert = self.xyderiv(pvspec_pert)
             else:
                 pvxpert = np.zeros(pvx.shape, pvx.dtype)
                 pvypert = np.zeros(pvy.shape, pvy.dtype)
-            vpert, upert = xyderiv(psispec_pert); upert = -upert
+            vpert, upert = self.xyderiv(psispec_pert); upert = -upert
             u += upert
             v += vpert
             pvx += pvxpert
