@@ -108,7 +108,6 @@ for nanal in range(nanals):
     SQG(pvens[nanal],random_pattern=rp,pvpert=pvpert,\
     nsq=nc_climo.nsq,f=nc_climo.f,dt=dt,U=nc_climo.U,H=nc_climo.H,\
     r=nc_climo.r,tdiab=nc_climo.tdiab,symmetric=nc_climo.symmetric,\
-    diff_order_neg=2,diff_efold_neg=None,
     diff_order=nc_climo.diff_order,diff_efold=diff_efold,threads=threads))
 
 # default vertical localization scale
