@@ -199,7 +199,7 @@ class SQG:
         # add sub-grid scale stochastic component to advection.
         # (held constant over RK4 time step)
         if self.random_pattern is not None:
-            # generate random streamfunction field 
+            # generate random streamfunction field
             # for this RK4 substep
             # compute perturbation u,v for randomized advection.
             if self.rkstep == 0:
@@ -216,7 +216,7 @@ class SQG:
                 vpert = self.vpert0
                 # horizontally homogeneous diffusion to balance random advection
                 # (since it is homogenous, there is no drift correction to upert,vpert)
-                # this ensures variance of tracer not changed by randomized transport 
+                # this ensures variance of tracer not changed by randomized transport
                 ke0 = 0.5*(self.upert0**2+self.vpert0**2).mean()
                 ke1 = 0.5*(self.upert1**2+self.vpert1**2).mean()
                 ke2 = 0.5*(self.upert2**2+self.vpert2**2).mean()
@@ -235,7 +235,8 @@ class SQG:
             jacobianspec = self.spectrunc(jacobianspec)
         dpvspecdt = (1./self.tdiab)*(self.pvspec_eq-pvspec)-jacobianspec
         # diffusion for random advection
-        dpvspecdt += -self.ksqlsq*self.diffcoeff*pvspec
+        if self.random_pattern is not None:
+            dpvspecdt += -self.ksqlsq*self.diffcoeff*pvspec
         # Ekman damping at boundaries.
         if self.ekman:
             dpvspecdt[0] += self.r*self.ksqlsq*psispec[0]
