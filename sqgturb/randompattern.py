@@ -23,10 +23,6 @@ class RandomPattern:
         self.hcorr = spatial_corr_efold
         self.tcorr = temporal_corr_efold
         self.dt = dt
-        if self.tcorr == 0:
-            self.lag1corr = 0.
-        else:
-            self.lag1corr = np.exp(-1)**(self.dt/self.tcorr)
         self.L = L
         self.stdev = stdev
         self.nsamples = nsamples
@@ -52,10 +48,11 @@ class RandomPattern:
             self.pattern =\
             self.pattern*(self.filter_stdev*2.*np.sqrt(np.pi))
 
-    def evolve(self):
+    def evolve(self,dt=None):
         """
         evolve random patterns one time step
         """
+        if dt is None: dt = self.dt
         # generate white noise.
         newpattern = self.stdev*np.random.normal(\
                      size=(2,self.N,self.N))
@@ -77,9 +74,8 @@ class RandomPattern:
             newpattern =\
             newpattern*(self.filter_stdev*2.*np.sqrt(np.pi))
         # blend new pattern with old pattern.
-        self.pattern = \
-        np.sqrt(1.-self.lag1corr**2)*newpattern + \
-        self.lag1corr*self.pattern
+        lag1corr = np.exp(-1)**(dt/self.tcorr)
+        self.pattern = np.sqrt(1.-lag1corr**2)*newpattern + lag1corr*self.pattern
 
 if __name__ == "__main__":
     import matplotlib.pyplot as plt

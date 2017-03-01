@@ -208,38 +208,50 @@ class SQG:
             # compute perturbation u,v and pv gradient.
             if self.rkstep == 0:
                 psispec_pert0 = rfft2(self.random_pattern.pattern)
-                self.random_pattern.evolve()
+                self.random_pattern.evolve(dt=0.5*self.dt)
                 psispec_pert1 = rfft2(self.random_pattern.pattern)
+                self.random_pattern.evolve(dt=0.5*self.dt)
+                psispec_pert2 = rfft2(self.random_pattern.pattern)
                 if self.pvpert:
                     # calculate pv perturbation from streamfunction
                     # perturbation.
                     self.pvspec_pert0 = self.invert_inverse(psispec_pert0)
                     self.pvspec_pert1 = self.invert_inverse(psispec_pert1)
+                    self.pvspec_pert2 = self.invert_inverse(psispec_pert2)
                     self.pvxpert0, self.pvypert0 = self.xyderiv(pvspec_pert0)
+                    self.pvxpert1, self.pvypert1 = self.xyderiv(pvspec_pert1)
+                    self.pvxpert2, self.pvypert2 = self.xyderiv(pvspec_pert2)
                 else:
                     self.pvxpert0 = np.zeros(pvx.shape, pvx.dtype)
                     self.pvypert0 = np.zeros(pvy.shape, pvy.dtype)
                     self.pvxpert1 = np.zeros(pvx.shape, pvx.dtype)
                     self.pvypert1 = np.zeros(pvy.shape, pvy.dtype)
+                    self.pvxpert2 = np.zeros(pvx.shape, pvx.dtype)
+                    self.pvypert2 = np.zeros(pvy.shape, pvy.dtype)
                 self.vpert0, self.upert0 = self.xyderiv(psispec_pert0); self.upert0 = -self.upert0
-                self.vpert1, self.upert1 = self.xyderiv(psispec_pert0); self.upert1 = -self.upert1
+                self.vpert1, self.upert1 = self.xyderiv(psispec_pert1); self.upert1 = -self.upert1
+                self.vpert2, self.upert2 = self.xyderiv(psispec_pert2); self.upert2 = -self.upert2
                 upert = self.upert0
                 vpert = self.vpert0
                 pvxpert = self.pvxpert0
                 pvypert = self.pvypert0
                 # horizontally homogeneous diffusion to balance random advection
                 # (since it is homogenous, there is no drift correction to upert,vpert)
-                self.diffcoeff = 0.25*(self.upert0**2+self.vpert0**2+self.upert1**2+self.vpert1**2).mean()/self.dt
+                # this ensures variance of tracer not changed by randomized transport 
+                ke0 = 0.5*(self.upert0**2+self.vpert0**2).mean()
+                ke1 = 0.5*(self.upert1**2+self.vpert1**2).mean()
+                ke2 = 0.5*(self.upert2**2+self.vpert2**2).mean()
+                self.diffcoeff = (1./3.)*(ke0+ke1+ke2)/self.dt
             if self.rkstep in [1,2]:
-                upert = 0.5*(self.upert0+self.upert1)
-                vpert = 0.5*(self.vpert0+self.vpert1)
-                pvxpert = 0.5*(self.pvxpert0+self.pvxpert1)
-                pvypert = 0.5*(self.pvypert0+self.pvypert1)
-            elif self.rkstep == 3:
                 upert = self.upert1
                 vpert = self.vpert1
                 pvxpert = self.pvxpert1
-                pvypert = self.pvypert1
+                pvypert = self.pvxpert1
+            elif self.rkstep == 3:
+                upert = self.upert2
+                vpert = self.vpert2
+                pvxpert = self.pvxpert2
+                pvypert = self.pvypert2
             u += upert
             v += vpert
             pvx += pvxpert
