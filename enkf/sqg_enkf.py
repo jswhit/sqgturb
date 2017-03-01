@@ -1,5 +1,5 @@
 from __future__ import print_function
-from sqgturb import SQG, RandomPattern, RandomPatternSample
+from sqgturb import SQG, RandomPattern, rfft2, irfft2
 import numpy as np
 from netCDF4 import Dataset
 import sys, time, os
@@ -27,7 +27,7 @@ vcovlocal_fact = float(sys.argv[2])
 amp = float(sys.argv[3])*1.e5
 hcorr = float(sys.argv[4])
 tcorr = float(sys.argv[5])
-nsamples = 1
+nsamples = 2
 # inflation parameters
 # (covinflate2 <= 0 for RTPS inflation
 # (http://journals.ametsoc.org/doi/10.1175/MWR-D-11-00276.1),
@@ -85,7 +85,6 @@ nc_climo = Dataset(filename_climo)
 # parameter used to scale PV to temperature units.
 scalefact = nc_climo.f*nc_climo.theta0/nc_climo.g
 # initialize qg model instances for each ensemble member.
-models = []
 x = nc_climo.variables['x'][:]
 y = nc_climo.variables['y'][:]
 pv_climo = nc_climo.variables['pv']
@@ -97,17 +96,19 @@ dt = nc_climo.dt
 if diff_efold == None: diff_efold=nc_climo.diff_efold
 # get OMP_NUM_THREADS (threads to use) from environment.
 threads = int(os.getenv('OMP_NUM_THREADS','1'))
-if amp == 0:
-    rp = None
-else:
-    rp = RandomPattern(hcorr*nc_climo.L/nx,tcorr*dt,nc_climo.L,nx,dt,nsamples=nsamples,stdev=amp)
+rpatterns = []; models = []
 for nanal in range(nanals):
+    if amp == 0:
+        rp = None
+    else:
+        rp = RandomPattern(hcorr*nc_climo.L/nx,tcorr*dt,nc_climo.L,nx,dt,nsamples=nsamples,stdev=amp)
     pvens[nanal] = pv_climo[indxran[nanal]]
     models.append(\
     SQG(pvens[nanal],random_pattern=rp,\
     nsq=nc_climo.nsq,f=nc_climo.f,dt=dt,U=nc_climo.U,H=nc_climo.H,\
     r=nc_climo.r,tdiab=nc_climo.tdiab,symmetric=nc_climo.symmetric,\
     diff_order=nc_climo.diff_order,diff_efold=diff_efold,threads=threads))
+    rpatterns.append(rp)
 
 # default vertical localization scale
 Lr = np.sqrt(models[0].nsq)*models[0].H/models[0].f
@@ -361,6 +362,13 @@ for ntime in range(nassim):
     t1 = time.time()
     for nanal in range(nanals):
         pvens[nanal] = models[nanal].advance(pvens[nanal])
+    #for nanal in range(nanals):
+    #    models[nanal].pvspec = rfft2(pvens[nanal])
+    #for nt in range(assim_timesteps):
+    #    for nanal in range(nanals):
+    #        models[nanal].timestep()
+    #for nanal in range(nanals):
+    #    pvens[nanal] = irfft2(models[nanal].pvspec)
     t2 = time.time()
     if profile: print('cpu time for ens forecast',t2-t1)
 
