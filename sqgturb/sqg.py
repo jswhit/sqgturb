@@ -208,6 +208,7 @@ class SQG:
                 self.vpert, self.upert = self.xyderiv(psispec_pert); self.upert = -self.upert
                 ke = 0.5*(self.upert**2+self.vpert**2).mean()
                 self.diffcoeff = ke/self.dt
+                self.random_pattern.evolve()
             #if self.rkstep == 0:
             #    psispec_pert0 = rfft2(self.random_pattern.pattern)
             #    self.random_pattern.evolve(dt=0.5*self.dt)
