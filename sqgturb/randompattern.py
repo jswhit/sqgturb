@@ -47,7 +47,7 @@ class RandomPattern:
                          size=(2,self.N,self.N))
             if self.nsamples == 2:
                 pass
-            elif nsamples == 1:
+            elif self.nsamples == 1:
                 newpattern[1] = newpattern[0]
             else:
                 raise ValueError('nsamples must be 1 or 2')
@@ -75,13 +75,15 @@ class RandomPattern:
         if dt is None: dt = self.dt
         newpattern = self.genpattern()
         # blend new pattern with old pattern.
-        lag1corr = np.exp(-1.0)**(dt/self.tcorr)
-        self.pattern = np.sqrt(1.-lag1corr**2)*newpattern + lag1corr*self.pattern
+        for npattern in range(self.npatterns):
+            lag1corr = np.exp(-1.0)**(dt/self.tcorr[npattern])
+            self.pattern[npattern] = np.sqrt(1.-lag1corr**2)*newpattern[npattern] + lag1corr*self.pattern[npattern]
 
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
     nsamples = 2; stdev = [1.,2]
     rp=RandomPattern([100.e3,500.e3],[600.,3600.],20.e6,128,1200,nsamples=nsamples,stdev=stdev)
+    rp.evolve()
     # plot random sample.
     xens = rp.pattern
     minmax = max(np.abs(xens.min()), np.abs(xens.max()))
