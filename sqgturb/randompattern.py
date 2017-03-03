@@ -3,7 +3,7 @@ from scipy.ndimage import gaussian_filter
 
 class RandomPattern:
     def __init__(self, spatial_corr_efold, temporal_corr_efold, L, N, dt, \
-            nsamples=1, stdev=1.0, order=0):
+            nsamples=1, stdev=1.0):
         """
         define an ensemble of random patterns with specified temporal
         and spatial covariance structure by applying Gaussian blur to
@@ -20,84 +20,68 @@ class RandomPattern:
         patterns are generated for each boundary.
         stdev:  spatial standard deviation (amplitude).
         """
-        self.hcorr = float(spatial_corr_efold)
-        self.tcorr = float(temporal_corr_efold)
+        self.hcorr = np.array(spatial_corr_efold,np.float)
+        if self.hcorr.shape == ():
+            self.hcorr.shape = (1,)
+        self.tcorr = np.array(temporal_corr_efold,np.float)
+        if self.tcorr.shape == ():
+            self.tcorr.shape = (1,)
+        self.stdev = np.array(stdev,np.float)
+        if self.stdev.shape == ():
+            self.stdev.shape = (1,)
+        self.npatterns = len(self.stdev)
+        self.filter_stdev = np.zeros(self.npatterns, np.float)
         self.dt = float(dt)
         self.L = float(L)
-        self.stdev = stdev
         self.nsamples = nsamples
         self.N = N
-        self.order = order
+        self.filter_stdev = self.hcorr*self.N/(self.L*np.sqrt(4.))
+        self.pattern = self.genpattern()
+
+    def genpattern(self):
         # initialize patterns.
         # generate white noise.
-        self.pattern = self.stdev*np.random.normal(\
-                       size=(2,self.N,self.N))
-        if self.nsamples == 2:
-            pass
-        elif nsamples == 1:
-            self.pattern[1] = self.pattern[0]
-        else:
-            raise ValueError('nsamples must be 1 or 2')
-        if self.hcorr > 0:
-            # apply gaussian filter
-            self.filter_stdev = self.hcorr*self.N/(self.L*np.sqrt(4.))
+        pattern = np.zeros((2,self.N,self.N),np.float)
+        for npattern in range(self.npatterns):
+            newpattern = self.stdev[npattern]*np.random.normal(\
+                         size=(2,self.N,self.N))
             if self.nsamples == 2:
-                for n in range(self.nsamples):
-                    self.pattern[n] = gaussian_filter(self.pattern[n],
-                    self.filter_stdev, order=self.order, output=None,
-                    mode='wrap', cval=0.0, truncate=6.0)
+                pass
+            elif nsamples == 1:
+                newpattern[1] = newpattern[0]
             else:
-                self.pattern[0] = gaussian_filter(self.pattern[0],
-                self.filter_stdev, order=self.order, output=None,
-                mode='wrap', cval=0.0, truncate=6.0)
-                self.pattern[1]=self.pattern[0]
-            # restore variance removed by gaussian blur.
-            if order == 0:
-                self.pattern =\
-                self.pattern*(self.filter_stdev*2.*np.sqrt(np.pi))
-            else:
-                for n in range(2):
-                    stdev_computed = np.sqrt((self.pattern[n]**2).mean())
-                    self.pattern[n] = self.pattern[n]*stdev/stdev_computed
+                raise ValueError('nsamples must be 1 or 2')
+            if self.hcorr[npattern] > 0:
+                # apply gaussian filter
+                if self.nsamples == 2:
+                    for n in range(self.nsamples):
+                        newpattern[n] = gaussian_filter(newpattern[n],
+                        self.filter_stdev[npattern],output=None,
+                        order=0,mode='wrap', cval=0.0, truncate=6.0)
+                else:
+                    newpattern[0] = gaussian_filter(newpattern[0],
+                    self.filter_stdev[npattern],output=None,
+                    order=0,mode='wrap', cval=0.0, truncate=6.0)
+                    newpattern[1]=newpattern[0]
+                # restore variance removed by gaussian blur.
+                newpattern = newpattern*(self.filter_stdev[npattern]*2.*np.sqrt(np.pi))
+            pattern += newpattern
+        return pattern
 
     def evolve(self,dt=None):
         """
         evolve random patterns one time step
         """
         if dt is None: dt = self.dt
-        # generate white noise.
-        newpattern = self.stdev*np.random.normal(\
-                     size=(2,self.N,self.N))
-        if self.nsamples == 1:
-            newpattern[1]=newpattern[0]
-        if self.hcorr > 0:
-            # apply gaussian filter
-            if self.nsamples == 2:
-                for n in range(self.nsamples):
-                    newpattern[n] = gaussian_filter(newpattern[n],
-                    self.filter_stdev, order=self.order, output=None,
-                    mode='wrap', cval=0.0, truncate=6.0)
-            else:
-                newpattern[0] = gaussian_filter(newpattern[0],
-                self.filter_stdev, order=self.order, output=None,
-                mode='wrap', cval=0.0, truncate=6.0)
-                newpattern[1]=newpattern[0]
-            # restore variance removed by gaussian blur.
-            if self.order == 0:
-                newpattern =\
-                newpattern*(self.filter_stdev*2.*np.sqrt(np.pi))
-            else:
-                for n in range(2):
-                    stdev_computed = np.sqrt((self.pattern[n]**2).mean())
-                    self.pattern[n] = self.pattern[n]*self.stdev/stdev_computed
+        newpattern = self.genpattern()
         # blend new pattern with old pattern.
         lag1corr = np.exp(-1.0)**(dt/self.tcorr)
         self.pattern = np.sqrt(1.-lag1corr**2)*newpattern + lag1corr*self.pattern
 
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
-    nsamples = 2; stdev = 2
-    rp=RandomPattern(500.e3,3600.,20.e6,128,1200,nsamples=nsamples,stdev=stdev)
+    nsamples = 2; stdev = [1.,2]
+    rp=RandomPattern([100.e3,500.e3],[600.,3600.],20.e6,128,1200,nsamples=nsamples,stdev=stdev)
     # plot random sample.
     xens = rp.pattern
     minmax = max(np.abs(xens.min()), np.abs(xens.max()))
