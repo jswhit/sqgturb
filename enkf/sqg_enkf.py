@@ -22,19 +22,20 @@ hcovlocal_scale = float(sys.argv[1])
 # vertical covariance localization factor
 # if < 0, default used (vcovlocal_fact = L_r/hcovlocal_scale,
 # where L_r is Rossby radius)
-vcovlocal_fact = float(sys.argv[2])
+#vcovlocal_fact = float(sys.argv[2])
+vcovlocal_fact = -1
 # stochastic parameterization parameters
-amp = float(sys.argv[3])*1.e5
-hcorr = float(sys.argv[4])
-tcorr = float(sys.argv[5])
-nsamples = 2
+amp = np.asarray(eval(sys.argv[2]),np.float)*1.e5
+hcorr = np.asarray(eval(sys.argv[3]),np.float)
+tcorr = np.asarray(eval(sys.argv[4]),np.float)
+nsamples = 1
 # inflation parameters
 # (covinflate2 <= 0 for RTPS inflation
 # (http://journals.ametsoc.org/doi/10.1175/MWR-D-11-00276.1),
 # otherwise use Hodyss et al inflation
 # (http://journals.ametsoc.org/doi/abs/10.1175/MWR-D-15-0329.1)
-if len(sys.argv) > 6:
-    covinflate1 = float(sys.argv[6])
+if len(sys.argv) > 5:
+    covinflate1 = float(sys.argv[5])
     covinflate2 = -1
 else:
     covinflate1 = 1.
@@ -98,7 +99,7 @@ if diff_efold == None: diff_efold=nc_climo.diff_efold
 threads = int(os.getenv('OMP_NUM_THREADS','1'))
 rpatterns = []; models = []
 for nanal in range(nanals):
-    if amp == 0:
+    if amp.all() == 0:
         rp = None
     else:
         rp = RandomPattern(hcorr*nc_climo.L/nx,tcorr*dt,nc_climo.L,nx,dt,nsamples=nsamples,stdev=amp)
