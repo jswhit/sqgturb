@@ -20,10 +20,10 @@ class RandomPattern:
         patterns are generated for each boundary.
         stdev:  spatial standard deviation (amplitude).
         """
-        self.hcorr = spatial_corr_efold
-        self.tcorr = temporal_corr_efold
-        self.dt = dt
-        self.L = L
+        self.hcorr = float(spatial_corr_efold)
+        self.tcorr = float(temporal_corr_efold)
+        self.dt = float(dt)
+        self.L = float(L)
         self.stdev = stdev
         self.nsamples = nsamples
         self.N = N
@@ -89,15 +89,15 @@ class RandomPattern:
             else:
                 for n in range(2):
                     stdev_computed = np.sqrt((self.pattern[n]**2).mean())
-                    self.pattern[n] = self.pattern[n]*stdev/stdev_computed
+                    self.pattern[n] = self.pattern[n]*self.stdev/stdev_computed
         # blend new pattern with old pattern.
-        lag1corr = np.exp(-1)**(dt/self.tcorr)
+        lag1corr = np.exp(-1.0)**(dt/self.tcorr)
         self.pattern = np.sqrt(1.-lag1corr**2)*newpattern + lag1corr*self.pattern
 
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
     nsamples = 2; stdev = 2
-    rp=RandomPattern(500.e3,3600.,20.e6,128,1800,nsamples=nsamples,stdev=stdev)
+    rp=RandomPattern(500.e3,3600.,20.e6,128,1200,nsamples=nsamples,stdev=stdev)
     # plot random sample.
     xens = rp.pattern
     minmax = max(np.abs(xens.min()), np.abs(xens.max()))
@@ -107,7 +107,7 @@ if __name__ == "__main__":
         plt.title('pattern %s' % n)
         plt.colorbar()
     nsamples = 1; stdev = 1
-    rp = RandomPattern(1000.e3,3600.,20.e6,128,1800,nsamples=nsamples,stdev=stdev)
+    rp = RandomPattern(1000.e3,1200.,20.e6,128,1200,nsamples=nsamples,stdev=stdev)
     ntimes = 1000
     x = rp.pattern[0]
     lag1cov = np.zeros(x.shape, x.dtype)
