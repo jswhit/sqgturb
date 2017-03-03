@@ -95,7 +95,6 @@ class SQG:
         # dimensionalize wavenumbers.
         k = 2.*pi*k/self.L; l = 2.*pi*l/self.L
         ksqlsq = k**2+l**2
-        self.ksqlsq = ksqlsq
         self.k = k; self.l = l; self.ksqlsq = ksqlsq
         self.ik = (1.j*k).astype(np.complex64)
         self.il = (1.j*l).astype(np.complex64)
@@ -215,9 +214,9 @@ class SQG:
         if self.dealias: # 2/3 rule: truncate spectral coefficients of jacobian
             jacobianspec = self.spectrunc(jacobianspec)
         dpvspecdt = (1./self.tdiab)*(self.pvspec_eq-pvspec)-jacobianspec
-        # diffusion for random advection
-        if self.random_pattern is not None:
-            dpvspecdt += -self.ksqlsq*self.diffcoeff*pvspec
+        # diffusion for random advection (not really needed?)
+        #if self.random_pattern is not None:
+        #    dpvspecdt += -self.ksqlsq*self.diffcoeff*pvspec
         # Ekman damping at boundaries.
         if self.ekman:
             dpvspecdt[0] += self.r*self.ksqlsq*psispec[0]
