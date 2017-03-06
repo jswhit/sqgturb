@@ -1,10 +1,19 @@
 import numpy as np
 from scipy.linalg import eigh
+from scipy.special import gamma,kv
 
 def _gaussian(rr,corrl):
     # gaussian covariance model.
     r = rr/corrl
     return np.exp(-r**2)
+
+def _matern(rr,corrl,kappa=5./2.):
+    # matern covariance model
+    r = rr/(corrl/np.sqrt(2.))
+    r = np.where(r < 1.e-10, 1.e-10, r)
+    r1 = 2 ** (kappa-1.0) * gamma(kappa)
+    bes = kv(kappa,r)
+    return (1.0/r1) * r ** kappa * bes
 
 def _cartdist(x1,y1,x2,y2,xmax,ymax):
     # cartesian distance on doubly periodic plane
@@ -35,7 +44,7 @@ class RandomPatternEig:
         n = 0
         for x0,y0 in zip(x2,y2):
             r = _cartdist(x0,y0,x2,y2,self.L,self.L)
-            cov[n,:] = _gaussian(r,self.hcorr)
+            cov[n,:] = _matern(r,self.hcorr)
             n = n + 1
         # eigenanalysis
         evals, evecs = eigh(cov)
@@ -82,7 +91,7 @@ if __name__ == "__main__":
     import matplotlib.pyplot as plt
     import cPickle
     nsamples = 10; stdev = 2
-    rp1=RandomPatternEig(1000.e3,3600.,20.e6,64,1800,nsamples=nsamples,stdev=stdev,verbose=True)
+    rp1=RandomPatternEig(500.e3,3600.,20.e6,64,1800,nsamples=nsamples,stdev=stdev,verbose=True)
     # test pickling/unpickling
     f = open('saved_rp.pickle','wb')
     cPickle.dump(rp1, f, protocol=cPickle.HIGHEST_PROTOCOL)
@@ -93,16 +102,16 @@ if __name__ == "__main__":
     # plot random sample.
     xens = rp.pattern
     minmax = max(np.abs(xens.min()), np.abs(xens.max()))
-    #for n in range(nsamples):
-    #    plt.figure()
-    #    plt.imshow(xens[n],plt.cm.bwr,interpolation='nearest',origin='lower',vmin=-minmax,vmax=minmax)
-    #    plt.title('pattern %s' % n)
-    #    plt.colorbar()
+    for n in range(nsamples):
+        plt.figure()
+        plt.imshow(xens[n],plt.cm.bwr,interpolation='nearest',origin='lower',vmin=-minmax,vmax=minmax)
+        plt.title('pattern %s' % n)
+        plt.colorbar()
     print 'variance =', ((xens**2).sum(axis=0)/(nsamples-1)).mean()
     print '(expected ',stdev**2,')'
     plt.show()
     nsamples = 1; stdev = 2
-    rp = RandomPatternEig(1000.e3,3600.,20.e6,64,1800,nsamples=nsamples,stdev=stdev)
+    rp = RandomPatternEig(500.e3,3600.,20.e6,64,1800,nsamples=nsamples,stdev=stdev)
     ntimes = 100
     x = rp.pattern
     lag1cov = np.zeros(x.shape, x.dtype)
