@@ -25,7 +25,7 @@ def _cartdist(x1,y1,x2,y2,xmax,ymax):
 
 class RandomPatternEig:
     def __init__(self, spatial_corr_efold, temporal_corr_efold, L, N,\
-                 dt, nsamples=1, stdev=1.0, thresh = 0.99, verbose=False):
+                 dt, nsamples=1, stdev=1.0, thresh = 0.99, verbose=False, seed=None):
         self.hcorr = spatial_corr_efold
         self.tcorr = temporal_corr_efold
         self.dt = dt
@@ -63,9 +63,21 @@ class RandomPatternEig:
                 (neig,100*self.thresh)
             self.nevecs = neig
         # initialize random coefficients.
-        self.coeffs = np.random.normal(size=(self.nsamples,self.nevecs))
+        if seed is None:
+            self.rs = np.random.RandomState() 
+        else:
+            self.rs = np.random.RandomState(seed) 
+        self.coeffs = self.rs.normal(size=(self.nsamples,self.nevecs))
         self.pattern = self.random_sample()
 
+    def copy(self,seed):
+        import copy
+        newself = copy.copy(self)
+        newself.rs = np.random.RandomState(seed)
+        newself.coeffs = newself.rs.normal(size=(self.nsamples,self.nevecs))
+        newself.pattern = newself.random_sample()
+        return newself
+     
     def random_sample(self):
         """
         return random sample
@@ -83,7 +95,7 @@ class RandomPatternEig:
         """
         self.coeffs = \
         np.sqrt(1.-self.lag1corr**2)* \
-        np.random.normal(size=(self.nsamples,self.nevecs)) + \
+        self.rs.normal(size=(self.nsamples,self.nevecs)) + \
         self.lag1corr*self.coeffs
         self.pattern = self.random_sample()
 
@@ -91,7 +103,8 @@ if __name__ == "__main__":
     import matplotlib.pyplot as plt
     import cPickle
     nsamples = 10; stdev = 2
-    rp1=RandomPatternEig(500.e3,3600.,20.e6,64,1800,nsamples=nsamples,stdev=stdev,verbose=True)
+    rp=RandomPatternEig(0.5*20.e6/64.,3600.,20.e6,64,1800,nsamples=nsamples,stdev=stdev,verbose=True)
+    rp1 = rp.copy(seed=42)
     # test pickling/unpickling
     f = open('saved_rp.pickle','wb')
     cPickle.dump(rp1, f, protocol=cPickle.HIGHEST_PROTOCOL)

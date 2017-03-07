@@ -3,7 +3,7 @@ from scipy.ndimage import gaussian_filter
 
 class RandomPattern:
     def __init__(self, spatial_corr_efold, temporal_corr_efold, L, N, dt, \
-            nsamples=1, stdev=1.0):
+            nsamples=1, stdev=1.0, seed=None):
         """
         define an ensemble of random patterns with specified temporal
         and spatial covariance structure by applying Gaussian blur to
@@ -36,14 +36,19 @@ class RandomPattern:
         self.nsamples = nsamples
         self.N = N
         self.filter_stdev = self.hcorr*self.N/(self.L*np.sqrt(4.))
+        # initialize random coefficients.
+        if seed is None:
+            self.rs = np.random.RandomState() 
+        else:
+            self.rs = np.random.RandomState(seed) 
         self.pattern = self.genpattern()
 
-    def genpattern(self):
+    def genpattern(self,seed=None):
         # initialize patterns.
         # generate white noise.
         pattern = np.zeros((2,self.N,self.N),np.float)
         for npattern in range(self.npatterns):
-            newpattern = self.stdev[npattern]*np.random.normal(\
+            newpattern = self.stdev[npattern]*self.rs.normal(\
                          size=(2,self.N,self.N))
             if self.nsamples == 2:
                 pass
@@ -68,6 +73,13 @@ class RandomPattern:
             pattern += newpattern
         return pattern
 
+    def copy(self,seed):
+        import copy
+        newself = copy.copy(self)
+        newself.rs = np.random.RandomState(seed)
+        newself.pattern = self.genpattern()
+        return newself
+
     def evolve(self,dt=None):
         """
         evolve random patterns one time step
@@ -82,7 +94,8 @@ class RandomPattern:
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
     nsamples = 2; stdev = [1.,2]
-    rp=RandomPattern([100.e3,500.e3],[600.,3600.],20.e6,128,1200,nsamples=nsamples,stdev=stdev)
+    rp0=RandomPattern([100.e3,500.e3],[600.,3600.],20.e6,128,1200,nsamples=nsamples,stdev=stdev)
+    rp = rp0.copy(seed=42) 
     rp.evolve()
     # plot random sample.
     xens = rp.pattern
