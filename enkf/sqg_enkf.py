@@ -1,5 +1,5 @@
 from __future__ import print_function
-from sqgturb import SQG, RandomPattern, rfft2, irfft2
+from sqgturb import SQG, rfft2, irfft2, RandomPattern
 import numpy as np
 from netCDF4 import Dataset
 import sys, time, os
@@ -28,7 +28,7 @@ vcovlocal_fact = -1
 amp = np.asarray(eval(sys.argv[2]),np.float)*1.e5
 hcorr = np.asarray(eval(sys.argv[3]),np.float)
 tcorr = np.asarray(eval(sys.argv[4]),np.float)
-nsamples = 1
+nsamples = 2
 # inflation parameters
 # (covinflate2 <= 0 for RTPS inflation
 # (http://journals.ametsoc.org/doi/10.1175/MWR-D-11-00276.1),
@@ -97,19 +97,21 @@ dt = nc_climo.dt
 if diff_efold == None: diff_efold=nc_climo.diff_efold
 # get OMP_NUM_THREADS (threads to use) from environment.
 threads = int(os.getenv('OMP_NUM_THREADS','1'))
+if amp.all() == 0:
+    rp = None
+else:
+    rp = RandomPattern(hcorr*nc_climo.L/nx,tcorr*dt,nc_climo.L,nx,dt,nsamples=nsamples,stdev=amp)
 rpatterns = []; models = []
 for nanal in range(nanals):
-    if amp.all() == 0:
-        rp = None
-    else:
-        rp = RandomPattern(hcorr*nc_climo.L/nx,tcorr*dt,nc_climo.L,nx,dt,nsamples=nsamples,stdev=amp)
     pvens[nanal] = pv_climo[indxran[nanal]]
+    if rp is not None:
+        rpx = rp.copy(seed=nanal)
+        rpatterns.append(rpx)
     models.append(\
-    SQG(pvens[nanal],random_pattern=rp,\
+    SQG(pvens[nanal],random_pattern=rpx,\
     nsq=nc_climo.nsq,f=nc_climo.f,dt=dt,U=nc_climo.U,H=nc_climo.H,\
     r=nc_climo.r,tdiab=nc_climo.tdiab,symmetric=nc_climo.symmetric,\
     diff_order=nc_climo.diff_order,diff_efold=diff_efold,threads=threads))
-    rpatterns.append(rp)
 
 # default vertical localization scale
 Lr = np.sqrt(models[0].nsq)*models[0].H/models[0].f
