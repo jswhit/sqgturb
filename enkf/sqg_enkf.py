@@ -217,7 +217,7 @@ if savedata is not None:
 
 kespec_errmean = None; kespec_sprdmean = None
 
-ncount = 0
+ncount = 0; nanals2 = 4
 for ntime in range(nassim):
 
     # check model clock
@@ -392,16 +392,16 @@ for ntime in range(nassim):
             (models[0].ksqlsq*(psispec*np.conjugate(psispec))).real
         else:
             kespec_errmean = kespec_errmean + kespec
-        for nanal in range(nanals):
+        for nanal in range(nanals2):
             pvsprdspec = scalefact*rfft2(pvens[nanal] - pvfcstmean)
             psispec = models[0].invert(pvsprdspec)
             psispec = psispec/(models[0].N*np.sqrt(2.))
             kespec = (models[0].ksqlsq*(psispec*np.conjugate(psispec))).real
             if kespec_sprdmean is None:
                 kespec_sprdmean =\
-                (models[0].ksqlsq*(psispec*np.conjugate(psispec))).real/nanals
+                (models[0].ksqlsq*(psispec*np.conjugate(psispec))).real/nanals2
             else:
-                kespec_sprdmean = kespec_sprdmean+kespec/nanals
+                kespec_sprdmean = kespec_sprdmean+kespec/nanals2
         ncount += 1
 
 if savedata: nc.close()
@@ -429,6 +429,7 @@ for i in range(kespec_errmean.shape[2]):
             kespec_sprd[int(totwavenum)] = kespec_sprd[int(totwavenum)] +\
             kespec_sprdmean[:,j,i].mean(axis=0)
 
+print('mean error/spread',kespec_errmean.sum(), kespec_sprdmean.sum())
 plt.figure()
 wavenums = np.arange(ktotmax,dtype=np.float)
 wavenums[0] = 1.
