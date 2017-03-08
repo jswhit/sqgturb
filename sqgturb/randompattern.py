@@ -12,13 +12,15 @@ class RandomPattern:
         isotropic spatial correlation structure.
         temporal_corr_efold:  efolding time scale for temporal
         correlation.
+        stdev:  spatial standard deviation (amplitude).
+        (spatial_corr_efold and temporal_corr_efold and stdev can
+        all be vectors, implying a superposition of random patterns).
         L: size of square domain (m)
         N: number of grid points in each periodic direction
         dt: time step to evolve paptern.
         nsamples:  number of ensemble members. Can be 1 or 2.  If set to 1,
         then pattern is duplicated..  If set to 2, independent
         patterns are generated for each boundary.
-        stdev:  spatial standard deviation (amplitude).
         """
         self.hcorr = np.array(spatial_corr_efold,np.float)
         if self.hcorr.shape == ():
