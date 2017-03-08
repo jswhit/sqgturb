@@ -67,7 +67,7 @@ nanals = 40 # ensemble members
 
 oberrstdev = 1.0 # ob error standard deviation in K
 
-nassim = 160 # assimilation times to run
+nassim = 440 # assimilation times to run
 nassim_spinup = 80
 
 filename_climo = '../examples/sqg_N128_3hrly.nc' # file name for forecast model climo
@@ -383,7 +383,7 @@ for ntime in range(nassim):
 
     if ntime >= nassim_spinup:
         pvfcstmean = pvens.mean(axis=0)
-        pverrspec = scalefact*rfft2(pvfcstmean - pv_truth[ntime])
+        pverrspec = scalefact*rfft2(pvfcstmean - pv_truth[ntime+1])
         psispec = models[0].invert(pverrspec)
         psispec = psispec/(models[0].N*np.sqrt(2.))
         kespec = (models[0].ksqlsq*(psispec*np.conjugate(psispec))).real
