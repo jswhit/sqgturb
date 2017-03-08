@@ -198,13 +198,19 @@ class SQG:
         # add sub-grid scale stochastic component to advection.
         # (held constant over RK4 time step)
         if self.random_pattern is not None:
-            # generate random streamfunction field,
-            # compute perturbation u,v for randomized advection.
-            if self.rkstep == 0:
-                # assume random winds constant over RK4 step
+            rp_norm = getattr(self,'norm','psi')
+            if rp_norm == 'pv':
+                # random pattern represents pv (theta)
+                psispec_pert = self.invert_inverse(rfft2(self.random_pattern.pattern))
+            elif rp_norm == 'psi':
+                # random patter represents psi (streamfunction).
                 psispec_pert = rfft2(self.random_pattern.pattern)
+            # compute perturbation u,v for randomized advection.
+            # assume random winds constant over RK4 step
+            if self.rkstep == 0:
                 self.vpert, self.upert = self.xyderiv(psispec_pert); self.upert = -self.upert
                 ke = 0.5*(self.upert**2+self.vpert**2).mean()
+                #print(rp_norm,ke,self.vpert.min(), self.vpert.max())
                 self.diffcoeff = ke/self.dt
                 self.random_pattern.evolve()
             u += self.upert
