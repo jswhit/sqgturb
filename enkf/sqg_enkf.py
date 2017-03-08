@@ -67,7 +67,8 @@ nanals = 40 # ensemble members
 
 oberrstdev = 1.0 # ob error standard deviation in K
 
-nassim = 440 # assimilation times to run
+nassim = 160 # assimilation times to run
+nassim_spinup = 80
 
 filename_climo = '../examples/sqg_N128_3hrly.nc' # file name for forecast model climo
 # perfect model
@@ -107,6 +108,8 @@ for nanal in range(nanals):
     if rp is not None:
         rpx = rp.copy(seed=nanal)
         rpatterns.append(rpx)
+    else:
+        rpx = None
     models.append(\
     SQG(pvens[nanal],random_pattern=rpx,\
     nsq=nc_climo.nsq,f=nc_climo.f,dt=dt,U=nc_climo.U,H=nc_climo.H,\
@@ -212,6 +215,9 @@ if savedata is not None:
    zvar[0] = 0; zvar[1] = models[0].H
    ensvar[:] = np.arange(1,nanals+1)
 
+kespec_errmean = None; kespec_sprdmean = None
+
+ncount = 0
 for ntime in range(nassim):
 
     # check model clock
@@ -375,4 +381,60 @@ for ntime in range(nassim):
     t2 = time.time()
     if profile: print('cpu time for ens forecast',t2-t1)
 
+    if ntime >= nassim_spinup:
+        pvfcstmean = pvens.mean(axis=0)
+        pverrspec = scalefact*rfft2(pvfcstmean - pv_truth[ntime])
+        psispec = models[0].invert(pverrspec)
+        psispec = psispec/(models[0].N*np.sqrt(2.))
+        kespec = (models[0].ksqlsq*(psispec*np.conjugate(psispec))).real
+        if kespec_errmean is None:
+            kespec_errmean =\
+            (models[0].ksqlsq*(psispec*np.conjugate(psispec))).real
+        else:
+            kespec_errmean = kespec_errmean + kespec
+        for nanal in range(nanals):
+            pvsprdspec = scalefact*rfft2(pvens[nanal] - pvfcstmean)
+            psispec = models[0].invert(pvsprdspec)
+            psispec = psispec/(models[0].N*np.sqrt(2.))
+            kespec = (models[0].ksqlsq*(psispec*np.conjugate(psispec))).real
+            if kespec_sprdmean is None:
+                kespec_sprdmean =\
+                (models[0].ksqlsq*(psispec*np.conjugate(psispec))).real/nanals
+            else:
+                kespec_sprdmean = kespec_sprdmean+kespec/nanals
+        ncount += 1
+
 if savedata: nc.close()
+
+kespec_sprdmean = kespec_sprdmean/ncount
+kespec_errmean = kespec_errmean/ncount
+
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+N = models[0].N
+k = np.abs((N*np.fft.fftfreq(N))[0:(N/2)+1])
+l = N*np.fft.fftfreq(N)
+k,l = np.meshgrid(k,l)
+ktot = np.sqrt(k**2+l**2)
+ktotmax = (N/2)+1
+kespec_err = np.zeros(ktotmax,np.float)
+kespec_sprd = np.zeros(ktotmax,np.float)
+for i in range(kespec_errmean.shape[2]):
+    for j in range(kespec_errmean.shape[1]):
+        totwavenum = ktot[j,i]
+        if int(totwavenum) < ktotmax:
+            kespec_err[int(totwavenum)] = kespec_err[int(totwavenum)] +\
+            kespec_errmean[:,j,i].mean(axis=0)
+            kespec_sprd[int(totwavenum)] = kespec_sprd[int(totwavenum)] +\
+            kespec_sprdmean[:,j,i].mean(axis=0)
+
+plt.figure()
+wavenums = np.arange(ktotmax,dtype=np.float)
+wavenums[0] = 1.
+for n in range(ktotmax):
+    print(n,wavenums[n],kespec_err[n],kespec_sprd[n])
+plt.loglog(wavenums,kespec_err,color='r')
+plt.loglog(wavenums,kespec_sprd,color='b')
+plt.title('error (red) and spread (blue) spectra')
+plt.savefig('errorspread_spectra.png')
