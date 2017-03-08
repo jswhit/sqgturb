@@ -30,17 +30,16 @@ class RandomPattern:
         if self.stdev.shape == ():
             self.stdev.shape = (1,)
         self.npatterns = len(self.stdev)
-        self.filter_stdev = np.zeros(self.npatterns, np.float)
         self.dt = float(dt)
         self.L = float(L)
         self.nsamples = nsamples
         self.N = N
-        self.filter_stdev = self.hcorr*self.N/(self.L*np.sqrt(4.))
+        self.filter_stdev = self.hcorr*self.N/(self.L*np.sqrt(4.))*np.ones(self.npatterns, np.float)
         # initialize random coefficients.
         if seed is None:
-            self.rs = np.random.RandomState() 
+            self.rs = np.random.RandomState()
         else:
-            self.rs = np.random.RandomState(seed) 
+            self.rs = np.random.RandomState(seed)
         self.pattern = self.genpattern()
 
     def genpattern(self,seed=None):
@@ -95,7 +94,7 @@ if __name__ == "__main__":
     import matplotlib.pyplot as plt
     nsamples = 2; stdev = [1.,2]
     rp0=RandomPattern([100.e3,500.e3],[600.,3600.],20.e6,128,1200,nsamples=nsamples,stdev=stdev)
-    rp = rp0.copy(seed=42) 
+    rp = rp0.copy(seed=42)
     rp.evolve()
     # plot random sample.
     xens = rp.pattern
