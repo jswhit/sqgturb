@@ -3,7 +3,7 @@ from scipy.ndimage import gaussian_filter
 
 class RandomPattern:
     def __init__(self, spatial_corr_efold, temporal_corr_efold, L, N, dt, \
-            nsamples=1, stdev=1.0, seed=None):
+            nsamples=1, stdev=1.0, seed=None, truncate=6.0):
         """
         define an ensemble of random patterns with specified temporal
         and spatial covariance structure by applying Gaussian blur to
@@ -21,6 +21,8 @@ class RandomPattern:
         nsamples:  number of ensemble members. Can be 1 or 2.  If set to 1,
         then pattern is duplicated..  If set to 2, independent
         patterns are generated for each boundary.
+        truncate:  Gaussian weights truncation limit (multiple of length
+        scale).
         """
         self.hcorr = np.array(spatial_corr_efold,np.float)
         if self.hcorr.shape == ():
@@ -37,6 +39,7 @@ class RandomPattern:
         self.nsamples = nsamples
         self.N = N
         self.filter_stdev = self.hcorr*self.N/(self.L*np.sqrt(4.))*np.ones(self.npatterns, np.float)
+        self.truncate=truncate
         # initialize random coefficients.
         if seed is None:
             self.rs = np.random.RandomState()
@@ -63,11 +66,11 @@ class RandomPattern:
                     for n in range(self.nsamples):
                         newpattern[n] = gaussian_filter(newpattern[n],
                         self.filter_stdev[npattern],output=None,
-                        order=0,mode='wrap', cval=0.0, truncate=6.0)
+                        order=0,mode='wrap', cval=0.0, truncate=self.truncate)
                 else:
                     newpattern[0] = gaussian_filter(newpattern[0],
                     self.filter_stdev[npattern],output=None,
-                    order=0,mode='wrap', cval=0.0, truncate=6.0)
+                    order=0,mode='wrap', cval=0.0, truncate=self.truncate)
                     newpattern[1]=newpattern[0]
                 # restore variance removed by gaussian blur.
                 newpattern = newpattern*(self.filter_stdev[npattern]*2.*np.sqrt(np.pi))
