@@ -101,10 +101,9 @@ threads = int(os.getenv('OMP_NUM_THREADS','1'))
 if amp.all() == 0:
     rp = None
 else:
-    rp_norm = 'pv'
-    if rp_norm == 'pv': amp = amp/scalefact
-    rp = RandomPattern(hcorr*nc_climo.L/nx,tcorr*dt,nc_climo.L,nx,dt,nsamples=nsamples,stdev=amp)
-    rp.norm = rp_norm
+    rp_norm = 'pv' # random pattern specified in pv (pot. temp) norm or streamfunction (psi) norm.
+    if rp_norm == 'pv': amp = amp/scalefact # amp given in units of K
+    rp = RandomPattern(hcorr*nc_climo.L/nx,tcorr*dt,nc_climo.L,nx,dt,nsamples=nsamples,stdev=amp,norm=rp_norm)
 rpatterns = []; models = []
 for nanal in range(nanals):
     pvens[nanal] = pv_climo[indxran[nanal]]

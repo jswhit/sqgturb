@@ -198,13 +198,13 @@ class SQG:
         # add sub-grid scale stochastic component to advection.
         # (held constant over RK4 time step)
         if self.random_pattern is not None:
-            rp_norm = getattr(self,'norm','psi')
+            rp_norm = self.random_pattern.norm
             if rp_norm == 'pv':
                 # random pattern represents pv (theta)
-                psispec_pert = self.invert_inverse(rfft2(self.random_pattern.pattern))
+                psispec_pert = self.invert(rfft2(self.random_pattern.pattern,threads=self.threads))
             elif rp_norm == 'psi':
                 # random patter represents psi (streamfunction).
-                psispec_pert = rfft2(self.random_pattern.pattern)
+                psispec_pert = rfft2(self.random_pattern.pattern,threads=self.threads)
             else:
                 msg="unrecognized 'norm' attribute for RandomPattern instance"
                 raise ValueError(msg)
@@ -213,9 +213,14 @@ class SQG:
             if self.rkstep == 0:
                 self.vpert, self.upert = self.xyderiv(psispec_pert); self.upert = -self.upert
                 ke = 0.5*(self.upert**2+self.vpert**2).mean()
-                #print(rp_norm,ke,self.vpert.min(), self.vpert.max())
                 self.diffcoeff = ke/self.dt
                 self.random_pattern.evolve()
+            #print(ke,self.upert.min(),self.upert.max())
+            #import matplotlib.pyplot as plt
+            #plt.imshow(self.vpert[1],plt.cm.bwr,interpolation='nearest',origin='lower',vmin=-10,vmax=10)
+            #plt.colorbar()
+            #plt.show()
+            #raise SystemExit
             u += self.upert
             v += self.vpert
         advection = u*pvx + v*pvy

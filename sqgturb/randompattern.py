@@ -3,7 +3,7 @@ from scipy.ndimage import gaussian_filter
 
 class RandomPattern:
     def __init__(self, spatial_corr_efold, temporal_corr_efold, L, N, dt, \
-            nsamples=1, stdev=1.0, seed=None, truncate=6.0):
+            nsamples=1, stdev=1.0, seed=None, truncate=6.0, norm='psi'):
         """
         define an ensemble of random patterns with specified temporal
         and spatial covariance structure by applying Gaussian blur to
@@ -46,6 +46,7 @@ class RandomPattern:
         else:
             self.rs = np.random.RandomState(seed)
         self.pattern = self.genpattern()
+        self.norm = norm
 
     def genpattern(self,seed=None):
         # initialize patterns.
