@@ -25,7 +25,7 @@ hcovlocal_scale = float(sys.argv[1])
 #vcovlocal_fact = float(sys.argv[2])
 vcovlocal_fact = -1
 # stochastic parameterization parameters
-amp = np.asarray(eval(sys.argv[2]),np.float)*1.e5
+amp = np.asarray(eval(sys.argv[2]),np.float)
 hcorr = np.asarray(eval(sys.argv[3]),np.float)
 tcorr = np.asarray(eval(sys.argv[4]),np.float)
 nsamples = 2
@@ -101,7 +101,8 @@ threads = int(os.getenv('OMP_NUM_THREADS','1'))
 if amp.all() == 0:
     rp = None
 else:
-    rp = RandomPattern(hcorr*nc_climo.L/nx,tcorr*dt,nc_climo.L,nx,dt,nsamples=nsamples,stdev=amp)
+    rp = RandomPattern(hcorr*nc_climo.L/nx,tcorr*dt,nc_climo.L,nx,dt,nsamples=nsamples,stdev=amp/scalefact)
+    rp.norm = 'pv'
 rpatterns = []; models = []
 for nanal in range(nanals):
     pvens[nanal] = pv_climo[indxran[nanal]]
@@ -438,4 +439,5 @@ for n in range(ktotmax):
 plt.loglog(wavenums,kespec_err,color='r')
 plt.loglog(wavenums,kespec_sprd,color='b')
 plt.title('error (red) and spread (blue) spectra')
-plt.savefig('errorspread_spectra_tst3.png')
+exptname = int(os.getenv('exptname','test'))
+plt.savefig('errorspread_spectra_%s.png' % exptname)
