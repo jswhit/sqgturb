@@ -102,8 +102,13 @@ if amp.all() == 0:
     rp = None
 else:
     rp_norm = 'pv' # random pattern specified in pv (pot. temp) norm or streamfunction (psi) norm.
-    if rp_norm == 'pv': amp = amp/scalefact # amp given in units of K
-    rp = RandomPattern(hcorr*nc_climo.L/nx,tcorr*dt,nc_climo.L,nx,dt,nsamples=nsamples,stdev=amp,norm=rp_norm)
+    if rp_norm == 'pv':
+        stdev= amp/scalefact # amp given in units of K (for psi units are m**2/s)
+    elif rp_norm == 'psi':
+        stdev = amp # psi units are m**2/s
+    else:
+        raise ValueError('illegal random pattern norm')
+    rp = RandomPattern(hcorr*nc_climo.L/nx,tcorr*dt,nc_climo.L,nx,dt,nsamples=nsamples,stdev=stdev,norm=rp_norm)
 rpatterns = []; models = []
 for nanal in range(nanals):
     pvens[nanal] = pv_climo[indxran[nanal]]
@@ -153,7 +158,7 @@ assim_interval = obtimes[1]-obtimes[0]
 assim_timesteps = int(np.round(assim_interval/models[0].dt))
 print('# ntime,pverr_a,pvsprd_a,pverr_b,pvsprd_b,obinc_b,osprd_b,obinc_a,obsprd_a,omaomb/oberr,obbias_b,inflation')
 if rp is not None:
-    print('# random pattern: hcorr,tcorr,stdev,nsamps,norm=%s,%s,%s,%s,%s' % (rp.hcorr,rp.tcorr,rp.stdev,rp.nsamples,rp.norm))
+    print('# random pattern: hcorr,tcorr,amp,nsamps,norm=%s,%s,%s,%s,%s' % (hcorr,tcorr,amp,rp.nsamples,rp.norm))
 
 # initialize model clock
 for nanal in range(nanals):
@@ -437,8 +442,8 @@ plt.figure()
 wavenums = np.arange(ktotmax,dtype=np.float)
 for n in range(1,ktotmax):
     print(wavenums[n],kespec_err[n],kespec_sprd[n])
-plt.loglog(wavenums[1:],kespec_err[1:],color='r')
-plt.loglog(wavenums[1:],kespec_sprd[1:],color='b')
+plt.loglog(wavenums[1:-1],kespec_err[1:-1],color='r')
+plt.loglog(wavenums[1:-1],kespec_sprd[1:-1],color='b')
 plt.title('error (red) and spread (blue) spectra')
 exptname = os.getenv('exptname','test')
 plt.savefig('errorspread_spectra_%s.png' % exptname)
