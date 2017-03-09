@@ -346,6 +346,7 @@ for ntime in range(nassim):
     else:
         # Hodyss et al 2016 inflation (covinflate1=covinflate2=1 works well in perfect
         # model, linear gaussian scenario)
+        # inflation = asprd + (asprd/fsprd)**2((fsprd/nanals)+2*inc**2/(nanals-1))
         inc = pvensmean_a - pvensmean_b
         inflation_factor = covinflate1*asprd + \
         (asprd/fsprd)**2*((fsprd/nanals) + covinflate2*(2.*inc**2/(nanals-1)))
@@ -439,5 +440,5 @@ for n in range(ktotmax):
 plt.loglog(wavenums,kespec_err,color='r')
 plt.loglog(wavenums,kespec_sprd,color='b')
 plt.title('error (red) and spread (blue) spectra')
-exptname = int(os.getenv('exptname','test'))
+exptname = os.getenv('exptname','test')
 plt.savefig('errorspread_spectra_%s.png' % exptname)
