@@ -101,8 +101,9 @@ threads = int(os.getenv('OMP_NUM_THREADS','1'))
 if amp.all() == 0:
     rp = None
 else:
-    rp = RandomPattern(hcorr*nc_climo.L/nx,tcorr*dt,nc_climo.L,nx,dt,nsamples=nsamples,stdev=amp/scalefact)
     rp.norm = 'pv'
+    if rp.norm == 'pv': amp = amp/scalefact
+    rp = RandomPattern(hcorr*nc_climo.L/nx,tcorr*dt,nc_climo.L,nx,dt,nsamples=nsamples,stdev=amp)
 rpatterns = []; models = []
 for nanal in range(nanals):
     pvens[nanal] = pv_climo[indxran[nanal]]
@@ -434,11 +435,10 @@ for i in range(kespec_errmean.shape[2]):
 print('mean error/spread',kespec_errmean.sum(), kespec_sprdmean.sum())
 plt.figure()
 wavenums = np.arange(ktotmax,dtype=np.float)
-wavenums[0] = 1.
-for n in range(ktotmax):
-    print(n,wavenums[n],kespec_err[n],kespec_sprd[n])
-plt.loglog(wavenums,kespec_err,color='r')
-plt.loglog(wavenums,kespec_sprd,color='b')
+for n in range(1,ktotmax):
+    print(wavenums[n],kespec_err[n],kespec_sprd[n])
+plt.loglog(wavenums[1:],kespec_err[1:],color='r')
+plt.loglog(wavenums[1:],kespec_sprd[1:],color='b')
 plt.title('error (red) and spread (blue) spectra')
 exptname = os.getenv('exptname','test')
 plt.savefig('errorspread_spectra_%s.png' % exptname)
