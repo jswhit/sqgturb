@@ -101,9 +101,10 @@ threads = int(os.getenv('OMP_NUM_THREADS','1'))
 if amp.all() == 0:
     rp = None
 else:
-    rp.norm = 'pv'
-    if rp.norm == 'pv': amp = amp/scalefact
+    rp_norm = 'pv'
+    if rp_norm == 'pv': amp = amp/scalefact
     rp = RandomPattern(hcorr*nc_climo.L/nx,tcorr*dt,nc_climo.L,nx,dt,nsamples=nsamples,stdev=amp)
+    rp.norm = rp_norm
 rpatterns = []; models = []
 for nanal in range(nanals):
     pvens[nanal] = pv_climo[indxran[nanal]]
