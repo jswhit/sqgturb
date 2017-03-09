@@ -151,7 +151,7 @@ assim_interval = obtimes[1]-obtimes[0]
 assim_timesteps = int(np.round(assim_interval/models[0].dt))
 print('# ntime,pverr_a,pvsprd_a,pverr_b,pvsprd_b,obinc_b,osprd_b,obinc_a,obsprd_a,omaomb/oberr,obbias_b,inflation')
 if rp is not None:
-    print('# random pattern: hcorr,tcorr,stdev,nsamps=%s,%s,%s,%s' % (rp.hcorr,rp.tcorr,rp.stdev,rp.nsamples))
+    print('# random pattern: hcorr,tcorr,stdev,nsamps,norm=%s,%s,%s,%s,%s' % (rp.hcorr,rp.tcorr,rp.stdev,rp.nsamples,rp.norm))
 
 # initialize model clock
 for nanal in range(nanals):
@@ -438,4 +438,4 @@ for n in range(ktotmax):
 plt.loglog(wavenums,kespec_err,color='r')
 plt.loglog(wavenums,kespec_sprd,color='b')
 plt.title('error (red) and spread (blue) spectra')
-plt.savefig('errorspread_spectra.png')
+plt.savefig('errorspread_spectra_tst3.png')

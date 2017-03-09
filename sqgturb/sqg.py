@@ -205,6 +205,9 @@ class SQG:
             elif rp_norm == 'psi':
                 # random patter represents psi (streamfunction).
                 psispec_pert = rfft2(self.random_pattern.pattern)
+            else:
+                msg="unrecognized 'norm' attribute for RandomPattern instance"
+                raise ValueError(msg)
             # compute perturbation u,v for randomized advection.
             # assume random winds constant over RK4 step
             if self.rkstep == 0:
