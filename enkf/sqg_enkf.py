@@ -437,11 +437,11 @@ for i in range(kespec_errmean.shape[2]):
             kespec_sprd[int(totwavenum)] = kespec_sprd[int(totwavenum)] +\
             kespec_sprdmean[:,j,i].mean(axis=0)
 
-print('mean error/spread',kespec_errmean.sum(), kespec_sprdmean.sum())
+print('# mean error/spread',kespec_errmean.sum(), kespec_sprdmean.sum())
 plt.figure()
 wavenums = np.arange(ktotmax,dtype=np.float)
 for n in range(1,ktotmax):
-    print(wavenums[n],kespec_err[n],kespec_sprd[n])
+    print('# ',wavenums[n],kespec_err[n],kespec_sprd[n])
 plt.loglog(wavenums[1:-1],kespec_err[1:-1],color='r')
 plt.loglog(wavenums[1:-1],kespec_sprd[1:-1],color='b')
 plt.title('error (red) and spread (blue) spectra')
