@@ -19,6 +19,7 @@ class SQG:
 
     def __init__(self,pv,f=1.e-4,nsq=1.e-4,L=20.e6,H=10.e3,U=30.,\
                  r=0.,tdiab=10.*86400,diff_order=8,diff_efold=None,random_pattern=None,
+                 random_pattern_skebs=None,
                  symmetric=True,dt=None,dealias=True,threads=1,precision='single'):
         # initialize SQG model.
         if pv.shape[0] != 2:
@@ -122,9 +123,12 @@ class SQG:
         np.exp((-self.dt/self.diff_efold)*(ktot/ktotcutoff)**self.diff_order)
         # number of timesteps to advance each call to 'advance' method.
         self.timesteps = 1
-        # random pattern class for stochastic forcing
-        # (default None, no stochastic forcing)
+        # random pattern class for stochastic transport
+        # (default None, no stochastic transport)
         self.random_pattern = random_pattern
+        # random pattern class for stochastic backscatter additive noise
+        # (default None, no stochastic backsatter)
+        self.random_pattern_skebs = random_pattern_skebs
 
     def invert(self,pvspec=None):
         if pvspec is None: pvspec = self.pvspec
@@ -197,7 +201,7 @@ class SQG:
         pvx,pvy = self.xyderiv(pvspec)
         # add sub-grid scale stochastic component to advection.
         # (held constant over RK4 time step)
-        if self.random_pattern is not None:
+        if self.random_pattern is not None and self.rkstep == 0:
             rp_norm = self.random_pattern.norm
             if rp_norm == 'pv':
                 # random pattern represents pv (theta)
@@ -210,17 +214,32 @@ class SQG:
                 raise ValueError(msg)
             # compute perturbation u,v for randomized advection.
             # assume random winds constant over RK4 step
-            if self.rkstep == 0:
-                self.vpert, self.upert = self.xyderiv(psispec_pert); self.upert = -self.upert
-                ke = 0.5*(self.upert**2+self.vpert**2).mean()
-                self.diffcoeff = ke/self.dt
-                self.random_pattern.evolve()
+            self.vpert, self.upert = self.xyderiv(psispec_pert); self.upert = -self.upert
+            ke = 0.5*(self.upert**2+self.vpert**2).mean()
+            self.diffcoeff = ke/self.dt
+            self.random_pattern.evolve()
             #print(ke,self.upert.min(),self.upert.max())
             #import matplotlib.pyplot as plt
             #plt.imshow(self.vpert[1],plt.cm.bwr,interpolation='nearest',origin='lower',vmin=-10,vmax=10)
             #plt.colorbar()
             #plt.show()
             #raise SystemExit
+        if self.random_pattern_skebs is not None and self.rkstep == 0:
+            rp_norm = self.random_pattern_skebs.norm
+            rpattern = self.random_pattern_skebs.pattern
+            for k in range(2): # ensure area mean is zero for each level
+                rpattern[k] = rpattern[k] - rpattern[k].mean()
+            if rp_norm == 'pv':
+                # random pattern represents pv (theta)
+                self.pvspec_pert = rfft2(rpattern,threads=self.threads)
+            elif rp_norm == 'psi':
+                # random patter represents psi (streamfunction).
+                self.pvspec_pert = self.invert_inverse(rfft2(rpattern,threads=self.threads))
+            else:
+                msg="unrecognized 'norm' attribute for RandomPattern instance"
+                raise ValueError(msg)
+            self.random_pattern_skebs.evolve()
+        if self.random_pattern is not None:  # add random velocity
             u += self.upert
             v += self.vpert
         advection = u*pvx + v*pvy
@@ -228,6 +247,9 @@ class SQG:
         if self.dealias: # 2/3 rule: truncate spectral coefficients of jacobian
             jacobianspec = self.spectrunc(jacobianspec)
         dpvspecdt = (1./self.tdiab)*(self.pvspec_eq-pvspec)-jacobianspec
+        # additive noise (skebs) contribution
+        if self.random_pattern_skebs is not None:
+            dpvspecdt += self.pvspec_pert
         # diffusion for random advection (not really needed?)
         #if self.random_pattern is not None:
         #    dpvspecdt += -self.ksqlsq*self.diffcoeff*pvspec
