@@ -199,9 +199,11 @@ class SQG:
         # nonlinear jacobian and thermal relaxation
         v,u = self.xyderiv(psispec); u = -u
         pvx,pvy = self.xyderiv(pvspec)
-        # add sub-grid scale stochastic component to advection.
+        # compute stochastic forcings
         # (held constant over RK4 time step)
         if self.random_pattern is not None and self.rkstep == 0:
+            # compute perturbation u,v for randomized advection.
+            # assume random winds constant over RK4 step
             rp_norm = self.random_pattern.norm
             if rp_norm == 'pv':
                 # random pattern represents pv (theta)
@@ -212,8 +214,6 @@ class SQG:
             else:
                 msg="unrecognized 'norm' attribute for RandomPattern instance"
                 raise ValueError(msg)
-            # compute perturbation u,v for randomized advection.
-            # assume random winds constant over RK4 step
             self.vpert, self.upert = self.xyderiv(psispec_pert); self.upert = -self.upert
             ke = 0.5*(self.upert**2+self.vpert**2).mean()
             self.diffcoeff = ke/self.dt
@@ -225,6 +225,9 @@ class SQG:
             #plt.show()
             #raise SystemExit
         if self.random_pattern_skebs is not None and self.rkstep == 0:
+            # compute pv forcing for SKEBS (random additive noise,
+            # dissipation rate assumed constant over domain)
+            # assume stochastic forcing constant over RK4 step
             rp_norm = self.random_pattern_skebs.norm
             rpattern = self.random_pattern_skebs.pattern
             for k in range(2): # ensure area mean is zero for each level
@@ -239,7 +242,7 @@ class SQG:
                 msg="unrecognized 'norm' attribute for RandomPattern instance"
                 raise ValueError(msg)
             self.random_pattern_skebs.evolve()
-        if self.random_pattern is not None:  # add random velocity
+        if self.random_pattern is not None:  # add random velocity to determinstic velocity
             u += self.upert
             v += self.vpert
         advection = u*pvx + v*pvy
