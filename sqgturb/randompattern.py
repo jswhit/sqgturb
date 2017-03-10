@@ -23,6 +23,8 @@ class RandomPattern:
         patterns are generated for each boundary.
         truncate:  Gaussian weights truncation limit (multiple of length
         scale).
+        norm:  'psi' (default), random pattern represents streamfunction.
+        'pv': random pattern represents PV (boundary pot. temp.)
         """
         self.hcorr = np.array(spatial_corr_efold,np.float)
         if self.hcorr.shape == ():
@@ -40,13 +42,13 @@ class RandomPattern:
         self.N = N
         self.filter_stdev = self.hcorr*self.N/(self.L*np.sqrt(4.))*np.ones(self.npatterns, np.float)
         self.truncate=truncate
+        self.norm = norm
         # initialize random coefficients.
         if seed is None:
             self.rs = np.random.RandomState()
         else:
             self.rs = np.random.RandomState(seed)
         self.pattern = self.genpattern()
-        self.norm = norm
 
     def genpattern(self,seed=None):
         # initialize patterns.
