@@ -22,6 +22,7 @@ nsamples = 2
 nanals = 10
 
 nc = Dataset(filenamein)
+scalefact = nc.f*nc.theta0/nc.g
 # initialize qg model instance
 pv = nc['pv'][0]
 dt = 600. # time step in seconds
@@ -29,19 +30,25 @@ norder = 8
 N = pv.shape[-1]
 models = []
 for nanal in range(nanals):
-    rp = RandomPattern(hcorr*nc.L/N,tcorr*dt,nc.L,N,dt,nsamples=nsamples,stdev=amp,norm=norm)
+    if norm == 'pv':
+        stdev= amp/scalefact # amp given in units of K (for psi units are m**2/s)
+    elif norm == 'psi':
+        stdev = amp # psi units are m**2/s
+    else:
+        raise ValueError('illegal random pattern norm')
+    rp = RandomPattern(hcorr*nc.L/N,tcorr*dt,nc.L,N,dt,nsamples=nsamples,stdev=stdev,norm=norm)
     models.append( SQG(pv,nsq=nc.nsq,f=nc.f,U=nc.U,H=nc.H,r=nc.r,tdiab=nc.tdiab,dt=dt,
                 diff_order=norder,diff_efold=diff_efold_ens,
-                random_pattern=rp,
+                random_pattern=rp.copy(seed=nanal),
                 dealias=bool(nc.dealias),symmetric=bool(nc.symmetric),threads=threads,
                 precision='single') )
 modeld = SQG(pv,nsq=nc.nsq,f=nc.f,U=nc.U,H=nc.H,r=nc.r,tdiab=nc.tdiab,dt=dt,
              diff_order=norder,diff_efold=diff_efold_det,
              dealias=True,symmetric=bool(nc.symmetric),threads=threads,
              precision='single')
-print '# random pattern amp,hcorr,tcorr,stdev,norm,nsamples = ',amp, \
-hcorr, tcorr,rp.norm,rp.nsamples
-fcstlenmax = 80
+print '# random pattern amp,hcorr,tcorr,norm,nsamples = ',amp, \
+hcorr,tcorr,rp.norm,rp.nsamples
+fcstlenmax = 4
 fcstleninterval = 4
 fcstlenspectra = [4,16,40,80]
 fcsttimes = fcstlenmax/fcstleninterval
