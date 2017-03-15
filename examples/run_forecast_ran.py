@@ -48,7 +48,7 @@ modeld = SQG(pv,nsq=nc.nsq,f=nc.f,U=nc.U,H=nc.H,r=nc.r,tdiab=nc.tdiab,dt=dt,
              precision='single')
 print '# random pattern amp,hcorr,tcorr,norm,nsamples = ',amp, \
 hcorr,tcorr,rp.norm,rp.nsamples
-fcstlenmax = 4
+fcstlenmax = 80
 fcstleninterval = 4
 fcstlenspectra = [4,16,40,80]
 fcsttimes = fcstlenmax/fcstleninterval
