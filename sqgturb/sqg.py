@@ -1,6 +1,7 @@
 from __future__ import print_function
 import os
 import numpy as np
+from scipy.ndimage import gaussian_filter
 try: # pyfftw is *much* faster
     from pyfftw.interfaces import numpy_fft, cache
     #print('# using pyfftw...')
@@ -129,6 +130,7 @@ class SQG:
         # random pattern class for stochastic backscatter additive noise
         # (default None, no stochastic backsatter)
         self.random_pattern_skebs = random_pattern_skebs
+        self.pvdiss = None
 
     def invert(self,pvspec=None):
         if pvspec is None: pvspec = self.pvspec
@@ -205,9 +207,11 @@ class SQG:
             # compute perturbation u,v for randomized advection.
             # assume random winds constant over RK4 step
             rp_norm = self.random_pattern.norm
+            #print(rp_norm,self.random_pattern.pattern.min(),self.random_pattern.pattern.max())
             if rp_norm == 'pv':
                 # random pattern represents pv (theta)
                 psispec_pert = self.invert(rfft2(self.random_pattern.pattern,threads=self.threads))
+                #psi = irfft2(psispec_pert); psi = psi-psi.mean(); print(psi.min(),psi.max())
             elif rp_norm == 'psi':
                 # random patter represents psi (streamfunction).
                 psispec_pert = rfft2(self.random_pattern.pattern,threads=self.threads)
@@ -252,10 +256,22 @@ class SQG:
         dpvspecdt = (1./self.tdiab)*(self.pvspec_eq-pvspec)-jacobianspec
         # additive noise (skebs) contribution
         if self.random_pattern_skebs is not None:
-            dpvspecdt += self.pvspec_pert
+            if self.pvdiss is not None:
+                pvpert = irfft2(self.pvspec_pert)
+                pvpert *= self.pvdiss
+                dpvspecdt += rfft2(pvpert)
+                #import matplotlib.pyplot as plt
+                #print(pvpert.min(), pvpert.max())
+                #minmax = max(np.abs(pvpert.min()),np.abs(pvpert.max()))
+                #plt.imshow(pvpert[1],plt.cm.bwr,interpolation='nearest',origin='lower',vmin=-minmax,vmax=minmax)
+                #plt.colorbar()
+                #plt.show()
+                #raise SystemExit
+            else:
+                dpvspecdt += self.pvspec_pert
         # diffusion for random advection (not really needed?)
-        #if self.random_pattern is not None:
-        #    dpvspecdt += -self.ksqlsq*self.diffcoeff*pvspec
+        if self.random_pattern is not None:
+            dpvspecdt += -self.ksqlsq*self.diffcoeff*pvspec
         # Ekman damping at boundaries.
         if self.ekman:
             dpvspecdt[0] += self.r*self.ksqlsq*psispec[0]
@@ -277,5 +293,26 @@ class SQG:
         k3 = self.dt*self.gettend(self.pvspec + 0.5*k2)
         self.rkstep = 3
         k4 = self.dt*self.gettend(self.pvspec + k3)
-        self.pvspec = self.hyperdiff*(self.pvspec + (k1+2.*k2+2.*k3+k4)/6.)
+        pvspecnew = self.pvspec + (k1+2.*k2+2.*k3+k4)/6.
+        self.pvspec = self.hyperdiff*pvspecnew
+        if self.random_pattern_skebs is not None:
+            pvdamptend = irfft2((1.-self.hyperdiff)*pvspecnew/self.dt)
+            pv = irfft2(pvspecnew)
+            pvdamping = pv*pvdamptend
+            # smooth dissipation estimate
+            # use same scale of random pattern for smoothing.
+            filter_stdev = self.random_pattern_skebs.filter_stdev[0]
+            for k in range(2):
+                pvdamping[k] = gaussian_filter(pvdamping[k],
+                            filter_stdev,output=None,
+                            order=0,mode='wrap', cval=0.0, truncate=6)
+                pvdamping[k] = pvdamping[k]*(filter_stdev*2.*np.sqrt(np.pi))
+            self.pvdiss = np.sqrt(np.clip(pvdamping,0,1.e30))
+            #import matplotlib.pyplot as plt
+            #print(self.pvdiss.min(), self.pvdiss.max())
+            #pv = irfft2(self.pvspec)
+            #plt.imshow(self.pvdiss[1],plt.cm.bwr,interpolation='nearest',origin='lower',vmin=-self.pvdiss.max(),vmax=self.pvdiss.max())
+            #plt.colorbar()
+            #plt.show()
+            #raise SystemExit
         self.t += self.dt # increment time
