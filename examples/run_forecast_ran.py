@@ -9,12 +9,16 @@ threads = int(os.getenv('OMP_NUM_THREADS','1'))
 # spectrally truncate data in filenamein, write to filenameout on Nout x Nout
 # grid.
 verbose=False
+if len(sys.argv) < 5:
+    print 'python run_forecast_ran.py filenamein amp hcorr tcorr norm skebs'
+    raise SystemExit
 
 filenamein = sys.argv[1]
 amp = float(sys.argv[2])
 hcorr = float(sys.argv[3])
 tcorr = float(sys.argv[4])
 norm = sys.argv[5]
+skebs = bool(int(sys.argv[6]))
 
 diff_efold_ens=86400./2.
 diff_efold_det = diff_efold_ens
@@ -37,11 +41,18 @@ for nanal in range(nanals):
     else:
         raise ValueError('illegal random pattern norm')
     rp = RandomPattern(hcorr*nc.L/N,tcorr*dt,nc.L,N,dt,nsamples=nsamples,stdev=stdev,norm=norm)
-    models.append( SQG(pv,nsq=nc.nsq,f=nc.f,U=nc.U,H=nc.H,r=nc.r,tdiab=nc.tdiab,dt=dt,
-                diff_order=norder,diff_efold=diff_efold_ens,
-                random_pattern=rp.copy(seed=nanal),
-                dealias=bool(nc.dealias),symmetric=bool(nc.symmetric),threads=threads,
-                precision='single') )
+    if not skebs:
+        models.append( SQG(pv,nsq=nc.nsq,f=nc.f,U=nc.U,H=nc.H,r=nc.r,tdiab=nc.tdiab,dt=dt,
+                    diff_order=norder,diff_efold=diff_efold_ens,
+                    random_pattern=rp.copy(seed=nanal),
+                    dealias=bool(nc.dealias),symmetric=bool(nc.symmetric),threads=threads,
+                    precision='single') )
+    else:
+        models.append( SQG(pv,nsq=nc.nsq,f=nc.f,U=nc.U,H=nc.H,r=nc.r,tdiab=nc.tdiab,dt=dt,
+                    diff_order=norder,diff_efold=diff_efold_ens,
+                    random_pattern_skebs=rp.copy(seed=nanal),
+                    dealias=bool(nc.dealias),symmetric=bool(nc.symmetric),threads=threads,
+                    precision='single') )
 modeld = SQG(pv,nsq=nc.nsq,f=nc.f,U=nc.U,H=nc.H,r=nc.r,tdiab=nc.tdiab,dt=dt,
              diff_order=norder,diff_efold=diff_efold_det,
              dealias=True,symmetric=bool(nc.symmetric),threads=threads,
@@ -65,10 +76,11 @@ pvspread_mean = np.zeros((fcsttimes,2,N,N),np.float)
 pvens = np.zeros((nanals,2,N,N),np.float)
 kespec_errmean = np.zeros((fcsttimes,2,N,N/2+1),np.float)
 kespec_sprdmean = np.zeros((fcsttimes,2,N,N/2+1),np.float)
-#ntimes = 120 # for debuggin
+#ntimes = 120 # for debugging
 ncount = len(range(0,ntimes-fcstlenmax,16))
 print '# ',ncount,'forecasts',fcsttimes,'forecast times',forecast_timesteps,\
       'time steps for forecast interval'
+print '# skebs = %s' % skebs
 
 for n in range(0,ntimes-fcstlenmax,16):
     pvspecic = rfft2(nc['pv'][n])
@@ -147,4 +159,7 @@ for nfcst in range(fcsttimes):
         #plt.loglog(wavenums,idealke,color='r')
         plt.title('error (black) and spread (blue) spectra for hr %s' %\
                 int(3*fcstlen),fontsize=12)
-        plt.savefig('%sherr_spectrum_hcorr%s.png' % (3*fcstlen,hcorr))
+        if skebs:
+            plt.savefig('%sherr_spectrum_hcorr%s_skebs2.png' % (3*fcstlen,hcorr))
+        else:
+            plt.savefig('%sherr_spectrum_hcorr%s_rantran2.png' % (3*fcstlen,hcorr))
