@@ -13,7 +13,17 @@ from sqgturb.enkf_utils import  cartdist,enkf_update,gaspcohn
 
 if len(sys.argv) == 1:
    msg="""
-python sqg_enkf.py hcovlocal_scale covinflate1 covinflate2
+python sqg_enkf.py hcovlocal_scale <covinflate1 covinflate2>
+   hcovlocal_scale = horizontal localization scale in km
+   vertical covariance length scale implied by scaling with Rossby radius.
+   covinflate1,covinflate2: inflation parameters (optional).
+   if only covinflate1 is specified, it is interpreted as the relaxation
+   factor for RTPS inflation.
+   if neither covinflate1 or covinflate2 specified
+   Hodyss et al inflation (http://journals.ametsoc.org/doi/abs/10.1175/MWR-D-15-0329.1)
+   with a=b=1 used.
+   if both covinflate1 and covinflate2 given, they correspond to a and b in the
+   Hodyss et al inflation (eqn 4.4).
    """
    raise SystemExit(msg)
 
@@ -61,8 +71,8 @@ nanals = 20 # ensemble members
 
 oberrstdev = 1.0 # ob error standard deviation in K
 
-nassim = 440 # assimilation times to run
-nassim_spinup = 80
+nassim = 1600 # assimilation times to run
+nassim_spinup = 800
 
 # nature run created using sqg_run.py.
 filename_climo = 'sqg_N64_3hrly.nc' # file name for forecast model climo
