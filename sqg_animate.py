@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from netCDF4 import Dataset
 
-filename = 'data/sqg_N256_aliased.nc'
+filename = 'sqg_N128_3hrly.nc'
 vmin = -25; vmax = 25; levplot = 1
 
 nc = Dataset(filename)
