@@ -23,7 +23,7 @@ hcovlocal_scale = float(sys.argv[1])
 # is related to horizontal scale by vcovlocal_fact = L_r/hcovlocal_scale
 # where here L_r is Rossby radius
 
-# inflation parameters:
+# optional inflation parameters:
 # (covinflate2 <= 0 for RTPS inflation
 # (http://journals.ametsoc.org/doi/10.1175/MWR-D-11-00276.1),
 # otherwise use Hodyss et al inflation
