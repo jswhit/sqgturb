@@ -8,17 +8,20 @@ import os
 # netcdf file.
 
 # model parameters.
-norder = 8
+
 #N = 512 # number of grid points in each direction (waves=N/2)
 #dt = 90 # time step in seconds
-#diff_efold = 1800.
+#diff_efold = 1800. # time scale for hyperdiffusion at smallest resolved scale
+
 #N = 128
 #dt = 600
 #diff_efold = 86400./2.
+
 N = 64
 dt = 1200
 diff_efold = 86400.
 
+norder = 8 # order of hyperdiffusion
 dealias = True # dealiased with 2/3 rule?
 
 # Ekman damping coefficient r=dek*N**2/f, dek = ekman depth = sqrt(2.*Av/f))
@@ -36,7 +39,7 @@ Lr = np.sqrt(nsq)*H/f # Rossby radius
 L = 20.*Lr
 # thermal relaxation time scale
 tdiab = 10.*86400 # in seconds
-symmetric = True # (asymmetric equilibrium jet with zero wind at sfc)
+symmetric = True # (if False, asymmetric equilibrium jet with zero wind at sfc)
 # parameter used to scale PV to temperature units.
 scalefact = f*theta0/g
 
