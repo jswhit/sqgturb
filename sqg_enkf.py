@@ -47,7 +47,7 @@ use_letkf = False # use serial EnSRF
 # if nobs > 0, each ob time nobs ob locations are randomly sampled (without
 # replacement) from the model grid
 # if nobs < 0, fixed network of every Nth grid point used (N = -nobs)
-nobs = 4096 # number of obs to assimilate (randomly distributed)
+nobs = 1024 # number of obs to assimilate (randomly distributed)
 #nobs = -1 # fixed network, every -nobs grid points. nobs=-1 obs at all pts.
 
 # if levob=0, sfc temp obs used.  if 1, lid temp obs used. If [0,1] obs at both
@@ -65,9 +65,9 @@ nassim = 440 # assimilation times to run
 nassim_spinup = 80
 
 # nature run created using sqg_run.py.
-filename_climo = 'sqg_N128_3hrly.nc' # file name for forecast model climo
+filename_climo = 'sqg_N64_3hrly.nc' # file name for forecast model climo
 # perfect model
-filename_truth = 'sqg_N128_3hrly.nc' # file name for nature run to draw obs
+filename_truth = 'sqg_N64_3hrly.nc' # file name for nature run to draw obs
 
 print('# filename_modelclimo=%s' % filename_climo)
 print('# filename_truth=%s' % filename_truth)
