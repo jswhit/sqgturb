@@ -23,5 +23,6 @@ Requires numpy (pyfftw, netcdf4-python and matplotlib  highly recommended).
 example code to run model and animate the solution in ``sqg_run.py``
 
 To run EnKF data assimilation:
+* install with ``python setup.py install``.
 * first run ``sqg_run.py`` to generate nature run.
 * then run ``sqg_enkf.py``.
