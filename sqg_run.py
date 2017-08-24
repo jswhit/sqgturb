@@ -4,19 +4,23 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import os
 
-# run SQG turbulence simulation, plotting results to screen and/or saving to
+# run SQG turbulence simulation, optionally plotting results to screen and/or saving to
 # netcdf file.
 
 # model parameters.
-N = 512 # number of grid points in each direction (waves=N/2)
-dt = 90 # time step in seconds
-norder = 8; diff_efold = 1800.
-N = 128
-dt = 600
-norder = 8; diff_efold = 86400./2.
-# efolding time scale (seconds) for smallest wave (N/2) in del**norder hyperdiffusion
-#N = 512; dt = 90; efold = 1800.
+norder = 8
+#N = 512 # number of grid points in each direction (waves=N/2)
+#dt = 90 # time step in seconds
+#diff_efold = 1800.
+#N = 128
+#dt = 600
+#diff_efold = 86400./2.
+N = 64
+dt = 1200
+diff_efold = 86400.
+
 dealias = True # dealiased with 2/3 rule?
+
 # Ekman damping coefficient r=dek*N**2/f, dek = ekman depth = sqrt(2.*Av/f))
 # Av (turb viscosity) = 2.5 gives dek = sqrt(5/f) = 223
 # for ocean Av is 1-5, land 5-50 (Lin and Pierrehumbert, 1988)
