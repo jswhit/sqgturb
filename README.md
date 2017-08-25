@@ -20,8 +20,9 @@ time stepping (dealiasing with 2/3 rule, hyperdiffusion treated implicitly).
 
 Requires numpy (pyfftw, netcdf4-python and matplotlib  highly recommended).
 
-example code to run model and animate the solution in ``examples/run_sqg.py``.
+example code to run model and animate the solution in ``sqg_run.py``
 
-code for performing EnKF data assimilation in ``enkf/sqg_enkf.py``.
-
-some plotting scripts in ``plotting`` (``sqg_animate.py`` animates data in netCDF file).
+To run EnKF data assimilation:
+* install with ``python setup.py install``.
+* first run ``sqg_run.py`` to generate nature run.
+* then run ``sqg_enkf.py``.

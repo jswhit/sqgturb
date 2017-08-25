@@ -1,5 +1,6 @@
 import numpy as np
 import sys
+# generate time mean statistics from standard output of sqg_enkf.py
 file = sys.argv[1]
 data = np.loadtxt(file)
 nskip = int(sys.argv[2])

@@ -19,8 +19,7 @@ except ImportError: # fall back on numpy fft.
 class SQG:
 
     def __init__(self,pv,f=1.e-4,nsq=1.e-4,L=20.e6,H=10.e3,U=30.,\
-                 r=0.,tdiab=10.*86400,diff_order=8,diff_efold=None,random_pattern=None,
-                 random_pattern_skebs=None,
+                 r=0.,tdiab=10.*86400,diff_order=8,diff_efold=None,\
                  symmetric=True,dt=None,dealias=True,threads=1,precision='single'):
         # initialize SQG model.
         if pv.shape[0] != 2:
@@ -124,13 +123,6 @@ class SQG:
         np.exp((-self.dt/self.diff_efold)*(ktot/ktotcutoff)**self.diff_order)
         # number of timesteps to advance each call to 'advance' method.
         self.timesteps = 1
-        # random pattern class for stochastic transport
-        # (default None, no stochastic transport)
-        self.random_pattern = random_pattern
-        # random pattern class for stochastic backscatter additive noise
-        # (default None, no stochastic backsatter)
-        self.random_pattern_skebs = random_pattern_skebs
-        self.pvdiss = None
 
     def invert(self,pvspec=None):
         if pvspec is None: pvspec = self.pvspec
@@ -201,77 +193,11 @@ class SQG:
         # nonlinear jacobian and thermal relaxation
         v,u = self.xyderiv(psispec); u = -u
         pvx,pvy = self.xyderiv(pvspec)
-        # compute stochastic forcings
-        # (held constant over RK4 time step)
-        if self.random_pattern is not None and self.rkstep == 0:
-            # compute perturbation u,v for randomized advection.
-            # assume random winds constant over RK4 step
-            rp_norm = self.random_pattern.norm
-            #print(rp_norm,self.random_pattern.pattern.min(),self.random_pattern.pattern.max())
-            if rp_norm == 'pv':
-                # random pattern represents pv (theta)
-                psispec_pert = self.invert(rfft2(self.random_pattern.pattern,threads=self.threads))
-                #psi = irfft2(psispec_pert); psi = psi-psi.mean(); print(psi.min(),psi.max())
-            elif rp_norm == 'psi':
-                # random patter represents psi (streamfunction).
-                psispec_pert = rfft2(self.random_pattern.pattern,threads=self.threads)
-            else:
-                msg="unrecognized 'norm' attribute for RandomPattern instance"
-                raise ValueError(msg)
-            self.vpert, self.upert = self.xyderiv(psispec_pert); self.upert = -self.upert
-            ke = 0.5*(self.upert**2+self.vpert**2).mean()
-            self.diffcoeff = ke/self.dt
-            self.random_pattern.evolve()
-            #print(ke,self.upert.min(),self.upert.max())
-            #import matplotlib.pyplot as plt
-            #plt.imshow(self.vpert[1],plt.cm.bwr,interpolation='nearest',origin='lower',vmin=-10,vmax=10)
-            #plt.colorbar()
-            #plt.show()
-            #raise SystemExit
-        if self.random_pattern_skebs is not None and self.rkstep == 0:
-            # compute pv forcing for SKEBS (random additive noise,
-            # dissipation rate assumed constant over domain)
-            # assume stochastic forcing constant over RK4 step
-            rp_norm = self.random_pattern_skebs.norm
-            rpattern = self.random_pattern_skebs.pattern
-            for k in range(2): # ensure area mean is zero for each level
-                rpattern[k] = rpattern[k] - rpattern[k].mean()
-            if rp_norm == 'pv':
-                # random pattern represents pv (theta)
-                self.pvspec_pert = rfft2(rpattern,threads=self.threads)
-            elif rp_norm == 'psi':
-                # random patter represents psi (streamfunction).
-                self.pvspec_pert = self.invert_inverse(rfft2(rpattern,threads=self.threads))
-            else:
-                msg="unrecognized 'norm' attribute for RandomPattern instance"
-                raise ValueError(msg)
-            self.random_pattern_skebs.evolve()
-        if self.random_pattern is not None:  # add random velocity to determinstic velocity
-            u += self.upert
-            v += self.vpert
         advection = u*pvx + v*pvy
         jacobianspec = rfft2(advection,threads=self.threads)
         if self.dealias: # 2/3 rule: truncate spectral coefficients of jacobian
             jacobianspec = self.spectrunc(jacobianspec)
         dpvspecdt = (1./self.tdiab)*(self.pvspec_eq-pvspec)-jacobianspec
-        # additive noise (skebs) contribution
-        if self.random_pattern_skebs is not None:
-            if self.pvdiss is not None:
-                pvpert = irfft2(self.pvspec_pert)
-                pvpert *= self.pvdiss
-                dpvspecdt += rfft2(pvpert)
-                #import matplotlib.pyplot as plt
-                #print(pvpert.min(), pvpert.max())
-                #minmax = max(np.abs(pvpert.min()),np.abs(pvpert.max()))
-                #plt.imshow(pvpert[1],plt.cm.bwr,interpolation='nearest',origin='lower',vmin=-minmax,vmax=minmax)
-                #plt.colorbar()
-                #plt.show()
-                #raise SystemExit
-            else:
-                dpvspecdt += self.pvspec_pert
-        # diffusion for random advection (not really needed?)
-        if self.random_pattern is not None:
-            dpvspecdt += -self.ksqlsq*self.diffcoeff*pvspec
         # Ekman damping at boundaries.
         if self.ekman:
             dpvspecdt[0] += self.r*self.ksqlsq*psispec[0]
@@ -295,24 +221,4 @@ class SQG:
         k4 = self.dt*self.gettend(self.pvspec + k3)
         pvspecnew = self.pvspec + (k1+2.*k2+2.*k3+k4)/6.
         self.pvspec = self.hyperdiff*pvspecnew
-        if self.random_pattern_skebs is not None:
-            pvdamptend = irfft2((1.-self.hyperdiff)*pvspecnew/self.dt)
-            pv = irfft2(pvspecnew)
-            pvdamping = pv*pvdamptend
-            # smooth dissipation estimate
-            # use same scale of random pattern for smoothing.
-            filter_stdev = self.random_pattern_skebs.filter_stdev[0]
-            for k in range(2):
-                pvdamping[k] = gaussian_filter(pvdamping[k],
-                            filter_stdev,output=None,
-                            order=0,mode='wrap', cval=0.0, truncate=6)
-                pvdamping[k] = pvdamping[k]*(filter_stdev*2.*np.sqrt(np.pi))
-            self.pvdiss = np.sqrt(np.clip(pvdamping,0,1.e30))
-            #import matplotlib.pyplot as plt
-            #print(self.pvdiss.min(), self.pvdiss.max())
-            #pv = irfft2(self.pvspec)
-            #plt.imshow(self.pvdiss[1],plt.cm.bwr,interpolation='nearest',origin='lower',vmin=-self.pvdiss.max(),vmax=self.pvdiss.max())
-            #plt.colorbar()
-            #plt.show()
-            #raise SystemExit
         self.t += self.dt # increment time

@@ -1,5 +1,5 @@
 from __future__ import print_function
-from sqgturb import SQG, rfft2, irfft2, RandomPattern
+from sqgturb import SQG, rfft2, irfft2
 import numpy as np
 from netCDF4 import Dataset
 import sys, time, os
@@ -13,29 +13,33 @@ from sqgturb.enkf_utils import  cartdist,enkf_update,gaspcohn
 
 if len(sys.argv) == 1:
    msg="""
-python sqg_enkf.py hcovlocal_scale covinflate1 covinflate2
+python sqg_enkf.py hcovlocal_scale <covinflate1 covinflate2>
+   hcovlocal_scale = horizontal localization scale in km
+   vertical covariance length scale implied by scaling with Rossby radius.
+   covinflate1,covinflate2: inflation parameters (optional).
+   if only covinflate1 is specified, it is interpreted as the relaxation
+   factor for RTPS inflation.
+   if neither covinflate1 or covinflate2 specified
+   Hodyss et al inflation (http://journals.ametsoc.org/doi/abs/10.1175/MWR-D-15-0329.1)
+   with a=b=1 used.
+   if both covinflate1 and covinflate2 given, they correspond to a and b in the
+   Hodyss et al inflation (eqn 4.4).
    """
    raise SystemExit(msg)
 
 # horizontal covariance localization length scale in meters.
 hcovlocal_scale = float(sys.argv[1])
 # vertical covariance localization factor
-# if < 0, default used (vcovlocal_fact = L_r/hcovlocal_scale,
-# where L_r is Rossby radius)
-#vcovlocal_fact = float(sys.argv[2])
-vcovlocal_fact = -1
-# stochastic parameterization parameters
-amp = np.asarray(eval(sys.argv[2]),np.float)
-hcorr = np.asarray(eval(sys.argv[3]),np.float)
-tcorr = np.asarray(eval(sys.argv[4]),np.float)
-nsamples = 2
-# inflation parameters
+# is related to horizontal scale by vcovlocal_fact = L_r/hcovlocal_scale
+# where here L_r is Rossby radius
+
+# optional inflation parameters:
 # (covinflate2 <= 0 for RTPS inflation
 # (http://journals.ametsoc.org/doi/10.1175/MWR-D-11-00276.1),
 # otherwise use Hodyss et al inflation
 # (http://journals.ametsoc.org/doi/abs/10.1175/MWR-D-15-0329.1)
-if len(sys.argv) > 5:
-    covinflate1 = float(sys.argv[5])
+if len(sys.argv) > 2:
+    covinflate1 = float(sys.argv[2])
     covinflate2 = -1
 else:
     covinflate1 = 1.
@@ -53,7 +57,7 @@ use_letkf = False # use serial EnSRF
 # if nobs > 0, each ob time nobs ob locations are randomly sampled (without
 # replacement) from the model grid
 # if nobs < 0, fixed network of every Nth grid point used (N = -nobs)
-nobs = 4096 # number of obs to assimilate (randomly distributed)
+nobs = 1024 # number of obs to assimilate (randomly distributed)
 #nobs = -1 # fixed network, every -nobs grid points. nobs=-1 obs at all pts.
 
 # if levob=0, sfc temp obs used.  if 1, lid temp obs used. If [0,1] obs at both
@@ -63,18 +67,17 @@ levob = [0,1]; levob = list(levob); levob.sort()
 direct_insertion = False # only relevant for nobs=-1, levob=[0,1]
 if direct_insertion: print('# direct insertion!')
 
-nanals = 40 # ensemble members
+nanals = 20 # ensemble members
 
 oberrstdev = 1.0 # ob error standard deviation in K
 
-nassim = 440 # assimilation times to run
-nassim_spinup = 80
+nassim = 1600 # assimilation times to run
+nassim_spinup = 800
 
-filename_climo = '../examples/sqg_N128_3hrly.nc' # file name for forecast model climo
+# nature run created using sqg_run.py.
+filename_climo = 'sqg_N64_3hrly.nc' # file name for forecast model climo
 # perfect model
-#filename_truth = '../examples/sqg_N128_3hrly.nc' # file name for nature run to draw obs
-# truncated model
-filename_truth = '../examples/sqg_N512_N128_3hrly_blockmean.nc' # file name for nature run to draw obs
+filename_truth = 'sqg_N64_3hrly.nc' # file name for nature run to draw obs
 
 print('# filename_modelclimo=%s' % filename_climo)
 print('# filename_truth=%s' % filename_truth)
@@ -98,35 +101,18 @@ dt = nc_climo.dt
 if diff_efold == None: diff_efold=nc_climo.diff_efold
 # get OMP_NUM_THREADS (threads to use) from environment.
 threads = int(os.getenv('OMP_NUM_THREADS','1'))
-if amp.all() == 0:
-    rp = None
-else:
-    rp_norm = 'pv' # random pattern specified in pv (pot. temp) norm or streamfunction (psi) norm.
-    if rp_norm == 'pv':
-        stdev= amp/scalefact # amp given in units of K (for psi units are m**2/s)
-    elif rp_norm == 'psi':
-        stdev = amp # psi units are m**2/s
-    else:
-        raise ValueError('illegal random pattern norm')
-    rp = RandomPattern(hcorr*nc_climo.L/nx,tcorr*dt,nc_climo.L,nx,dt,nsamples=nsamples,stdev=stdev,norm=rp_norm)
-rpatterns = []; models = []
+models = []
 for nanal in range(nanals):
     pvens[nanal] = pv_climo[indxran[nanal]]
-    if rp is not None:
-        rpx = rp.copy(seed=nanal)
-        rpatterns.append(rpx)
-    else:
-        rpx = None
     models.append(\
-    SQG(pvens[nanal],random_pattern=rpx,\
+    SQG(pvens[nanal],
     nsq=nc_climo.nsq,f=nc_climo.f,dt=dt,U=nc_climo.U,H=nc_climo.H,\
     r=nc_climo.r,tdiab=nc_climo.tdiab,symmetric=nc_climo.symmetric,\
     diff_order=nc_climo.diff_order,diff_efold=diff_efold,threads=threads))
 
-# default vertical localization scale
+# vertical localization scale
 Lr = np.sqrt(models[0].nsq)*models[0].H/models[0].f
-if vcovlocal_fact < 0:
-    vcovlocal_fact = gaspcohn(np.array(Lr/hcovlocal_scale))
+vcovlocal_fact = gaspcohn(np.array(Lr/hcovlocal_scale))
 
 print("# hcovlocal=%g vcovlocal=%s diff_efold=%s levob=%s covinf1=%s covinf2=%s nanals=%s" %\
      (hcovlocal_scale/1000.,vcovlocal_fact,diff_efold,levob,covinflate1,covinflate2,nanals))
@@ -157,16 +143,13 @@ obtimes = nc_truth.variables['t'][:]
 assim_interval = obtimes[1]-obtimes[0]
 assim_timesteps = int(np.round(assim_interval/models[0].dt))
 print('# ntime,pverr_a,pvsprd_a,pverr_b,pvsprd_b,obinc_b,osprd_b,obinc_a,obsprd_a,omaomb/oberr,obbias_b,inflation')
-if rp is not None:
-    print('# random pattern: hcorr,tcorr,amp,nsamps,norm=%s,%s,%s,%s,%s' % (hcorr,tcorr,amp,rp.nsamples,rp.norm))
 
 # initialize model clock
 for nanal in range(nanals):
     models[nanal].t = obtimes[0]
     models[nanal].timesteps = assim_timesteps
 
-# initialize relaxation to prior spread inflation factor.
-
+# initialize output file.
 if savedata is not None:
    nc = Dataset(savedata, mode='w', format='NETCDF4_CLASSIC')
    nc.r = models[0].r
@@ -222,9 +205,12 @@ if savedata is not None:
    zvar[0] = 0; zvar[1] = models[0].H
    ensvar[:] = np.arange(1,nanals+1)
 
+# initialize kinetic energy error/spread spectra
 kespec_errmean = None; kespec_sprdmean = None
 
-ncount = 0; nanals2 = 4
+ncount = 0
+nanals2 = 4 # ensemble members used for kespec spread
+
 for ntime in range(nassim):
 
     # check model clock
@@ -235,9 +221,6 @@ for ntime in range(nassim):
     t1 = time.time()
     if not fixed:
         p = np.ones((ny,nx),np.float)/(nx*ny)
-        #psave = p.copy()
-        #p[ny/4:3*ny/4,nx/4:3*nx/4] = 4.*psave[ny/4:3*ny/4,nx/4:3*nx/4]
-        #p = p - p.sum()/(nx*ny) + 1./(nx*ny)
         indxob = np.random.choice(nx*ny,nobs,replace=False,p=p.ravel())
     else:
         mask = np.zeros((ny,nx),np.bool)
@@ -379,16 +362,10 @@ for ntime in range(nassim):
     t1 = time.time()
     for nanal in range(nanals):
         pvens[nanal] = models[nanal].advance(pvens[nanal])
-    #for nanal in range(nanals):
-    #    models[nanal].pvspec = rfft2(pvens[nanal])
-    #for nt in range(assim_timesteps):
-    #    for nanal in range(nanals):
-    #        models[nanal].timestep()
-    #for nanal in range(nanals):
-    #    pvens[nanal] = irfft2(models[nanal].pvspec)
     t2 = time.time()
     if profile: print('cpu time for ens forecast',t2-t1)
 
+    # compute spectra of error and spread
     if ntime >= nassim_spinup:
         pvfcstmean = pvens.mean(axis=0)
         pverrspec = scalefact*rfft2(pvfcstmean - pv_truth[ntime+1])
