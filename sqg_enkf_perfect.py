@@ -39,7 +39,7 @@ covinflate2 = float(sys.argv[3]) # RTPS inflation
 diff_efold = None # use diffusion from climo file
 
 #savedata = None # if not None, netcdf filename to save data.
-savedata = 'sqg_enkf_N128_N64_3hrly_blockmean2.nc'
+savedata = 'sqg_enkf_N64_3hrly.nc'
 
 profile = False # turn on profiling?
 
@@ -68,9 +68,9 @@ nassim_spinup = 200
 # nature run created using sqg_run.py.
 filename_climo = 'sqg_N64_3hrly.nc' # file name for forecast model climo
 # perfect model
-#filename_truth = filename_climo
+filename_truth = filename_climo
 # imperfect model
-filename_truth = 'sqg_N128_N64_3hrly_blockmean.nc' # file name for nature run to draw obs
+#filename_truth = 'sqg_N128_N64_3hrly_blockmean.nc' # file name for nature run to draw obs
 
 print('# filename_modelclimo=%s' % filename_climo)
 print('# filename_truth=%s' % filename_truth)
