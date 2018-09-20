@@ -13,13 +13,17 @@ import os
 #dt = 90 # time step in seconds
 #diff_efold = 1800. # time scale for hyperdiffusion at smallest resolved scale
 
+N = 256 # number of grid points in each direction (waves=N/2)
+dt = 240 # time step in seconds
+diff_efold = 10800. # time scale for hyperdiffusion at smallest resolved scale
+
 #N = 128
 #dt = 600
 #diff_efold = 86400./2.
 
-N = 64
-dt = 1200
-diff_efold = 86400.
+#N = 64
+#dt = 1200
+#diff_efold = 86400.
 
 norder = 8 # order of hyperdiffusion
 dealias = True # dealiased with 2/3 rule?
@@ -70,7 +74,7 @@ model = SQG(pv,nsq=nsq,f=f,U=U,H=H,r=r,tdiab=tdiab,dt=dt,
 #  initialize figure.
 outputinterval = 10800. # interval between frames in seconds
 tmin = 100.*86400. # time to start saving data (in days)
-tmax = 300.*86400. # time to stop (in days)
+tmax = 600.*86400. # time to stop (in days)
 nsteps = int(tmax/outputinterval) # number of time steps to animate
 # set number of timesteps to integrate for each call to model.advance
 model.timesteps = int(outputinterval/model.dt)
@@ -134,10 +138,10 @@ if plot:
         pv = irfft2(model.pvspec)
         hr = t/3600.
         spd = np.sqrt(model.u[levplot]**2+model.v[levplot]**2)
-        print hr,spd.max(),scalefact*pv.min(),scalefact*pv.max()
+        print(hr,spd.max(),scalefact*pv.min(),scalefact*pv.max())
         im.set_data(scalefact*pv[levplot])
         if savedata is not None and t >= tmin:
-            print 'saving data at t = t = %g hours' % hr
+            print('saving data at t = t = %g hours' % hr)
             pvvar[nout,:,:,:] = pv
             tvar[nout] = t
             nc.sync()
@@ -157,9 +161,9 @@ else:
         pv = irfft2(model.pvspec)
         hr = t/3600.
         spd = np.sqrt(model.u[levplot]**2+model.v[levplot]**2)
-        print hr,spd.max(),scalefact*pv.min(),scalefact*pv.max()
+        print(hr,spd.max(),scalefact*pv.min(),scalefact*pv.max())
         if savedata is not None and t >= tmin:
-            print 'saving data at t = t = %g hours' % hr
+            print('saving data at t = t = %g hours' % hr)
             pvvar[nout,:,:,:] = pv
             tvar[nout] = t
             nc.sync()

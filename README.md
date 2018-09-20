@@ -24,5 +24,6 @@ example code to run model and animate the solution in ``sqg_run.py``
 
 To run EnKF data assimilation:
 * install with ``python setup.py install``.
-* first run ``sqg_run.py`` to generate nature run.
+* first run ``sqg_run.py`` to generate nature run (for perfect model) or
+  ``sqg_run_highres.py`` (for imperfect model).
 * then run ``sqg_enkf.py``.

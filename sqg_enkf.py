@@ -7,7 +7,7 @@ from sqgturb.enkf_utils import  cartdist,enkf_update,gaspcohn
 
 # EnKF cycling for SQG turbulence model model with boundary temp obs,
 # horizontal and vertical localization.  Relaxation to prior spread
-# inflation, or Hodyss and Campbell inflation.
+# and relaxiation to prior perturbation inflation.
 # Random or fixed observing network (obs on either boundary or
 # both).
 
@@ -33,22 +33,13 @@ hcovlocal_scale = float(sys.argv[1])
 # is related to horizontal scale by vcovlocal_fact = L_r/hcovlocal_scale
 # where here L_r is Rossby radius
 
-# optional inflation parameters:
-# (covinflate2 <= 0 for RTPS inflation
-# (http://journals.ametsoc.org/doi/10.1175/MWR-D-11-00276.1),
-# otherwise use Hodyss et al inflation
-# (http://journals.ametsoc.org/doi/abs/10.1175/MWR-D-15-0329.1)
-if len(sys.argv) > 2:
-    covinflate1 = float(sys.argv[2])
-    covinflate2 = -1
-else:
-    covinflate1 = 1.
-    covinflate2 = 1.
+covinflate1 = float(sys.argv[2]) # RTPP inflation (applied first)
+covinflate2 = float(sys.argv[3]) # RTPS inflation
 
 diff_efold = None # use diffusion from climo file
 
-savedata = None # if not None, netcdf filename to save data.
-#savedata = 'sqg_enkf.nc'
+#savedata = None # if not None, netcdf filename to save data.
+savedata = 'sqg_enkf_N128_N64_3hrly_blockmean2.nc'
 
 profile = False # turn on profiling?
 
@@ -58,7 +49,7 @@ use_letkf = False # use serial EnSRF
 # replacement) from the model grid
 # if nobs < 0, fixed network of every Nth grid point used (N = -nobs)
 nobs = 1024 # number of obs to assimilate (randomly distributed)
-#nobs = -1 # fixed network, every -nobs grid points. nobs=-1 obs at all pts.
+#nobs = -2 # fixed network, every -nobs grid points. nobs=-1 obs at all pts.
 
 # if levob=0, sfc temp obs used.  if 1, lid temp obs used. If [0,1] obs at both
 # boundaries.
@@ -71,13 +62,15 @@ nanals = 20 # ensemble members
 
 oberrstdev = 1.0 # ob error standard deviation in K
 
-nassim = 1600 # assimilation times to run
-nassim_spinup = 800
+nassim = 4000 # assimilation times to run
+nassim_spinup = 200
 
 # nature run created using sqg_run.py.
 filename_climo = 'sqg_N64_3hrly.nc' # file name for forecast model climo
 # perfect model
-filename_truth = 'sqg_N64_3hrly.nc' # file name for nature run to draw obs
+#filename_truth = filename_climo
+# imperfect model
+filename_truth = 'sqg_N128_N64_3hrly_blockmean.nc' # file name for nature run to draw obs
 
 print('# filename_modelclimo=%s' % filename_climo)
 print('# filename_truth=%s' % filename_truth)
@@ -176,13 +169,17 @@ if savedata is not None:
    z = nc.createDimension('z',2)
    t = nc.createDimension('t',None)
    obs = nc.createDimension('obs',nobs)
-   ens = nc.createDimension('ens',nanals)
+   #ens = nc.createDimension('ens',nanals)
    pv_t =\
    nc.createVariable('pv_t',np.float32,('t','z','y','x'),zlib=True)
+   #pv_b =\
+   #nc.createVariable('pv_b',np.float32,('t','ens','z','y','x'),zlib=True)
+   #pv_a =\
+   #nc.createVariable('pv_a',np.float32,('t','ens','z','y','x'),zlib=True)
    pv_b =\
-   nc.createVariable('pv_b',np.float32,('t','ens','z','y','x'),zlib=True)
+   nc.createVariable('pv_b',np.float32,('t','z','y','x'),zlib=True)
    pv_a =\
-   nc.createVariable('pv_a',np.float32,('t','ens','z','y','x'),zlib=True)
+   nc.createVariable('pv_a',np.float32,('t','z','y','x'),zlib=True)
    pv_a.units = 'K'
    pv_b.units = 'K'
    inf = nc.createVariable('inflation',np.float32,('t','z','y','x'),zlib=True)
@@ -198,12 +195,12 @@ if savedata is not None:
    zvar.units = 'meters'
    tvar = nc.createVariable('t',np.float32,('t',))
    tvar.units = 'seconds'
-   ensvar = nc.createVariable('ens',np.int32,('ens',))
-   ensvar.units = 'dimensionless'
+   #ensvar = nc.createVariable('ens',np.int32,('ens',))
+   #ensvar.units = 'dimensionless'
    xvar[:] = np.arange(0,models[0].L,models[0].L/models[0].N)
    yvar[:] = np.arange(0,models[0].L,models[0].L/models[0].N)
    zvar[0] = 0; zvar[1] = models[0].H
-   ensvar[:] = np.arange(1,nanals+1)
+   #ensvar[:] = np.arange(1,nanals+1)
 
 # initialize kinetic energy error/spread spectra
 kespec_errmean = None; kespec_sprdmean = None
@@ -261,7 +258,8 @@ for ntime in range(nassim):
             #raise SystemExit
 
     # first-guess spread (need later to compute inflation factor)
-    fsprd = ((pvens - pvens.mean(axis=0))**2).sum(axis=0)/(nanals-1)
+    pvprime_b = pvens - pvens.mean(axis=0)
+    fsprd = (pvprime_b**2).sum(axis=0)/(nanals-1)
 
     # compute forward operator.
     # hxens is ensemble in observation space.
@@ -282,7 +280,7 @@ for ntime in range(nassim):
 
     if savedata is not None:
         pv_t[ntime] = pv_truth[ntime]
-        pv_b[ntime,:,:,:] = scalefact*pvens
+        pv_b[ntime,:,:,:] = scalefact*pvensmean_b
         pv_obs[ntime] = pvob
         x_obs[ntime] = xob
         y_obs[ntime] = yob
@@ -324,23 +322,18 @@ for ntime in range(nassim):
     # expected value R (oberrvar).
     omaomb = ((pvob-hxensmean_a)*(pvob-hxensmean_b)).mean()
 
-    # posterior multiplicative inflation.
     pvensmean_a = pvens.mean(axis=0)
     pvprime = pvens-pvensmean_a
+
+    # posterior inflation
+    # first, relaxation to prior pert inflation (RTPP)
+    pvprime = covinflate1*pvprime_b + (1.-covinflate1)*pvprime
+    # then relaxation to prior stdev (RTPS, Whitaker & Hamill 2012)
     asprd = (pvprime**2).sum(axis=0)/(nanals-1)
-    if covinflate2 < 0:
-        # relaxation to prior stdev (Whitaker & Hamill 2012)
-        asprd = np.sqrt(asprd); fsprd = np.sqrt(fsprd)
-        inflation_factor = 1.+covinflate1*(fsprd-asprd)/asprd
-    else:
-        # Hodyss et al 2016 inflation (covinflate1=covinflate2=1 works well in perfect
-        # model, linear gaussian scenario)
-        # inflation = asprd + (asprd/fsprd)**2((fsprd/nanals)+2*inc**2/(nanals-1))
-        inc = pvensmean_a - pvensmean_b
-        inflation_factor = covinflate1*asprd + \
-        (asprd/fsprd)**2*((fsprd/nanals) + covinflate2*(2.*inc**2/(nanals-1)))
-        inflation_factor = np.sqrt(inflation_factor/asprd)
+    asprd = np.sqrt(asprd); fsprd = np.sqrt(fsprd)
+    inflation_factor = 1.+covinflate2*(fsprd-asprd)/asprd
     pvprime = pvprime*inflation_factor
+
     pvens = pvprime + pvensmean_a
 
     # print out analysis error, spread and innov stats for background
@@ -353,9 +346,10 @@ for ntime in range(nassim):
 
     # save data.
     if savedata is not None:
-        pv_a[ntime,:,:,:] = scalefact*pvens
+        pv_a[ntime,:,:,:] = scalefact*pvensmean_a
         tvar[ntime] = obtimes[ntime]
-        inf[ntime] = inflation_factor
+        #inf[ntime] = inflation_factor
+        inf[ntime] = fsprd
         nc.sync()
 
     # run forecast ensemble to next analysis time
