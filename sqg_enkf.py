@@ -33,13 +33,18 @@ hcovlocal_scale = float(sys.argv[1])
 # is related to horizontal scale by vcovlocal_fact = L_r/hcovlocal_scale
 # where here L_r is Rossby radius
 
-covinflate1 = float(sys.argv[2]) # RTPP inflation (applied first)
-covinflate2 = float(sys.argv[3]) # RTPS inflation
+if len(sys.argv) > 2:
+    covinflate1 = float(sys.argv[2]) # RTPP inflation (applied first)
+    covinflate2 = float(sys.argv[3]) # RTPS inflation
+else:
+    # use Hodyss et al inflation with a=b=1
+    # (http://journals.ametsoc.org/doi/abs/10.1175/MWR-D-15-0329.1)
+    covinflate1 = 0.; covinflate2 = 0.
 
 diff_efold = None # use diffusion from climo file
 
 #savedata = None # if not None, netcdf filename to save data.
-savedata = 'sqg_enkf_N128_N64_3hrly_blockmean2.nc'
+savedata = 'sqg2_enkf_N128_N64_3hrly.nc'
 
 profile = False # turn on profiling?
 
@@ -48,7 +53,7 @@ use_letkf = False # use serial EnSRF
 # if nobs > 0, each ob time nobs ob locations are randomly sampled (without
 # replacement) from the model grid
 # if nobs < 0, fixed network of every Nth grid point used (N = -nobs)
-nobs = 1024 # number of obs to assimilate (randomly distributed)
+nobs = 500 # number of obs to assimilate (randomly distributed)
 #nobs = -2 # fixed network, every -nobs grid points. nobs=-1 obs at all pts.
 
 # if levob=0, sfc temp obs used.  if 1, lid temp obs used. If [0,1] obs at both
@@ -66,11 +71,11 @@ nassim = 4000 # assimilation times to run
 nassim_spinup = 200
 
 # nature run created using sqg_run.py.
-filename_climo = 'sqg_N64_3hrly.nc' # file name for forecast model climo
+filename_climo = 'sqg2_N64_3hrly.nc' # file name for forecast model climo
 # perfect model
 #filename_truth = filename_climo
 # imperfect model
-filename_truth = 'sqg_N128_N64_3hrly_blockmean.nc' # file name for nature run to draw obs
+filename_truth = 'sqg2_N128_N64_3hrly.nc' # file name for nature run to draw obs
 
 print('# filename_modelclimo=%s' % filename_climo)
 print('# filename_truth=%s' % filename_truth)
@@ -327,12 +332,23 @@ for ntime in range(nassim):
 
     # posterior inflation
     # first, relaxation to prior pert inflation (RTPP)
-    pvprime = covinflate1*pvprime_b + (1.-covinflate1)*pvprime
-    # then relaxation to prior stdev (RTPS, Whitaker & Hamill 2012)
-    asprd = (pvprime**2).sum(axis=0)/(nanals-1)
-    asprd = np.sqrt(asprd); fsprd = np.sqrt(fsprd)
-    inflation_factor = 1.+covinflate2*(fsprd-asprd)/asprd
-    pvprime = pvprime*inflation_factor
+    if covinflate1 > 0 and covinflate2 > 0:
+        pvprime = covinflate1*pvprime_b + (1.-covinflate1)*pvprime
+        # then relaxation to prior stdev (RTPS, Whitaker & Hamill 2012)
+        asprd = (pvprime**2).sum(axis=0)/(nanals-1)
+        asprd = np.sqrt(asprd); fsprd = np.sqrt(fsprd)
+        inflation_factor = 1.+covinflate2*(fsprd-asprd)/asprd
+        pvprime = pvprime*inflation_factor
+    else:
+        # Hodyss et al 2016 inflation (a=b=1 works well in perfect
+        # model, linear gaussian scenario, independent of localization scale)
+        # inflation**2 = 1. + (asprd/fsprd**2)*((fsprd/nanals)+2*inc**2/(nanals-1))
+        inc = pvensmean_a - pvensmean_b
+        asprd = (pvprime**2).sum(axis=0)/(nanals-1)
+        inflation_factor = asprd + \
+        (asprd/fsprd)**2*((fsprd/nanals) + (2.*inc**2/(nanals-1)))
+        inflation_factor = np.sqrt(inflation_factor/asprd)
+        pvprime = pvprime*inflation_factor
 
     pvens = pvprime + pvensmean_a
 
