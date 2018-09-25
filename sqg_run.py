@@ -14,16 +14,20 @@ import os
 #diff_efold = 1800. # time scale for hyperdiffusion at smallest resolved scale
 
 N = 256 # number of grid points in each direction (waves=N/2)
-dt = 240 # time step in seconds
-diff_efold = 10800. # time scale for hyperdiffusion at smallest resolved scale
+dt = 300 # time step in seconds
+diff_efold = 86400./2. # time scale for hyperdiffusion at smallest resolved scale
 
 #N = 128
 #dt = 600
 #diff_efold = 86400./2.
+#
+#N = 96
+#dt = 900
+#diff_efold = 86400./3.
 
-#N = 64
-#dt = 1200
-#diff_efold = 86400.
+N = 64
+dt = 1200
+diff_efold = 86400.
 
 norder = 8 # order of hyperdiffusion
 dealias = True # dealiased with 2/3 rule?
@@ -34,7 +38,7 @@ dealias = True # dealiased with 2/3 rule?
 # corresponding to ekman depth of 141-316 m over ocean.
 # spindown time of a barotropic vortex is tau = H/(f*dek), 10 days for
 # H=10km, f=0.0001, dek=100m.
-dek = 0. # applied only at surface if symmetric=False
+dek = 100. # applied only at surface if symmetric=False
 nsq = 1.e-4; f=1.e-4; g = 9.8; theta0 = 300
 H = 10.e3 # lid height
 r = dek*nsq/f
@@ -78,7 +82,7 @@ tmax = 600.*86400. # time to stop (in days)
 nsteps = int(tmax/outputinterval) # number of time steps to animate
 # set number of timesteps to integrate for each call to model.advance
 model.timesteps = int(outputinterval/model.dt)
-savedata = 'sqg_N%s_3hrly.nc' % N # save data plotted in a netcdf file.
+savedata = 'sqg2_N%s_3hrly.nc' % N # save data plotted in a netcdf file.
 #savedata = None # don't save data
 plot = True # animate data as model is running?
 
