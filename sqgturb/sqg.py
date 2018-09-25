@@ -1,7 +1,8 @@
-from __future__ import print_function
 import os
 import numpy as np
 from scipy.ndimage import gaussian_filter
+from netCDF4 import Dataset
+
 try: # pyfftw is *much* faster
     from pyfftw.interfaces import numpy_fft, cache
     #print('# using pyfftw...')
@@ -20,6 +21,7 @@ class SQG:
 
     def __init__(self,pv,f=1.e-4,nsq=1.e-4,L=20.e6,H=10.e3,U=30.,\
                  r=0.,tdiab=10.*86400,diff_order=8,diff_efold=None,\
+                 ai_amp=0,ai_filename=None,ai_skip=199,\
                  symmetric=True,dt=None,dealias=True,threads=1,precision='single'):
         # initialize SQG model.
         if pv.shape[0] != 2:
@@ -59,6 +61,7 @@ class SQG:
         self.r = np.array(r,dtype) # Ekman damping (at z=0)
         self.tdiab = np.array(tdiab,dtype) # thermal relaxation damping.
         self.t = 0 # initialize time counter
+        self.nt = 0
         # setup basic state pv (for thermal relaxation)
         self.symmetric = symmetric # symmetric jet, or jet with U=0 at sfc.
         y = np.arange(0,L,L/N,dtype=dtype)
@@ -123,6 +126,23 @@ class SQG:
         np.exp((-self.dt/self.diff_efold)*(ktot/ktotcutoff)**self.diff_order)
         # number of timesteps to advance each call to 'advance' method.
         self.timesteps = 1
+        # amplitude of random analysis increment forcing
+        self.ai_amp = ai_amp
+        # filename containing analysis increments
+        self.ai_filename = ai_filename
+        if self.ai_filename is not None:
+            self.ai_nc = Dataset(ai_filename)
+            self.ai_skip = ai_skip
+            self.ai_interval = int((self.ai_nc['t'][1]-self.ai_nc['t'][0])/self.dt)
+            self.ai_max = len(self.ai_nc.dimensions['t'])
+            self.ai_scalefact =\
+            self.ai_amp/(self.ai_nc.f*self.ai_nc.theta0/self.ai_nc.g)
+            idx = np.random.randint(low=self.ai_skip,high=self.ai_max-1)
+            self.ai_1=self.ai_scalefact*(self.ai_nc['pv_a'][idx]-self.ai_nc['pv_b'][idx])
+            idx = np.random.randint(low=self.ai_skip,high=self.ai_max-1)
+            self.ai_2=self.ai_scalefact*(self.ai_nc['pv_a'][idx]-self.ai_nc['pv_b'][idx])
+            #print 'ai_1,ai_2',self.ai_1.min(),self.ai_1.max(),\
+            #      self.ai_2.min(),self.ai_2.max()
 
     def invert(self,pvspec=None):
         if pvspec is None: pvspec = self.pvspec
@@ -206,6 +226,22 @@ class SQG:
                 dpvspecdt[1] -= self.r*self.ksqlsq*psispec[1]
         # save wind field
         self.u = u; self.v = v
+        if self.ai_amp > 0.0 and self.ai_filename is not None:
+            if self.rkstep == 0:
+               rem = self.nt % self.ai_interval
+               if self.nt > 0 and rem == 0:
+                  idx = np.random.randint(low=self.ai_skip,high=self.ai_max-1)
+                  self.ai_1 = self.ai_2
+                  self.ai_2=self.ai_scalefact*(self.ai_nc['pv_a'][idx]-self.ai_nc['pv_b'][idx])
+                  #print 'ai_1,ai_2',self.ai_1.min(),self.ai_1.max(),\
+                  #      self.ai_2.min(),self.ai_2.max()
+               #wt = float(rem)/float(self.ai_interval)
+               #print 'rem,wt = ',rem,wt
+               # forcing is linearly interpolated between two increments.
+               #self.ai_forcing = (1.-wt)*self.ai_1 + wt*self.ai_2
+               # constant forcing over interval
+               self.ai_forcing = self.ai_1
+            dpvspecdt += rfft2(self.ai_forcing/(self.dt*self.ai_interval))
         return dpvspecdt
 
     def timestep(self):
@@ -222,3 +258,4 @@ class SQG:
         pvspecnew = self.pvspec + (k1+2.*k2+2.*k3+k4)/6.
         self.pvspec = self.hyperdiff*pvspecnew
         self.t += self.dt # increment time
+        self.nt += 1
