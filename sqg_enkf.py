@@ -44,7 +44,7 @@ else:
 diff_efold = None # use diffusion from climo file
 
 #savedata = None # if not None, netcdf filename to save data.
-savedata = 'sqg2_enkf_N128_N64_3hrly.nc'
+savedata = 'sqg2_enkf_N256_N64_3hrly_blockmean.nc'
 
 profile = False # turn on profiling?
 
@@ -53,7 +53,7 @@ use_letkf = False # use serial EnSRF
 # if nobs > 0, each ob time nobs ob locations are randomly sampled (without
 # replacement) from the model grid
 # if nobs < 0, fixed network of every Nth grid point used (N = -nobs)
-nobs = 500 # number of obs to assimilate (randomly distributed)
+nobs = 1000 # number of obs to assimilate (randomly distributed)
 #nobs = -2 # fixed network, every -nobs grid points. nobs=-1 obs at all pts.
 
 # if levob=0, sfc temp obs used.  if 1, lid temp obs used. If [0,1] obs at both
@@ -75,7 +75,7 @@ filename_climo = 'sqg2_N64_3hrly.nc' # file name for forecast model climo
 # perfect model
 #filename_truth = filename_climo
 # imperfect model
-filename_truth = 'sqg2_N128_N64_3hrly.nc' # file name for nature run to draw obs
+filename_truth = 'sqg2_N256_N64_3hrly_blockmean.nc' # file name for nature run to draw obs
 
 print('# filename_modelclimo=%s' % filename_climo)
 print('# filename_truth=%s' % filename_truth)
