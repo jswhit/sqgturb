@@ -9,13 +9,13 @@ import os
 
 # model parameters.
 
-#N = 512 # number of grid points in each direction (waves=N/2)
-#dt = 90 # time step in seconds
-#diff_efold = 1800. # time scale for hyperdiffusion at smallest resolved scale
-
-N = 256 # number of grid points in each direction (waves=N/2)
-dt = 240 # time step in seconds
+N = 512 # number of grid points in each direction (waves=N/2)
+dt = 90 # time step in seconds
 diff_efold = 86400./2. # time scale for hyperdiffusion at smallest resolved scale
+
+#N = 256 # number of grid points in each direction (waves=N/2)
+#dt = 240 # time step in seconds
+#diff_efold = 86400./2. # time scale for hyperdiffusion at smallest resolved scale
 
 #N = 128
 #dt = 600
@@ -23,7 +23,7 @@ diff_efold = 86400./2. # time scale for hyperdiffusion at smallest resolved scal
 #
 #N = 96
 #dt = 900
-#diff_efold = 86400./3.
+#diff_efold = 2*.86400./3.
 
 #N = 64
 #dt = 1200
@@ -82,7 +82,8 @@ tmax = 600.*86400. # time to stop (in days)
 nsteps = int(tmax/outputinterval) # number of time steps to animate
 # set number of timesteps to integrate for each call to model.advance
 model.timesteps = int(outputinterval/model.dt)
-savedata = 'sqg2_N%s_3hrly.nc' % N # save data plotted in a netcdf file.
+savedata = '/Volumes/Drobo/sqg2_N%s_3hrly.nc' % N # save data plotted in a netcdf file.
+#savedata = 'sqg2b_N%s_3hrly.nc' % N # save data plotted in a netcdf file.
 #savedata = None # don't save data
 plot = True # animate data as model is running?
 
