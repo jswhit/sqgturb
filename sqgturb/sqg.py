@@ -22,6 +22,7 @@ class SQG:
     def __init__(self,pv,f=1.e-4,nsq=1.e-4,L=20.e6,H=10.e3,U=30.,\
                  r=0.,tdiab=10.*86400,diff_order=8,diff_efold=None,\
                  ai_amp=0,ai_filename=None,ai_skip=199,ai_length=80,\
+                 continuous_ai_forcing=True,\
                  symmetric=True,dt=None,dealias=True,threads=1,precision='single'):
         # initialize SQG model.
         if pv.shape[0] != 2:
@@ -130,34 +131,36 @@ class SQG:
         self.ai_amp = ai_amp
         # filename containing analysis increments
         self.ai_filename = ai_filename
-        # constant forcing over ai_interval
-        #if self.ai_filename is not None:
-        #    self.ai_nc = Dataset(ai_filename)
-        #    self.ai_skip = ai_skip
-        #    self.ai_interval = int((self.ai_nc['t'][1]-self.ai_nc['t'][0])/self.dt)
-        #    self.ai_max = len(self.ai_nc.dimensions['t'])
-        #    self.ai_scalefact =\
-        #    self.ai_amp/(self.ai_nc.f*self.ai_nc.theta0/self.ai_nc.g)
-        #    idx = np.random.randint(low=self.ai_skip,high=self.ai_max-1)
-        #    self.ai_1=self.ai_scalefact*(self.ai_nc['pv_a'][idx]-self.ai_nc['pv_b'][idx])
-        #    idx = np.random.randint(low=self.ai_skip,high=self.ai_max-1)
-        #    self.ai_2=self.ai_scalefact*(self.ai_nc['pv_a'][idx]-self.ai_nc['pv_b'][idx])
-        #    #print 'ai_1,ai_2',self.ai_1.min(),self.ai_1.max(),\
-        #    #      self.ai_2.min(),self.ai_2.max()
-        # continuous increment forcing, interpolation to model time step
+        continuous_ai_forcing = False
         if self.ai_filename is not None:
-            self.ai_nc = Dataset(ai_filename)
-            self.ai_skip = ai_skip
-            self.ai_interval = int((self.ai_nc['t'][1]-self.ai_nc['t'][0])/self.dt)
-            self.ai_max = len(self.ai_nc.dimensions['t'])-ai_length
-            self.ai_scalefact =\
-            self.ai_amp/(self.ai_nc.f*self.ai_nc.theta0/self.ai_nc.g)
-            self.idx = np.random.randint(low=self.ai_skip,high=self.ai_max-2)
-            self.idx_start = self.idx
-            self.ai_1=self.ai_scalefact*(self.ai_nc['pv_a'][self.idx]-self.ai_nc['pv_b'][self.idx])
-            self.ai_2=self.ai_scalefact*(self.ai_nc['pv_a'][self.idx+1]-self.ai_nc['pv_b'][self.idx+1])
-            #print 'ai_1,ai_2',self.ai_1.min(),self.ai_1.max(),\
-            #      self.ai_2.min(),self.ai_2.max()
+            # constant forcing over ai_interval
+            if not continuous_ai_forcing:
+                self.idx = None
+                self.ai_nc = Dataset(ai_filename)
+                self.ai_skip = ai_skip
+                self.ai_interval = int((self.ai_nc['t'][1]-self.ai_nc['t'][0])/self.dt)
+                self.ai_max = len(self.ai_nc.dimensions['t'])
+                self.ai_scalefact =\
+                self.ai_amp/(self.ai_nc.f*self.ai_nc.theta0/self.ai_nc.g)
+                idx = np.random.randint(low=self.ai_skip,high=self.ai_max-1)
+                self.ai_1=self.ai_scalefact*(self.ai_nc['pv_a'][idx]-self.ai_nc['pv_b'][idx])
+                idx = np.random.randint(low=self.ai_skip,high=self.ai_max-1)
+                self.ai_2=self.ai_scalefact*(self.ai_nc['pv_a'][idx]-self.ai_nc['pv_b'][idx])
+                #print 'ai_1,ai_2',self.ai_1.min(),self.ai_1.max(),\
+                #      self.ai_2.min(),self.ai_2.max()
+            else:
+            # continuous increment forcing, interpolation to model time step
+                self.ai_nc = Dataset(ai_filename)
+                self.ai_skip = ai_skip
+                self.ai_interval = int((self.ai_nc['t'][1]-self.ai_nc['t'][0])/self.dt)
+                self.ai_max = len(self.ai_nc.dimensions['t'])-ai_length
+                self.ai_scalefact =\
+                self.ai_amp/(self.ai_nc.f*self.ai_nc.theta0/self.ai_nc.g)
+                self.idx = np.random.randint(low=self.ai_skip,high=self.ai_max-2)
+                self.ai_1=self.ai_scalefact*(self.ai_nc['pv_a'][self.idx]-self.ai_nc['pv_b'][self.idx])
+                self.ai_2=self.ai_scalefact*(self.ai_nc['pv_a'][self.idx+1]-self.ai_nc['pv_b'][self.idx+1])
+                #print 'ai_1,ai_2',self.ai_1.min(),self.ai_1.max(),\
+                #      self.ai_2.min(),self.ai_2.max()
 
     def invert(self,pvspec=None):
         if pvspec is None: pvspec = self.pvspec
@@ -241,37 +244,34 @@ class SQG:
                 dpvspecdt[1] -= self.r*self.ksqlsq*psispec[1]
         # save wind field
         self.u = u; self.v = v
-        # forcing changes discontinously every ai_interval
-        #if self.ai_amp > 0.0 and self.ai_filename is not None:
-        #    if self.rkstep == 0:
-        #       rem = self.nt % self.ai_interval
-        #       if self.nt > 0 and rem == 0:
-        #          idx = np.random.randint(low=self.ai_skip,high=self.ai_max-1)
-        #          self.ai_1 = self.ai_2
-        #          self.ai_2=self.ai_scalefact*(self.ai_nc['pv_a'][idx]-self.ai_nc['pv_b'][idx])
-        #          #print 'ai_1,ai_2',self.ai_1.min(),self.ai_1.max(),\
-        #          #      self.ai_2.min(),self.ai_2.max()
-        #       wt = float(rem)/float(self.ai_interval)
-        #       #print 'rem,wt = ',rem,wt
-        #       # forcing is linearly interpolated between two increments.
-        #       #self.ai_forcing = (1.-wt)*self.ai_1 + wt*self.ai_2
-        #       # constant forcing over interval
-        #       self.ai_forcing = self.ai_1
-        #    dpvspecdt += rfft2(self.ai_forcing/(self.dt*self.ai_interval))
-        # continous time series forcing
-        if self.ai_amp > 0.0 and self.ai_filename is not None:
-            if self.rkstep == 0:
-               rem = self.nt % self.ai_interval
-               if self.nt > 0 and rem == 0:
-                   self.idx += 1
-                   self.ai_1 = self.ai_2
-                   try:
+        # additive forcing from analysis increments.
+        if self.ai_amp > 0.0 and self.ai_filename:
+            # forcing changes discontinously every ai_interval
+            if self.idx is None:
+                if self.rkstep == 0:
+                   rem = self.nt % self.ai_interval
+                   if self.nt > 0 and rem == 0:
+                      idx = np.random.randint(low=self.ai_skip,high=self.ai_max-1)
+                      self.ai_1 = self.ai_2
+                      self.ai_2=self.ai_scalefact*(self.ai_nc['pv_a'][idx]-self.ai_nc['pv_b'][idx])
+                      #print 'ai_1,ai_2',self.ai_1.min(),self.ai_1.max(),\
+                      #      self.ai_2.min(),self.ai_2.max()
+                   wt = float(rem)/float(self.ai_interval)
+                   #print 'rem,wt = ',rem,wt
+                   # forcing is linearly interpolated between two increments.
+                   #self.ai_forcing = (1.-wt)*self.ai_1 + wt*self.ai_2
+                   # constant forcing over interval
+                   self.ai_forcing = self.ai_1
+            else:
+            # continuous time series of ai forcing
+                if self.rkstep == 0:
+                   rem = self.nt % self.ai_interval
+                   if self.nt > 0 and rem == 0:
+                       self.idx += 1
+                       self.ai_1 = self.ai_2
                        self.ai_2=self.ai_scalefact*(self.ai_nc['pv_a'][self.idx+1]-self.ai_nc['pv_b'][self.idx+1])
-                   except:
-                       print self.idx_start, self.idx, self.ai_max, len(self.ai_nc.dimensions['t'])-1
-                       raise SystemExit
-               wt = float(rem)/float(self.ai_interval)
-               self.ai_forcing = (1.-wt)*self.ai_1 + wt*self.ai_2
+                   wt = float(rem)/float(self.ai_interval)
+                   self.ai_forcing = (1.-wt)*self.ai_1 + wt*self.ai_2
             dpvspecdt += rfft2(self.ai_forcing/(self.dt*self.ai_interval))
         return dpvspecdt
 
