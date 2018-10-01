@@ -34,13 +34,6 @@ scalefact = nc.f*nc.theta0/nc.g
 pv = nc['pv'][0]
 norder = 8
 N = pv.shape[-1]
-models = []
-for nanal in range(nanals):
-    models.append( SQG(pv,nsq=nc.nsq,f=nc.f,U=nc.U,H=nc.H,r=nc.r,tdiab=nc.tdiab,dt=dt,
-                   diff_order=norder,diff_efold=diff_efold_ens,
-                   ai_amp=amp,ai_filename=filename_inc,
-                   dealias=bool(nc.dealias),symmetric=bool(nc.symmetric),threads=threads,
-                   precision='single') )
 modeld = SQG(pv,nsq=nc.nsq,f=nc.f,U=nc.U,H=nc.H,r=nc.r,tdiab=nc.tdiab,dt=dt,
              diff_order=norder,diff_efold=diff_efold_det,
              dealias=True,symmetric=bool(nc.symmetric),threads=threads,
@@ -48,15 +41,15 @@ modeld = SQG(pv,nsq=nc.nsq,f=nc.f,U=nc.U,H=nc.H,r=nc.r,tdiab=nc.tdiab,dt=dt,
 print '# amp, filename_inc = ',amp,filename_inc
 fcstlenmax = 80
 nfcsts = 200
-fcstlenmax = 24
-nfcsts = 20
+#fcstlenmax = 24
+#nfcsts = 20
 fcstleninterval = 1
-fcstlenspectra = [1,4,8,10,20]
+fcstlenspectra = [1,4,8,24,48,80]
 fcsttimes = fcstlenmax/fcstleninterval
 outputinterval = fcstleninterval*(nc['t'][1]-nc['t'][0])
 print '# output interval = ',outputinterval
-forecast_timesteps = int(outputinterval/models[nanal].dt)
-#modeld.timesteps = int(outputinterval/modeld.dt)
+forecast_timesteps = int(outputinterval/modeld.dt)
+modeld.timesteps = int(outputinterval/modeld.dt)
 scalefact = nc.f*nc.theta0/nc.g
 ntimes = len(nc.dimensions['t'])
 
@@ -76,16 +69,18 @@ print '# ',ncount,'forecasts',fcsttimes,'forecast times',forecast_timesteps,\
 print '# amp = %s' % amp
 
 for n in range(0,ntimes-fcstlenmax,nskip):
-    pvspecic = rfft2(nc['pv'][n])
-    for nanal in range(nanals):
-        models[nanal].pvspec = pvspecic
-    modeld.pvspec = pvspecic
 
-    #pvfcstd = irfft2(modeld.pvspec)
-    #pvtruth = nc['pv'][n]
-    #pverrsqd = (scalefact*(pvfcstd - pvtruth))**2
-    #print np.sqrt(pverrsqd.mean())
-    #raise SystemExit
+    modeld = SQG(nc['pv'][n],nsq=nc.nsq,f=nc.f,U=nc.U,H=nc.H,r=nc.r,tdiab=nc.tdiab,dt=dt,
+                 diff_order=norder,diff_efold=diff_efold_det,
+                 dealias=True,symmetric=bool(nc.symmetric),threads=threads,
+                 precision='single')
+    models = []
+    for nanal in range(nanals):
+        models.append( SQG(nc['pv'][n],nsq=nc.nsq,f=nc.f,U=nc.U,H=nc.H,r=nc.r,tdiab=nc.tdiab,dt=dt,
+                       diff_order=norder,diff_efold=diff_efold_ens,
+                       ai_amp=amp,ai_filename=filename_inc,
+                       dealias=bool(nc.dealias),symmetric=bool(nc.symmetric),threads=threads,
+                       precision='single') )
 
     for nfcst in range(fcsttimes):
         fcstlen = (nfcst+1)*fcstleninterval
@@ -95,10 +90,6 @@ for n in range(0,ntimes-fcstlenmax,nskip):
             modeld.timestep()
         for nanal in range(nanals):
             pvens[nanal] = irfft2(models[nanal].pvspec)
-
-        #psispecd = modeld.invert(modeld.pvspec)
-        #psispec_truth = modeld.invert(rfft2(nc['pv'][n+fcstlen]))
-        #psid = irfft2(psispecd); psitruth = irfft2(psispec_truth)
 
         pvfcstd = irfft2(modeld.pvspec)
         pvfcstmean = pvens.mean(axis=0)
@@ -119,12 +110,6 @@ for n in range(0,ntimes-fcstlenmax,nskip):
         pverrsq = (scalefact*(pvfcstmean - pvtruth))**2
         pverrsqd = (scalefact*(pvfcstd - pvtruth))**2
         pvspread = ((scalefact*(pvens-pvfcstmean))**2).sum(axis=0)/(nanals-1)
-        #pverrsqd = (psid - psitruth)**2
-
-        # vertical mean PV
-        #pverrsq = (scalefact*(pvfcstmean.mean(axis=0) - pvtruth.mean(axis=0)))**2
-        #pverrsqd = (scalefact*(pvfcstd.mean(axis=0) - pvtruth.mean(axis=0)))**2
-        #pvspread = ((scalefact*(pvens.mean(axis=1)-pvfcstmean.mean(axis=0)))**2).sum(axis=0)/(nanals-1)
 
         if verbose: print n,fcstlen,np.sqrt(pverrsq.mean()),np.sqrt(pverrsqd.mean()),np.sqrt(pvspread.mean())
         #if nfcst == 8:
