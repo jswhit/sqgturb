@@ -40,7 +40,10 @@ ai_amp = float(sys.argv[4]) # amplitude for additive model forcing
 diff_efold = None # use diffusion from climo file
 
 savedata = None # if not None, netcdf filename to save data.
-#savedata = 'sqg2_enkf_N256_N64_3hrly_blockmean_ai.nc'
+if ai_amp > 0:
+    savedata = 'sqg2_enkf_N256_N64_3hrly_blockmean_ai.nc'
+else:
+    savedata = 'sqg2_enkf_N256_N64_3hrly_blockmean_noai.nc'
 
 profile = False # turn on profiling?
 
@@ -173,25 +176,28 @@ if savedata is not None:
    nc.filename_climo = filename_climo
    nc.filename_truth = filename_truth
    nc.symmetric = models[0].symmetric
+   nc.covinflate1 = covinflate1
+   nc.covinflate2 = covinflate2
+   nc.ai_amp = ai_amp
+   nc.ai_filename = ai_filename
    xdim = nc.createDimension('x',models[0].N)
    ydim = nc.createDimension('y',models[0].N)
    z = nc.createDimension('z',2)
    t = nc.createDimension('t',None)
    obs = nc.createDimension('obs',nobs)
-   #ens = nc.createDimension('ens',nanals)
+   ens = nc.createDimension('ens',nanals)
    pv_t =\
    nc.createVariable('pv_t',np.float32,('t','z','y','x'),zlib=True)
-   #pv_b =\
-   #nc.createVariable('pv_b',np.float32,('t','ens','z','y','x'),zlib=True)
-   #pv_a =\
-   #nc.createVariable('pv_a',np.float32,('t','ens','z','y','x'),zlib=True)
+   pvens_a =\
+   nc.createVariable('pvens_a',np.float32,('t','ens','z','y','x'),zlib=True)
    pv_b =\
    nc.createVariable('pv_b',np.float32,('t','z','y','x'),zlib=True)
    pv_a =\
    nc.createVariable('pv_a',np.float32,('t','z','y','x'),zlib=True)
    pv_a.units = 'K'
+   pvens_a.units = 'K'
    pv_b.units = 'K'
-   inf = nc.createVariable('inflation',np.float32,('t','z','y','x'),zlib=True)
+   sprd = nc.createVariable('spread',np.float32,('t','z','y','x'),zlib=True)
    pv_obs = nc.createVariable('obs',np.float32,('t','obs'))
    x_obs = nc.createVariable('x_obs',np.float32,('t','obs'))
    y_obs = nc.createVariable('y_obs',np.float32,('t','obs'))
@@ -204,12 +210,12 @@ if savedata is not None:
    zvar.units = 'meters'
    tvar = nc.createVariable('t',np.float32,('t',))
    tvar.units = 'seconds'
-   #ensvar = nc.createVariable('ens',np.int32,('ens',))
-   #ensvar.units = 'dimensionless'
+   ensvar = nc.createVariable('ens',np.int32,('ens',))
+   ensvar.units = 'dimensionless'
    xvar[:] = np.arange(0,models[0].L,models[0].L/models[0].N)
    yvar[:] = np.arange(0,models[0].L,models[0].L/models[0].N)
    zvar[0] = 0; zvar[1] = models[0].H
-   #ensvar[:] = np.arange(1,nanals+1)
+   ensvar[:] = np.arange(1,nanals+1)
 
 # initialize kinetic energy error/spread spectra
 kespec_errmean = None; kespec_sprdmean = None
@@ -366,10 +372,10 @@ for ntime in range(nassim):
 
     # save data.
     if savedata is not None:
-        pv_a[ntime,:,:,:] = scalefact*pvensmean_a
+        pv_a[ntime] = scalefact*pvensmean_a
+        pvens_a[ntime] = scalefact*pvens[0:nanals]
         tvar[ntime] = obtimes[ntime]
-        #inf[ntime] = inflation_factor
-        inf[ntime] = fsprd
+        sprd[ntime] = fsprd
         nc.sync()
 
     # run forecast ensemble to next analysis time
