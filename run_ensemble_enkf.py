@@ -29,6 +29,7 @@ nanals = 20
 # initialize qg model instance
 pv = nc['pv_a'][0]
 N = pv.shape[-1]
+print '# filename_ensemble = ',filenamein
 print '# amp, filename_inc = ',amp,filename_inc
 
 fcstlenmax = 80
@@ -51,7 +52,6 @@ kespec_sprdmean = np.zeros((fcsttimes,2,N,N/2+1),np.float)
 nskip = 8
 ntimes = ai_skip+nfcsts*nskip+fcstlenmax # for debugging
 print '# ntimes,nfcsts,fcstlenmax,nskip = ',ntimes,nfcsts,fcstlenmax,nskip
-print ai_skip,ntimes-fcstlenmax,nskip
 ncount = len(range(ai_skip,ntimes-fcstlenmax,nskip))
 print '# ',ncount,'forecasts',fcsttimes,'forecast times',forecast_timesteps,\
       'time steps for forecast interval'
