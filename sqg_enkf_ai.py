@@ -39,7 +39,7 @@ ai_amp = float(sys.argv[4]) # amplitude for additive model forcing
 
 diff_efold = None # use diffusion from climo file
 
-savedata = None # if not None, netcdf filename to save data.
+#savedata = None # if not None, netcdf filename to save data.
 if ai_amp > 0:
     savedata = 'sqg2_enkf_N256_N64_3hrly_blockmean_ai.nc'
 else:
@@ -179,7 +179,7 @@ if savedata is not None:
    nc.covinflate1 = covinflate1
    nc.covinflate2 = covinflate2
    nc.ai_amp = ai_amp
-   nc.ai_filename = ai_filename
+   nc.ai_filename = str(ai_filename)
    xdim = nc.createDimension('x',models[0].N)
    ydim = nc.createDimension('y',models[0].N)
    z = nc.createDimension('z',2)
@@ -373,9 +373,9 @@ for ntime in range(nassim):
     # save data.
     if savedata is not None:
         pv_a[ntime] = scalefact*pvensmean_a
-        pvens_a[ntime] = scalefact*pvens[0:nanals]
+        pvens_a[ntime] = scalefact*pvens
         tvar[ntime] = obtimes[ntime]
-        sprd[ntime] = fsprd
+        sprd[ntime] = scalefact**2*fsprd
         nc.sync()
 
     # run forecast ensemble to next analysis time

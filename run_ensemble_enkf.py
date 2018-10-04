@@ -12,55 +12,35 @@ if len(sys.argv) < 2:
     print 'python run_ensemble.py filenamein amp filename_inc'
     raise SystemExit
 
-filenamein = sys.argv[1] # upscaled truth
-amp = float(sys.argv[2]) # amplitude of additive noise
-#amp = 0.
-filename_inc = sys.argv[3] # analysis increments
-#filename_inc = None
-# smoothing applied to truth and forecasts.
-#stdev = 1.-np.exp(-1)
-stdev = None # no smoothing
-
-diff_efold_ens=86400.  ; dt = 1200 #N64
-#diff_efold_ens=86400./2.; dt = 600  #N128
-#diff_efold_ens=86400./2.; dt = 240  #N256
-
-diff_efold_det = diff_efold_ens
-nanals = 20
-
+filenamein = sys.argv[1] # enkf output
 nc = Dataset(filenamein)
-scalefact = nc.f*nc.theta0/nc.g
+if len(sys.argv) > 2:
+    amp = float(sys.argv[2]) # amplitude of additive noise
+    filename_inc = sys.argv[3] # analysis increments
+else:
+    amp = nc.ai_amp
+    filename_inc = nc.ai_filename
+ai_skip = 200
+
+diff_efold_ens=nc.diff_efold
+nanals = 20
+#nanals = nc.nanals
+
 # initialize qg model instance
-pv = nc['pv'][0]
-norder = 8
+pv = nc['pv_a'][0]
 N = pv.shape[-1]
-modeld = SQG(pv,nsq=nc.nsq,f=nc.f,U=nc.U,H=nc.H,r=nc.r,tdiab=nc.tdiab,dt=dt,
-             diff_order=norder,diff_efold=diff_efold_det,
-             dealias=True,symmetric=bool(nc.symmetric),threads=threads,
-             precision='single')
 print '# amp, filename_inc = ',amp,filename_inc
+
 fcstlenmax = 80
 nfcsts = 200
-#fcstlenmax = 24
-#nfcsts = 20
 fcstleninterval = 1
 fcstlenspectra = [1,4,8,24,48,80]
 fcsttimes = fcstlenmax/fcstleninterval
 outputinterval = fcstleninterval*(nc['t'][1]-nc['t'][0])
 print '# output interval = ',outputinterval
-forecast_timesteps = int(outputinterval/modeld.dt)
-modeld.timesteps = int(outputinterval/modeld.dt)
+forecast_timesteps = int(outputinterval/nc.dt)
 scalefact = nc.f*nc.theta0/nc.g
-ntimes = len(nc.dimensions['t'])
-
-N = modeld.N
-if N == 64:
-    diff_efold_ens=86400.  ; dt = 1200 #N64
-elif N == 128:
-    diff_efold_ens=86400./2.; dt = 600  #N128
-else:
-    print 'unknown resolution'
-    raise SystemExit
+ntimes = len(nc.dimensions['t'])-ai_skip
 
 pverrsq_mean = np.zeros((fcsttimes,2,N,N),np.float)
 pverrsqd_mean = np.zeros((fcsttimes,2,N,N),np.float)
@@ -69,57 +49,41 @@ pvens = np.zeros((nanals,2,N,N),np.float)
 kespec_errmean = np.zeros((fcsttimes,2,N,N/2+1),np.float)
 kespec_sprdmean = np.zeros((fcsttimes,2,N,N/2+1),np.float)
 nskip = 8
-ntimes = nfcsts*nskip+fcstlenmax # for debugging
+ntimes = ai_skip+nfcsts*nskip+fcstlenmax # for debugging
 print '# ntimes,nfcsts,fcstlenmax,nskip = ',ntimes,nfcsts,fcstlenmax,nskip
-ncount = len(range(0,ntimes-fcstlenmax,nskip))
+print ai_skip,ntimes-fcstlenmax,nskip
+ncount = len(range(ai_skip,ntimes-fcstlenmax,nskip))
 print '# ',ncount,'forecasts',fcsttimes,'forecast times',forecast_timesteps,\
       'time steps for forecast interval'
 print '# amp = %s' % amp
 
-for n in range(0,ntimes-fcstlenmax,nskip):
+for n in range(ai_skip,ntimes-fcstlenmax,nskip):
 
-    modeld = SQG(nc['pv'][n],nsq=nc.nsq,f=nc.f,U=nc.U,H=nc.H,r=nc.r,tdiab=nc.tdiab,dt=dt,
-                 diff_order=norder,diff_efold=diff_efold_det,
-                 dealias=True,symmetric=bool(nc.symmetric),threads=threads,
-                 precision='single')
     models = []
     for nanal in range(nanals):
-        models.append( SQG(nc['pv'][n],nsq=nc.nsq,f=nc.f,U=nc.U,H=nc.H,r=nc.r,tdiab=nc.tdiab,dt=dt,
-                       diff_order=norder,diff_efold=diff_efold_ens,
-                       ai_amp=amp,ai_filename=filename_inc,continuous_ai_forcing=False,
-                       dealias=bool(nc.dealias),symmetric=bool(nc.symmetric),threads=threads,
-                       precision='single') )
+        pvic = nc['pvens_a'][n,nanal,...]/scalefact
+        #print n,nanal,pvic.shape, pvic.min(), pvic.max()
+        models.append(
+        SQG(pvic,nsq=nc.nsq,f=nc.f,U=nc.U,H=nc.H,r=nc.r,tdiab=nc.tdiab,dt=nc.dt,
+        diff_order=nc.diff_order,diff_efold=nc.diff_efold,
+        ai_skip=ai_skip,ai_amp=amp,ai_filename=filename_inc,continuous_ai_forcing=False,
+        dealias=True,symmetric=bool(nc.symmetric),threads=threads,
+        precision='single') )
 
     for nfcst in range(fcsttimes):
         fcstlen = (nfcst+1)*fcstleninterval
         for nt in range(forecast_timesteps):
             for nanal in range(nanals):
                 models[nanal].timestep()
-            modeld.timestep()
         for nanal in range(nanals):
-            pvens[nanal] = irfft2(models[nanal].pvspec)
+            pvens[nanal] = scalefact*irfft2(models[nanal].pvspec)
 
-        pvfcstd = irfft2(modeld.pvspec)
         pvfcstmean = pvens.mean(axis=0)
-        pvtruth = nc['pv'][n+fcstlen]
+        pvtruth = nc['pv_t'][n+fcstlen]
+        pverrsq = (pvfcstmean - pvtruth)**2
+        pvspread = ((pvens-pvfcstmean)**2).sum(axis=0)/(nanals-1)
 
-        # smooth truth and forecasts
-        if stdev is not None:
-           for k in range(2):
-               pvtruth[k] = gaussian_filter(pvtruth[k],stdev,output=None,
-                            order=0,mode='wrap', cval=0.0)
-               pvfcstd[k] = gaussian_filter(pvfcstd[k],stdev,output=None,
-                            order=0,mode='wrap', cval=0.0)
-               for nanal in range(nanals):
-                   pvens[nanal,k,...] = gaussian_filter(pvens[nanal,k,...],stdev,output=None,
-                                        order=0,mode='wrap', cval=0.0)
-           pvfcstmean = pvens.mean(axis=0)
-
-        pverrsq = (scalefact*(pvfcstmean - pvtruth))**2
-        pverrsqd = (scalefact*(pvfcstd - pvtruth))**2
-        pvspread = ((scalefact*(pvens-pvfcstmean))**2).sum(axis=0)/(nanals-1)
-
-        if verbose: print n,fcstlen,np.sqrt(pverrsq.mean()),np.sqrt(pverrsqd.mean()),np.sqrt(pvspread.mean())
+        if verbose: print n,fcstlen,np.sqrt(pverrsq.mean()),np.sqrt(pvspread.mean())
         #if nfcst == 8:
         #   import matplotlib.pyplot as plt
         #   x = nc['x'][:]; y = nc['y'][:]
@@ -128,6 +92,7 @@ for n in range(0,ntimes-fcstlenmax,nskip):
         #   print err.min(), err.max(), errmax
         #   plt.figure()
         #   plt.imshow(scalefact*pvtruth[1],cmap=plt.cm.jet,interpolation='nearest',origin='lower',vmin=-25,vmax=25)
+
         #   plt.title('truth')
         #   plt.axis('off')
         #   plt.figure()
@@ -142,7 +107,6 @@ for n in range(0,ntimes-fcstlenmax,nskip):
         #   raise SystemExit
         pvspread_mean[nfcst] += pvspread/ncount
         pverrsq_mean[nfcst] += pverrsq/ncount
-        pverrsqd_mean[nfcst] += pverrsqd/ncount
 
         #if fcstlen in fcstlenspectra:
         #    pverrspec = scalefact*rfft2(pvfcstmean - pvtruth)
@@ -164,7 +128,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 for nfcst in range(fcsttimes):
     fcstlen = (nfcst+1)*fcstleninterval
-    print fcstlen,np.sqrt(pverrsq_mean[nfcst].mean()),np.sqrt(pverrsqd_mean[nfcst].mean()),np.sqrt(pvspread_mean[nfcst].mean())
+    print fcstlen,np.sqrt(pverrsq_mean[nfcst].mean()),np.sqrt(pvspread_mean[nfcst].mean())
     #if fcstlen in fcstlenspectra:
     #    #vmin = 0; vmax = 4
     #    #im = plt.imshow(np.sqrt(pvspread_mean[1]),cmap=plt.cm.hot_r,interpolation='nearest',origin='lower',vmin=vmin,vmax=vmax)
