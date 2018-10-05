@@ -29,6 +29,14 @@ scalefact = nc.f*nc.theta0/nc.g
 pv = nc['pv'][0]
 norder = 8
 N = pv.shape[-1]
+if N == 64:
+    diff_efold_ens=86400.  ; dt = 1200 #N64
+elif N == 128:
+    diff_efold_ens=86400./2.; dt = 600  #N128
+else:
+    print 'unknown resolution'
+    raise SystemExit
+diff_efold_det = diff_efold_ens
 modeld = SQG(pv,nsq=nc.nsq,f=nc.f,U=nc.U,H=nc.H,r=nc.r,tdiab=nc.tdiab,dt=dt,
              diff_order=norder,diff_efold=diff_efold_det,
              dealias=True,symmetric=bool(nc.symmetric),threads=threads,
@@ -47,16 +55,6 @@ forecast_timesteps = int(outputinterval/modeld.dt)
 modeld.timesteps = int(outputinterval/modeld.dt)
 scalefact = nc.f*nc.theta0/nc.g
 ntimes = len(nc.dimensions['t'])
-
-N = modeld.N
-if N == 64:
-    diff_efold_ens=86400.  ; dt = 1200 #N64
-elif N == 128:
-    diff_efold_ens=86400./2.; dt = 600  #N128
-else:
-    print 'unknown resolution'
-    raise SystemExit
-diff_efold_det = diff_efold_ens
 
 pverrsq_mean = np.zeros((fcsttimes,2,N,N),np.float)
 pverrsqd_mean = np.zeros((fcsttimes,2,N,N),np.float)

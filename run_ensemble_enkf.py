@@ -2,7 +2,6 @@ from netCDF4 import Dataset
 import numpy as np
 import sys, os
 from sqgturb import SQG, rfft2, irfft2
-from scipy.ndimage import gaussian_filter
 
 # get OMP_NUM_THREADS (threads to use) from environment.
 threads = int(os.getenv('OMP_NUM_THREADS','1'))
