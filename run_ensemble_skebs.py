@@ -12,7 +12,7 @@ if len(sys.argv) < 2:
     raise SystemExit
 
 filenamein = sys.argv[1] # upscaled truth
-stdev = float(sys.argv[2]) # amplitude of random pattern (O(10**5) for psinorm?)
+stdev = float(sys.argv[2]) # amplitude of random pattern (O(10) for psinorm?)
 
 nanals = 20
 
@@ -50,7 +50,7 @@ ntimes = len(nc.dimensions['t'])
 # define random pattern for randomized advection
 hcorr = 6.*nc.L/N
 tcorr = 10800.
-nsamples = 1
+nsamples = 2
 rp = RandomPattern(hcorr,tcorr,nc.L,N,dt,nsamples=nsamples,stdev=stdev)
 print '# random pattern hcorr,tcorr,stdev = ',rp.hcorr, rp.tcorr, rp.stdev
 print '# random pattern norm = ',rp.norm
@@ -78,7 +78,7 @@ for n in range(0,ntimes-fcstlenmax,nskip):
     for nanal in range(nanals):
         models.append(SQG(nc['pv'][n],nsq=nc.nsq,f=nc.f,U=nc.U,H=nc.H,r=nc.r,tdiab=nc.tdiab,dt=dt,
                     diff_order=norder,diff_efold=diff_efold_ens,
-                    random_pattern=rp.copy(seed=nanal*n),random_pattern_skebs=None,
+                    random_pattern=None,random_pattern_skebs=rp.copy(seed=nanal*n),
                     dealias=bool(nc.dealias),symmetric=bool(nc.symmetric),threads=threads,
                     precision='single'))
 
