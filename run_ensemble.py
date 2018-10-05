@@ -21,11 +21,6 @@ filename_inc = sys.argv[3] # analysis increments
 #stdev = 1.-np.exp(-1)
 stdev = None # no smoothing
 
-diff_efold_ens=86400.  ; dt = 1200 #N64
-#diff_efold_ens=86400./2.; dt = 600  #N128
-#diff_efold_ens=86400./2.; dt = 240  #N256
-
-diff_efold_det = diff_efold_ens
 nanals = 20
 
 nc = Dataset(filenamein)
@@ -61,6 +56,7 @@ elif N == 128:
 else:
     print 'unknown resolution'
     raise SystemExit
+diff_efold_det = diff_efold_ens
 
 pverrsq_mean = np.zeros((fcsttimes,2,N,N),np.float)
 pverrsqd_mean = np.zeros((fcsttimes,2,N,N),np.float)
