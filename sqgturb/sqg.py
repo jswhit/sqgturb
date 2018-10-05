@@ -1,8 +1,7 @@
+from __future__ import print_function
 import os
 import numpy as np
 from scipy.ndimage import gaussian_filter
-from netCDF4 import Dataset
-
 try: # pyfftw is *much* faster
     from pyfftw.interfaces import numpy_fft, cache
     #print('# using pyfftw...')
@@ -20,9 +19,8 @@ except ImportError: # fall back on numpy fft.
 class SQG:
 
     def __init__(self,pv,f=1.e-4,nsq=1.e-4,L=20.e6,H=10.e3,U=30.,\
-                 r=0.,tdiab=10.*86400,diff_order=8,diff_efold=None,\
-                 ai_amp=0,ai_filename=None,ai_skip=199,ai_length=80,\
-                 continuous_ai_forcing=True,\
+                 r=0.,tdiab=10.*86400,diff_order=8,diff_efold=None,random_pattern=None,
+                 random_pattern_skebs=None,
                  symmetric=True,dt=None,dealias=True,threads=1,precision='single'):
         # initialize SQG model.
         if pv.shape[0] != 2:
@@ -62,7 +60,6 @@ class SQG:
         self.r = np.array(r,dtype) # Ekman damping (at z=0)
         self.tdiab = np.array(tdiab,dtype) # thermal relaxation damping.
         self.t = 0 # initialize time counter
-        self.nt = 0
         # setup basic state pv (for thermal relaxation)
         self.symmetric = symmetric # symmetric jet, or jet with U=0 at sfc.
         y = np.arange(0,L,L/N,dtype=dtype)
@@ -127,40 +124,13 @@ class SQG:
         np.exp((-self.dt/self.diff_efold)*(ktot/ktotcutoff)**self.diff_order)
         # number of timesteps to advance each call to 'advance' method.
         self.timesteps = 1
-        # amplitude of random analysis increment forcing
-        self.ai_amp = ai_amp
-        # filename containing analysis increments
-        self.ai_filename = ai_filename
-        continuous_ai_forcing = False
-        if self.ai_filename is not None:
-            # constant forcing over ai_interval
-            if not continuous_ai_forcing:
-                self.idx = None
-                self.ai_nc = Dataset(ai_filename)
-                self.ai_skip = ai_skip
-                self.ai_interval = int((self.ai_nc['t'][1]-self.ai_nc['t'][0])/self.dt)
-                self.ai_max = len(self.ai_nc.dimensions['t'])
-                self.ai_scalefact =\
-                self.ai_amp/(self.ai_nc.f*self.ai_nc.theta0/self.ai_nc.g)
-                idx = np.random.randint(low=self.ai_skip,high=self.ai_max-1)
-                self.ai_1=self.ai_scalefact*(self.ai_nc['pv_a'][idx]-self.ai_nc['pv_b'][idx])
-                idx = np.random.randint(low=self.ai_skip,high=self.ai_max-1)
-                self.ai_2=self.ai_scalefact*(self.ai_nc['pv_a'][idx]-self.ai_nc['pv_b'][idx])
-                #print 'ai_1,ai_2',self.ai_1.min(),self.ai_1.max(),\
-                #      self.ai_2.min(),self.ai_2.max()
-            else:
-            # continuous increment forcing, interpolation to model time step
-                self.ai_nc = Dataset(ai_filename)
-                self.ai_skip = ai_skip
-                self.ai_interval = int((self.ai_nc['t'][1]-self.ai_nc['t'][0])/self.dt)
-                self.ai_max = len(self.ai_nc.dimensions['t'])-ai_length
-                self.ai_scalefact =\
-                self.ai_amp/(self.ai_nc.f*self.ai_nc.theta0/self.ai_nc.g)
-                self.idx = np.random.randint(low=self.ai_skip,high=self.ai_max-2)
-                self.ai_1=self.ai_scalefact*(self.ai_nc['pv_a'][self.idx]-self.ai_nc['pv_b'][self.idx])
-                self.ai_2=self.ai_scalefact*(self.ai_nc['pv_a'][self.idx+1]-self.ai_nc['pv_b'][self.idx+1])
-                #print 'ai_1,ai_2',self.ai_1.min(),self.ai_1.max(),\
-                #      self.ai_2.min(),self.ai_2.max()
+        # random pattern class for stochastic transport
+        # (default None, no stochastic transport)
+        self.random_pattern = random_pattern
+        # random pattern class for stochastic backscatter additive noise
+        # (default None, no stochastic backsatter)
+        self.random_pattern_skebs = random_pattern_skebs
+        self.pvdiss = None
 
     def invert(self,pvspec=None):
         if pvspec is None: pvspec = self.pvspec
@@ -231,11 +201,81 @@ class SQG:
         # nonlinear jacobian and thermal relaxation
         v,u = self.xyderiv(psispec); u = -u
         pvx,pvy = self.xyderiv(pvspec)
+        # compute stochastic forcings
+        # (held constant over RK4 time step)
+        if self.random_pattern is not None and self.rkstep == 0:
+            # compute perturbation u,v for randomized advection.
+            # assume random winds constant over RK4 step
+            rp_norm = self.random_pattern.norm
+            #print(rp_norm,self.random_pattern.pattern.min(),self.random_pattern.pattern.max())
+            if rp_norm == 'pv':
+                # random pattern represents pv (theta)
+                psispec_pert = self.invert(rfft2(self.random_pattern.pattern,threads=self.threads))
+                #psi = irfft2(psispec_pert); psi = psi-psi.mean(); print(psi.min(),psi.max())
+            elif rp_norm == 'psi':
+                # random pattern represents psi (streamfunction).
+                psispec_pert = rfft2(self.random_pattern.pattern,threads=self.threads)
+            else:
+                msg="unrecognized 'norm' attribute for RandomPattern instance"
+                raise ValueError(msg)
+            self.vpert, self.upert = self.xyderiv(psispec_pert); self.upert = -self.upert
+            ke = 0.5*(self.upert**2+self.vpert**2).mean()
+            #print('ke',np.sqrt(ke),self.upert.min(),self.upert.max(),self.vpert.min(),\
+            #        self.vpert.max())
+            self.diffcoeff = ke/self.dt
+            self.random_pattern.evolve()
+            #import matplotlib.pyplot as plt
+            #plt.imshow(self.vpert[1],plt.cm.bwr,interpolation='nearest',origin='lower',vmin=-10,vmax=10)
+            #plt.colorbar()
+            #plt.show()
+            #raise SystemExit
+        if self.random_pattern_skebs is not None and self.rkstep == 0:
+            # compute pv forcing for SKEBS (random additive noise,
+            # dissipation rate assumed constant over domain)
+            # assume stochastic forcing constant over RK4 step
+            rp_norm = self.random_pattern_skebs.norm
+            rpattern = self.random_pattern_skebs.pattern
+            for k in range(2): # ensure area mean is zero for each level
+                rpattern[k] = rpattern[k] - rpattern[k].mean()
+            if rp_norm == 'pv':
+                # random pattern represents pv (theta)
+                self.pvspec_pert = rfft2(rpattern,threads=self.threads)
+            elif rp_norm == 'psi':
+                # random patter represents psi (streamfunction).
+                self.pvspec_pert = self.invert_inverse(rfft2(rpattern,threads=self.threads))
+            else:
+                msg="unrecognized 'norm' attribute for RandomPattern instance"
+                raise ValueError(msg)
+            self.random_pattern_skebs.evolve()
+        if self.random_pattern is not None:  # add random velocity to determinstic velocity
+            u += self.upert
+            v += self.vpert
         advection = u*pvx + v*pvy
         jacobianspec = rfft2(advection,threads=self.threads)
         if self.dealias: # 2/3 rule: truncate spectral coefficients of jacobian
             jacobianspec = self.spectrunc(jacobianspec)
         dpvspecdt = (1./self.tdiab)*(self.pvspec_eq-pvspec)-jacobianspec
+        # additive noise (skebs) contribution
+        if self.random_pattern_skebs is not None:
+            if self.pvdiss is not None:
+                pvpert = irfft2(self.pvspec_pert)
+                #ke = (pvpert**2).mean()
+                #print('ke',np.sqrt(ke), pvpert.min(), pvpert.max(),\
+                #        self.pvdiss.min(), self.pvdiss.max())
+                pvpert *= self.pvdiss
+                dpvspecdt += rfft2(pvpert)
+                #import matplotlib.pyplot as plt
+                #print(pvpert.min(), pvpert.max())
+                #minmax = max(np.abs(pvpert.min()),np.abs(pvpert.max()))
+                #plt.imshow(pvpert[1],plt.cm.bwr,interpolation='nearest',origin='lower',vmin=-minmax,vmax=minmax)
+                #plt.colorbar()
+                #plt.show()
+                #raise SystemExit
+            else:
+                dpvspecdt += self.pvspec_pert
+        # diffusion for random advection (not really needed?)
+        if self.random_pattern is not None:
+            dpvspecdt += -self.ksqlsq*self.diffcoeff*pvspec
         # Ekman damping at boundaries.
         if self.ekman:
             dpvspecdt[0] += self.r*self.ksqlsq*psispec[0]
@@ -244,35 +284,6 @@ class SQG:
                 dpvspecdt[1] -= self.r*self.ksqlsq*psispec[1]
         # save wind field
         self.u = u; self.v = v
-        # additive forcing from analysis increments.
-        if self.ai_amp > 0.0 and self.ai_filename:
-            # forcing changes discontinously every ai_interval
-            if self.idx is None:
-                if self.rkstep == 0:
-                   rem = self.nt % self.ai_interval
-                   if self.nt > 0 and rem == 0:
-                      idx = np.random.randint(low=self.ai_skip,high=self.ai_max-1)
-                      self.ai_1 = self.ai_2
-                      self.ai_2=self.ai_scalefact*(self.ai_nc['pv_a'][idx]-self.ai_nc['pv_b'][idx])
-                      #print 'ai_1,ai_2',self.ai_1.min(),self.ai_1.max(),\
-                      #      self.ai_2.min(),self.ai_2.max()
-                   wt = float(rem)/float(self.ai_interval)
-                   #print 'rem,wt = ',rem,wt
-                   # forcing is linearly interpolated between two increments.
-                   #self.ai_forcing = (1.-wt)*self.ai_1 + wt*self.ai_2
-                   # constant forcing over interval
-                   self.ai_forcing = self.ai_1
-            else:
-            # continuous time series of ai forcing
-                if self.rkstep == 0:
-                   rem = self.nt % self.ai_interval
-                   if self.nt > 0 and rem == 0:
-                       self.idx += 1
-                       self.ai_1 = self.ai_2
-                       self.ai_2=self.ai_scalefact*(self.ai_nc['pv_a'][self.idx+1]-self.ai_nc['pv_b'][self.idx+1])
-                   wt = float(rem)/float(self.ai_interval)
-                   self.ai_forcing = (1.-wt)*self.ai_1 + wt*self.ai_2
-            dpvspecdt += rfft2(self.ai_forcing/(self.dt*self.ai_interval))
         return dpvspecdt
 
     def timestep(self):
@@ -288,5 +299,24 @@ class SQG:
         k4 = self.dt*self.gettend(self.pvspec + k3)
         pvspecnew = self.pvspec + (k1+2.*k2+2.*k3+k4)/6.
         self.pvspec = self.hyperdiff*pvspecnew
+        if self.random_pattern_skebs is not None:
+            pvdamptend = irfft2((1.-self.hyperdiff)*pvspecnew/self.dt)
+            pv = irfft2(pvspecnew)
+            pvdamping = pv*pvdamptend
+            # smooth dissipation estimate
+            # use same scale of random pattern for smoothing.
+            filter_stdev = self.random_pattern_skebs.filter_stdev[0]
+            for k in range(2):
+                pvdamping[k] = gaussian_filter(pvdamping[k],
+                            filter_stdev,output=None,
+                            order=0,mode='wrap', cval=0.0, truncate=6)
+                pvdamping[k] = pvdamping[k]*(filter_stdev*2.*np.sqrt(np.pi))
+            self.pvdiss = np.sqrt(np.clip(pvdamping,0,1.e30))
+            #import matplotlib.pyplot as plt
+            #print(self.pvdiss.min(), self.pvdiss.max())
+            #pv = irfft2(self.pvspec)
+            #plt.imshow(self.pvdiss[1],plt.cm.bwr,interpolation='nearest',origin='lower',vmin=-self.pvdiss.max(),vmax=self.pvdiss.max())
+            #plt.colorbar()
+            #plt.show()
+            #raise SystemExit
         self.t += self.dt # increment time
-        self.nt += 1
