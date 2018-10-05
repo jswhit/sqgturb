@@ -50,7 +50,7 @@ ntimes = len(nc.dimensions['t'])
 # define random pattern for randomized advection
 hcorr = 6.*nc.L/N
 tcorr = 10800.
-nsamples = 1
+nsamples = 2
 rp = RandomPattern(hcorr,tcorr,nc.L,N,dt,nsamples=nsamples,stdev=stdev)
 print '# random pattern hcorr,tcorr,stdev = ',rp.hcorr, rp.tcorr, rp.stdev
 print '# random pattern norm = ',rp.norm
