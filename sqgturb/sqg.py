@@ -248,9 +248,11 @@ class SQG:
                 raise ValueError(msg)
             self.random_pattern_skebs.evolve()
         if self.random_pattern is not None:  # add random velocity to determinstic velocity
-            u += self.upert
-            v += self.vpert
-        advection = u*pvx + v*pvy
+            utmp = u+self.upert
+            vtmp = v+self.vpert
+        else:
+            utmp = u; vtmp = v
+        advection = utmp*pvx + vtmp*pvy
         jacobianspec = rfft2(advection,threads=self.threads)
         if self.dealias: # 2/3 rule: truncate spectral coefficients of jacobian
             jacobianspec = self.spectrunc(jacobianspec)

@@ -94,9 +94,8 @@ class RandomPattern:
         if dt is None: dt = self.dt
         newpattern = self.genpattern()
         # blend new pattern with old pattern.
-        for npattern in range(self.npatterns):
-            lag1corr = np.exp(-1.0)**(dt/self.tcorr[npattern])
-            self.pattern[npattern] = np.sqrt(1.-lag1corr**2)*newpattern[npattern] + lag1corr*self.pattern[npattern]
+        lag1corr = np.exp(-1.0)**(dt/self.tcorr[0])
+        self.pattern = np.sqrt(1.-lag1corr**2)*newpattern + lag1corr*self.pattern
 
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
