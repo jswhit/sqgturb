@@ -3,7 +3,7 @@ from sqgturb import SQG, rfft2, irfft2
 import numpy as np
 from netCDF4 import Dataset
 import sys, time, os
-from sqgturb.enkf_utils import  cartdist,enkf_update,gaspcohn
+from sqgturb import cartdist,enkf_update,gaspcohn
 
 # EnKF cycling for SQG turbulence model model with boundary temp obs,
 # horizontal and vertical localization.  Relaxation to prior spread
