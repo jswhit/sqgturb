@@ -89,7 +89,7 @@ class SQG:
         self.pvspec_eq = rfft2(pvbar) # state to relax to with timescale tdiab
         self.pvspec = rfft2(pv) # initial pv field (spectral)
         # spectral stuff
-        k = (N*np.fft.fftfreq(N))[0:(N/2)+1]
+        k = (N*np.fft.fftfreq(N))[0:(N//2)+1]
         l = N*np.fft.fftfreq(N)
         k,l = np.meshgrid(k,l)
         k = k.astype(dtype); l = l.astype(dtype)
@@ -100,8 +100,8 @@ class SQG:
         self.ik = (1.j*k).astype(np.complex64)
         self.il = (1.j*l).astype(np.complex64)
         if dealias: # arrays needed for dealiasing nonlinear Jacobian
-            k_pad = ((3*N/2)*np.fft.fftfreq(3*N/2))[0:(3*N/4)+1]
-            l_pad = (3*N/2)*np.fft.fftfreq(3*N/2)
+            k_pad = ((3*N//2)*np.fft.fftfreq(3*N//2))[0:(3*N//4)+1]
+            l_pad = (3*N//2)*np.fft.fftfreq(3*N//2)
             k_pad,l_pad = np.meshgrid(k_pad,l_pad)
             k_pad = k_pad.astype(dtype); l_pad = l_pad.astype(dtype)
             k_pad = 2.*pi*k_pad/self.L; l_pad = 2.*pi*l_pad/self.L
@@ -127,7 +127,7 @@ class SQG:
     def invert(self,pvspec=None):
         if pvspec is None: pvspec = self.pvspec
         # invert boundary pv to get streamfunction
-        psispec = np.empty((2,self.N,self.N/2+1),dtype=pvspec.dtype)
+        psispec = np.empty((2,self.N,self.N//2+1),dtype=pvspec.dtype)
         psispec[0] = self.Hovermu*((pvspec[1]/self.sinhmu) -\
                                    (pvspec[0]/self.tanhmu))
         psispec[1] = self.Hovermu*((pvspec[1]/self.tanhmu) -\
@@ -137,7 +137,7 @@ class SQG:
     def invert_inverse(self,psispec=None):
         if psispec is None: psispec = self.invert(self.pvspec)
         # given streamfunction, return PV
-        pvspec = np.empty((2,self.N,self.N/2+1),dtype=psispec.dtype)
+        pvspec = np.empty((2,self.N,self.N//2+1),dtype=psispec.dtype)
         alpha = self.Hovermu; th = self.tanhmu; sh = self.sinhmu
         tmp1 = 1./sh**2 - 1./th**2; tmp1[0,0]=1.
         pvspec[0] = ((psispec[0]/th)-(psispec[1]/sh))/(alpha*tmp1)
@@ -159,19 +159,19 @@ class SQG:
         # pad spectral arrays with zeros to get
         # interpolation to 3/2 larger grid using inverse fft.
         # take care of normalization factor for inverse transform.
-        specarr_pad = np.zeros((2, 3*self.N/2, 3*self.N/4+1), specarr.dtype)
-        specarr_pad[:,0:self.N/2,0:self.N/2] = 2.25*specarr[:,0:self.N/2,0:self.N/2]
-        specarr_pad[:,-self.N/2:,0:self.N/2] = 2.25*specarr[:,-self.N/2:,0:self.N/2]
+        specarr_pad = np.zeros((2, 3*self.N//2, 3*self.N//4+1), specarr.dtype)
+        specarr_pad[:,0:self.N//2,0:self.N//2] = 2.25*specarr[:,0:self.N//2,0:self.N//2]
+        specarr_pad[:,-self.N//2:,0:self.N//2] = 2.25*specarr[:,-self.N//2:,0:self.N//2]
         # include negative Nyquist frequency.
-        specarr_pad[:,0:self.N/2,self.N/2]=np.conjugate(2.25*specarr[:,0:self.N/2,-1])
-        specarr_pad[:,-self.N/2:,self.N/2]=np.conjugate(2.25*specarr[:,-self.N/2:,-1])
+        specarr_pad[:,0:self.N//2,self.N//2]=np.conjugate(2.25*specarr[:,0:self.N//2,-1])
+        specarr_pad[:,-self.N//2:,self.N//2]=np.conjugate(2.25*specarr[:,-self.N//2:,-1])
         return specarr_pad
 
     def spectrunc(self, specarr):
         # truncate spectral array using 2/3 rule.
-        specarr_trunc = np.zeros((2, self.N, self.N/2+1), specarr.dtype)
-        specarr_trunc[:,0:self.N/2,0:self.N/2] = specarr[:,0:self.N/2,0:self.N/2]
-        specarr_trunc[:,-self.N/2:,0:self.N/2] = specarr[:,-self.N/2:,0:self.N/2]
+        specarr_trunc = np.zeros((2, self.N, self.N//2+1), specarr.dtype)
+        specarr_trunc[:,0:self.N//2,0:self.N//2] = specarr[:,0:self.N//2,0:self.N//2]
+        specarr_trunc[:,-self.N//2:,0:self.N//2] = specarr[:,-self.N//2:,0:self.N//2]
         return specarr_trunc
 
     def xyderiv(self, specarr):

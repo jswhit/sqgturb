@@ -1,3 +1,5 @@
+import matplotlib
+matplotlib.use('qt4agg')
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from netCDF4 import Dataset
@@ -30,7 +32,7 @@ def updatefig(*args):
     t = t_var[nout]
     pv = scalefact*pv_var[nout]
     hr = t/3600.
-    print hr,pv.min(),pv.max()
+    print(hr,pv.min(),pv.max())
     im.set_data(pv[levplot])
     nout += 1
     return im,

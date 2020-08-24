@@ -1,3 +1,5 @@
+import matplotlib
+matplotlib.use('qt4agg')
 from sqgturb import SQG, rfft2, irfft2
 import numpy as np
 import matplotlib.pyplot as plt
@@ -134,10 +136,10 @@ if plot:
         pv = irfft2(model.pvspec)
         hr = t/3600.
         spd = np.sqrt(model.u[levplot]**2+model.v[levplot]**2)
-        print hr,spd.max(),scalefact*pv.min(),scalefact*pv.max()
+        print(hr,spd.max(),scalefact*pv.min(),scalefact*pv.max())
         im.set_data(scalefact*pv[levplot])
         if savedata is not None and t >= tmin:
-            print 'saving data at t = t = %g hours' % hr
+            print('saving data at t = t = %g hours' % hr)
             pvvar[nout,:,:,:] = pv
             tvar[nout] = t
             nc.sync()
@@ -157,9 +159,9 @@ else:
         pv = irfft2(model.pvspec)
         hr = t/3600.
         spd = np.sqrt(model.u[levplot]**2+model.v[levplot]**2)
-        print hr,spd.max(),scalefact*pv.min(),scalefact*pv.max()
+        print(hr,spd.max(),scalefact*pv.min(),scalefact*pv.max())
         if savedata is not None and t >= tmin:
-            print 'saving data at t = t = %g hours' % hr
+            print('saving data at t = t = %g hours' % hr)
             pvvar[nout,:,:,:] = pv
             tvar[nout] = t
             nc.sync()
