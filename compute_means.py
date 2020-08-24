@@ -15,5 +15,5 @@ else:
 data_mean = data2.mean(axis=0)
 data_mean[0] = data2.shape[0]
 print_list = ''.join(['%g ' % x for x in data_mean])
-print print_list
+print(print_list)
 
