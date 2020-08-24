@@ -1,7 +1,6 @@
 from __future__ import print_function
 import os
 import numpy as np
-from scipy.ndimage import gaussian_filter
 try: # pyfftw is *much* faster
     from pyfftw.interfaces import numpy_fft, cache
     #print('# using pyfftw...')
