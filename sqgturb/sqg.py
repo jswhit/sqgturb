@@ -1,5 +1,4 @@
 from __future__ import print_function
-import os
 import numpy as np
 try: # pyfftw is *much* faster
     from pyfftw.interfaces import numpy_fft, cache
