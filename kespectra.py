@@ -47,7 +47,8 @@ nc.close()
 
 import matplotlib.pyplot as plt
 import numpy as np
-plt.loglog(wavenums,kespec,color='b')
+plt.loglog(wavenums[1:],kespec[1:],color='b')
 #plt.loglog(wavenums,idealke1,color='k')
 plt.loglog(wavenums,idealke2,color='r')
+plt.savefig('kespectrum.png')
 plt.show()
