@@ -1,49 +1,33 @@
 from __future__ import print_function
 from sqgturb import SQG, rfft2, irfft2
 import numpy as np
+from scipy import linalg
 from netCDF4 import Dataset
-import sys, time, os
-from sqgturb import cartdist,enkf_update,gaspcohn
+import sys, time
+from enkf_utils import  cartdist,enkf_update,enkf_update_modens,gaspcohn
+from scipy.ndimage.filters import uniform_filter, gaussian_filter
 
-# EnKF cycling for SQG turbulence model model with boundary temp obs,
-# horizontal and vertical localization.  Relaxation to prior spread
-# inflation, or Hodyss and Campbell inflation.
-# Random or fixed observing network (obs on either boundary or
-# both).
+# EnKF cycling for SQG turbulence model model with vertically
+# integrated temp obs (and horizontal filter in forward operator).
+# Random or fixed observing network.
+
+np.seterr(all='raise') # raise error when overflow occurs
 
 if len(sys.argv) == 1:
    msg="""
-python sqg_enkf.py hcovlocal_scale <covinflate1 covinflate2>
-   hcovlocal_scale = horizontal localization scale in km
-   vertical covariance length scale implied by scaling with Rossby radius.
-   covinflate1,covinflate2: inflation parameters (optional).
-   if only covinflate1 is specified, it is interpreted as the relaxation
-   factor for RTPS inflation.
-   if neither covinflate1 or covinflate2 specified
-   Hodyss et al inflation (http://journals.ametsoc.org/doi/abs/10.1175/MWR-D-15-0329.1)
-   with a=b=1 used.
-   if both covinflate1 and covinflate2 given, they correspond to a and b in the
-   Hodyss et al inflation (eqn 4.4).
+python sqg_enkf_meantemp_ml.py hcovlocal_scale covinflate1 covinflate2
    """
    raise SystemExit(msg)
 
-# horizontal covariance localization length scale in meters.
+# covariance localization length scale in meters.
 hcovlocal_scale = float(sys.argv[1])
-# vertical covariance localization factor
-# is related to horizontal scale by vcovlocal_fact = L_r/hcovlocal_scale
-# where here L_r is Rossby radius
-
-# optional inflation parameters:
-# (covinflate2 <= 0 for RTPS inflation
-# (http://journals.ametsoc.org/doi/10.1175/MWR-D-11-00276.1),
-# otherwise use Hodyss et al inflation
-# (http://journals.ametsoc.org/doi/abs/10.1175/MWR-D-15-0329.1)
-if len(sys.argv) > 2:
-    covinflate1 = float(sys.argv[2])
-    covinflate2 = -1
-else:
-    covinflate1 = 1.
-    covinflate2 = 1.
+modelspace_local = bool(int(sys.argv[2])) # model or ob space localization
+use_letkf = bool(int(sys.argv[3])) # (local) ETKF or serial assimilation
+covinflate1=1.; covinflate2=1.
+if len(sys.argv) > 4:
+    # inflation parameters for Hodyss and Campbell inflation
+    covinflate1 = float(sys.argv[4])
+    covinflate2 = float(sys.argv[5])
 
 diff_efold = None # use diffusion from climo file
 
@@ -52,70 +36,82 @@ savedata = None # if not None, netcdf filename to save data.
 
 profile = False # turn on profiling?
 
-use_letkf = False # use serial EnSRF
-
 # if nobs > 0, each ob time nobs ob locations are randomly sampled (without
 # replacement) from the model grid
 # if nobs < 0, fixed network of every Nth grid point used (N = -nobs)
-nobs = 1024 # number of obs to assimilate (randomly distributed)
-#nobs = -1 # fixed network, every -nobs grid points. nobs=-1 obs at all pts.
-
-# if levob=0, sfc temp obs used.  if 1, lid temp obs used. If [0,1] obs at both
-# boundaries.
-levob = [0,1]; levob = list(levob); levob.sort()
-
-direct_insertion = False # only relevant for nobs=-1, levob=[0,1]
-if direct_insertion: print('# direct insertion!')
+nobs = 512 # number of obs to assimilate (randomly distributed)
+#nobs = -4 # fixed network, every -nobs grid points. nobs=-1 obs at all pts.
 
 nanals = 20 # ensemble members
 
 oberrstdev = 1.0 # ob error standard deviation in K
 
-nassim = 1600 # assimilation times to run
-nassim_spinup = 800
+nassim = 600 # assimilation times to run
 
-# nature run created using sqg_run.py.
-filename_climo = 'sqg_N64_3hrly.nc' # file name for forecast model climo
-# perfect model
-filename_truth = 'sqg_N64_3hrly.nc' # file name for nature run to draw obs
+# smoothing parameters for forward operator.
+use_gaussian_filter=True
+if use_gaussian_filter:
+    filter_width = 3
+else:
+    filter_width = 10
+
+filename_climo = '../examples/sqg_N64_3hrly.nc' # file name for forecast model climo
+filename_truth = '../examples/sqg_N64_3hrly.nc' # file name for nature run to draw obs
 
 print('# filename_modelclimo=%s' % filename_climo)
 print('# filename_truth=%s' % filename_truth)
+print('# oberr=%s' % oberrstdev)
 
 # fix random seed for reproducibility.
-np.random.seed(42)
+rsobs = np.random.RandomState(42) # fixed seed for observations
+rsics = np.random.RandomState() # varying seed for initial conditions
 
 # get model info
 nc_climo = Dataset(filename_climo)
 # parameter used to scale PV to temperature units.
 scalefact = nc_climo.f*nc_climo.theta0/nc_climo.g
 # initialize qg model instances for each ensemble member.
-x = nc_climo.variables['x'][:]
-y = nc_climo.variables['y'][:]
+models = []
+x1 = nc_climo.variables['x'][:]
+y1 = nc_climo.variables['y'][:]
+nx = len(x1); ny = len(y1)
 pv_climo = nc_climo.variables['pv']
-indxran = np.random.choice(pv_climo.shape[0],size=nanals,replace=False)
-x, y = np.meshgrid(x, y)
-nx = len(x); ny = len(y)
+indxran = rsics.choice(pv_climo.shape[0],size=nanals,replace=False)
+x, y = np.meshgrid(x1, y1)
 pvens = np.empty((nanals,2,ny,nx),np.float32)
 dt = nc_climo.dt
 if diff_efold == None: diff_efold=nc_climo.diff_efold
-# get OMP_NUM_THREADS (threads to use) from environment.
-threads = int(os.getenv('OMP_NUM_THREADS','1'))
-models = []
 for nanal in range(nanals):
     pvens[nanal] = pv_climo[indxran[nanal]]
     models.append(\
-    SQG(pvens[nanal],
+    SQG(pvens[nanal],\
     nsq=nc_climo.nsq,f=nc_climo.f,dt=dt,U=nc_climo.U,H=nc_climo.H,\
     r=nc_climo.r,tdiab=nc_climo.tdiab,symmetric=nc_climo.symmetric,\
-    diff_order=nc_climo.diff_order,diff_efold=diff_efold,threads=threads))
+    diff_order=nc_climo.diff_order,diff_efold=diff_efold))
+    #import matplotlib.pyplot as plt
+    #pvspec = rfft2(pvens[nanal])
+    #psispec = models[nanal].invert(pvspec=pvspec)
+    #pvavspec = (psispec[1]-psispec[0])/models[nanal].H
+    #pvav = scalefact*irfft2(pvavspec)
+    #filter_widthg = 3
+    #pvav2 = gaussian_filter(pvav, filter_widthg, mode='wrap')
+    #filter_widthu = 10
+    #pvav3 = uniform_filter(pvav, size=filter_widthu, mode='wrap')
+    #print(pvav.min(), pvav.max())
+    #vmin = -30; vmax = 30
+    #im = plt.imshow(pvav,interpolation='nearest',origin='lower',vmin=vmin,vmax=vmax)
+    #plt.title('unfiltered')
+    #plt.figure()
+    #im = plt.imshow(pvav2,interpolation='nearest',origin='lower',vmin=vmin,vmax=vmax)
+    #plt.title('gaussian filtered sigma=%s' % (filter_widthg))
+    #plt.figure()
+    #im = plt.imshow(pvav3,interpolation='nearest',origin='lower',vmin=vmin,vmax=vmax)
+    #plt.title('uniform filtered width=%s' % (filter_widthu))
+    #plt.show()
+    #raise SystemExit
 
-# vertical localization scale
-Lr = np.sqrt(models[0].nsq)*models[0].H/models[0].f
-vcovlocal_fact = gaspcohn(np.array(Lr/hcovlocal_scale))
-
-print("# hcovlocal=%g vcovlocal=%s diff_efold=%s levob=%s covinf1=%s covinf2=%s nanals=%s" %\
-     (hcovlocal_scale/1000.,vcovlocal_fact,diff_efold,levob,covinflate1,covinflate2,nanals))
+print("# hcovlocal=%g diff_efold=%s covinf1=%s covinf2=%s nanals=%s use_letkf=%s" %\
+     (hcovlocal_scale/1000.,diff_efold,covinflate1,covinflate2,nanals,use_letkf))
 
 # nature run
 nc_truth = Dataset(filename_truth)
@@ -126,30 +122,86 @@ if nobs < 0:
     if nx%nobs != 0:
         raise ValueError('nx must be divisible by nobs')
     nobs = (nx/nobs)**2
-    print('# nobs = %s' % nobs)
+    print('# nobs=%s (fixed ob network), modelspace_local=%s' % (nobs,modelspace_local))
     fixed = True
 else:
+    print('# nobs=%s (random obs network), modelspace_local=%s' % (nobs,modelspace_local))
     fixed = False
-oberrvar = oberrstdev**2*np.ones(nobs,np.float)
-pvob = np.empty((len(levob),nobs),np.float)
-covlocal = np.empty((ny,nx),np.float)
-covlocal_tmp = np.empty((nobs,nx*ny),np.float)
-xens = np.empty((nanals,2,nx*ny),np.float)
-if not use_letkf:
-    obcovlocal = np.empty((nobs,nobs),np.float)
+if use_gaussian_filter:
+    print('# forward operator gaussian filter with stdev %s' % filter_width)
 else:
-    obcovlocal = None
+    print('# forward operator %s x %s block mean' %(filter_width,filter_width))
+pvob = np.empty(nobs,np.float)
+covlocal = np.empty((nx*ny,nx*ny),np.float)
+xens = np.empty((nanals,2*nx*ny),np.float)
 obtimes = nc_truth.variables['t'][:]
 assim_interval = obtimes[1]-obtimes[0]
 assim_timesteps = int(np.round(assim_interval/models[0].dt))
-print('# ntime,pverr_a,pvsprd_a,pverr_b,pvsprd_b,obinc_b,osprd_b,obinc_a,obsprd_a,omaomb/oberr,obbias_b,inflation')
+
+if modelspace_local:
+    thresh = 0.95
+    nn = 0
+    for i in range(nx):
+        for j in range(ny):
+            dist = cartdist(x1[i],y1[j],x,y,nc_climo.L,nc_climo.L)
+            covloc2d = gaspcohn(dist/hcovlocal_scale)
+            covlocal[nn] = covloc2d.ravel()
+            #if nn == nx*ny/2+nx/2:
+            #    import matplotlib.pyplot as plt
+            #    plt.contourf(np.arange(nx),np.arange(ny),covloc2d,15)
+            #    plt.colorbar()
+            #    plt.show()
+            #    raise SystemExit
+            nn += 1
+    evals, eigs = linalg.eigh(covlocal)
+    evals = np.where(evals > 1.e-10, evals, 1.e-10)
+    evalsum = evals.sum(); neig = 0; frac = 0.0
+    while frac < thresh:
+        frac = evals[nx*ny-neig-1:nx*ny].sum()/evalsum
+        #print(neig,frac,evals[nx*ny-neig-1])
+        neig += 1
+    zz = (eigs*np.sqrt(evals/frac)).T
+    zz = np.tile(zz,(1,2))
+    z = zz[nx*ny-neig:nx*ny,:]
+    print('# model space localization: neig = %s, variance expl = %5.2f%%' %
+            (neig,100*frac))
 
 # initialize model clock
 for nanal in range(nanals):
     models[nanal].t = obtimes[0]
     models[nanal].timesteps = assim_timesteps
 
-# initialize output file.
+# for fixed ob network, initialize indxob,xob,yob
+if fixed:
+    mask = np.zeros((ny,nx),np.bool)
+    nskip = int(nx/np.sqrt(nobs))
+    mask[0:ny:nskip,0:nx:nskip] = True
+    tmp = np.arange(0,nx*ny).reshape(ny,nx)
+    indxob = tmp[mask.nonzero()].ravel()
+    xob = x.ravel()[indxob]
+    yob = y.ravel()[indxob]
+
+# forward operator object
+# (vertically integrated theta obs).
+class Hop(object):
+    def __init__(self,**kwargs):
+        for k in kwargs:
+            self.__dict__[k] = kwargs[k]
+    def calc(self,pv,indxob):
+        pvspec = rfft2(pv)
+        psispec = self.model.invert(pvspec=pvspec)
+        pvavspec = (psispec[1]-psispec[0])/self.model.H
+        pvav = irfft2(pvavspec)
+        if self.filter_width > 0:
+            if self.use_gaussian_filter:
+                pvav = gaussian_filter(pvav, self.filter_width, mode='wrap')
+            else:
+                pvav = uniform_filter(pvav, size=self.filter_width, mode='wrap')
+        return self.scalefact*pvav.ravel()[indxob]
+fwdop = Hop(model=models[0],scalefact=scalefact,filter_width=filter_width,\
+            use_gaussian_filter=use_gaussian_filter)
+
+# initialize netcdf output file
 if savedata is not None:
    nc = Dataset(savedata, mode='w', format='NETCDF4_CLASSIC')
    nc.r = models[0].r
@@ -159,9 +211,7 @@ if savedata is not None:
    nc.H = models[0].H
    nc.nanals = nanals
    nc.hcovlocal_scale = hcovlocal_scale
-   nc.vcovlocal_fact = vcovlocal_fact
    nc.oberrstdev = oberrstdev
-   nc.levob = levob
    nc.g = nc_climo.g; nc.theta0 = nc_climo.theta0
    nc.nsq = models[0].nsq
    nc.tdiab = models[0].tdiab
@@ -205,13 +255,9 @@ if savedata is not None:
    zvar[0] = 0; zvar[1] = models[0].H
    ensvar[:] = np.arange(1,nanals+1)
 
-# initialize kinetic energy error/spread spectra
-kespec_errmean = None; kespec_sprdmean = None
-
-ncount = 0
-nanals2 = 4 # ensemble members used for kespec spread
-
 for ntime in range(nassim):
+
+    oberrvar = oberrstdev**2*np.ones(nobs,np.float)
 
     # check model clock
     if models[0].t != obtimes[ntime]:
@@ -221,24 +267,14 @@ for ntime in range(nassim):
     t1 = time.time()
     if not fixed:
         p = np.ones((ny,nx),np.float)/(nx*ny)
-        indxob = np.random.choice(nx*ny,nobs,replace=False,p=p.ravel())
-    else:
-        mask = np.zeros((ny,nx),np.bool)
-        nskip = int(nx/np.sqrt(nobs))
-        # if every other grid point observed, shift every other time step
-        # so every grid point is observed in 2 cycle.
-        if nskip == 2 and ntime%2:
-            mask[1:ny:nskip,1:nx:nskip] = True
-        else:
-            mask[0:ny:nskip,0:nx:nskip] = True
-        tmp = np.arange(0,nx*ny).reshape(ny,nx)
-        indxob = tmp[mask.nonzero()].ravel()
-    for k in range(len(levob)):
-        # surface temp obs
-        pvob[k] = scalefact*pv_truth[ntime,k,:,:].ravel()[indxob]
-        pvob[k] += np.random.normal(scale=oberrstdev,size=nobs) # add ob errors
-    xob = x.ravel()[indxob]
-    yob = y.ravel()[indxob]
+        #psave = p.copy()
+        #p[ny/4:3*ny/4,nx/4:3*nx/4] = 4.*psave[ny/4:3*ny/4,nx/4:3*nx/4]
+        #p = p - p.sum()/(nx*ny) + 1./(nx*ny)
+        indxob = rsobs.choice(nx*ny,nobs,replace=False,p=p.ravel())
+        xob = x.ravel()[indxob]; yob = y.ravel()[indxob]
+    # vertically integrated theta obs.
+    pvob = fwdop.calc(pv_truth[ntime],indxob)
+    pvob += rsobs.normal(scale=oberrstdev,size=nobs) # add ob errors
     # plot ob network
     #import matplotlib.pyplot as plt
     #plt.contourf(x,y,pv_truth[0,1,...],15)
@@ -246,29 +282,15 @@ for ntime in range(nassim):
     #plt.axis('off')
     #plt.show()
     #raise SystemExit
-    # compute covariance localization function for each ob
-    if not fixed or ntime == 0:
-        for nob in range(nobs):
-            dist = cartdist(xob[nob],yob[nob],x,y,nc_climo.L,nc_climo.L)
-            covlocal = gaspcohn(dist/hcovlocal_scale)
-            covlocal_tmp[nob] = covlocal.ravel()
-            dist = cartdist(xob[nob],yob[nob],xob,yob,nc_climo.L,nc_climo.L)
-            if not use_letkf: obcovlocal[nob] = gaspcohn(dist/hcovlocal_scale)
-            # plot covariance localization
-            #import matplotlib.pyplot as plt
-            #plt.contourf(x,y,covlocal,15)
-            #plt.show()
-            #raise SystemExit
 
     # first-guess spread (need later to compute inflation factor)
     fsprd = ((pvens - pvens.mean(axis=0))**2).sum(axis=0)/(nanals-1)
 
     # compute forward operator.
     # hxens is ensemble in observation space.
-    hxens = np.empty((nanals,len(levob),nobs),np.float)
+    hxens = np.empty((nanals,nobs),np.float)
     for nanal in range(nanals):
-        for k in range(len(levob)):
-            hxens[nanal,k,...] = scalefact*pvens[nanal,k,...].ravel()[indxob] # surface pv obs
+        hxens[nanal] = fwdop.calc(pvens[nanal],indxob)
     hxensmean_b = hxens.mean(axis=0)
     obsprd = ((hxens-hxensmean_b)**2).sum(axis=0)/(nanals-1)
     # innov stats for background
@@ -290,19 +312,24 @@ for ntime in range(nassim):
     # EnKF update
     # create 1d state vector.
     for nanal in range(nanals):
-        xens[nanal] = pvens[nanal].reshape((2,nx*ny))
+        xens[nanal] = np.ascontiguousarray(pvens[nanal].reshape((2*nx*ny)))
     # update state vector.
-    if direct_insertion and nobs == nx*ny and levob == [0,1]:
-        for nanal in range(nanals):
-            xens[nanal] =\
-            pv_truth[ntime].reshape(2,nx*ny) + \
-            np.random.normal(scale=oberrstdev,size=(2,nx*ny))/scalefact
-        xens = xens - xens.mean(axis=0) + \
-        pv_truth[ntime].reshape(2,nx*ny) + \
-        np.random.normal(scale=oberrstdev,size=(2,nx*ny))/scalefact
-    else:
+    if modelspace_local:
         xens =\
-        enkf_update(xens,hxens,pvob,oberrvar,covlocal_tmp,levob,vcovlocal_fact,obcovlocal=obcovlocal)
+        enkf_update_modens(xens,hxens,fwdop,indxob,pvob,oberrvar,z,letkf=use_letkf)
+    else:
+        if not fixed or ntime == 0:
+            covlocal = np.empty((nobs,nx*ny),np.float)
+            obcovlocal = None
+            if not use_letkf: obcovlocal = np.empty((nobs,nobs),np.float)
+            for nob in range(nobs):
+                dist = cartdist(xob[nob],yob[nob],x,y,nc_climo.L,nc_climo.L)
+                covlocal[nob] = gaspcohn(dist/hcovlocal_scale).ravel()
+                dist = cartdist(xob[nob],yob[nob],xob,yob,nc_climo.L,nc_climo.L)
+                if not use_letkf: obcovlocal[nob] = gaspcohn(dist/hcovlocal_scale)
+            covlocal = np.tile(covlocal,(1,2))
+        xens =\
+        enkf_update(xens,hxens,pvob,oberrvar,covlocal,obcovlocal=obcovlocal)
     # back to 3d state vector
     for nanal in range(nanals):
         pvens[nanal] = xens[nanal].reshape((2,ny,nx))
@@ -311,8 +338,7 @@ for ntime in range(nassim):
 
     # forward operator on posterior ensemble.
     for nanal in range(nanals):
-        for k in range(len(levob)):
-            hxens[nanal,k,...] = scalefact*pvens[nanal,k,...].ravel()[indxob] # surface pv obs
+        hxens[nanal] = fwdop.calc(pvens[nanal],indxob)
 
     # ob space diagnostics
     hxensmean_a = hxens.mean(axis=0)
@@ -328,28 +354,26 @@ for ntime in range(nassim):
     pvensmean_a = pvens.mean(axis=0)
     pvprime = pvens-pvensmean_a
     asprd = (pvprime**2).sum(axis=0)/(nanals-1)
-    if covinflate2 < 0:
-        # relaxation to prior stdev (Whitaker & Hamill 2012)
-        asprd = np.sqrt(asprd); fsprd = np.sqrt(fsprd)
-        inflation_factor = 1.+covinflate1*(fsprd-asprd)/asprd
-    else:
-        # Hodyss et al 2016 inflation (covinflate1=covinflate2=1 works well in perfect
-        # model, linear gaussian scenario)
-        # inflation = asprd + (asprd/fsprd)**2((fsprd/nanals)+2*inc**2/(nanals-1))
+    if covinflate2 > 0:
+        # Hodyss and Campbell (covinflate1=covinflate2=1 works best in perfect
+        # model scenario)
         inc = pvensmean_a - pvensmean_b
         inflation_factor = covinflate1*asprd + \
         (asprd/fsprd)**2*((fsprd/nanals) + covinflate2*(2.*inc**2/(nanals-1)))
         inflation_factor = np.sqrt(inflation_factor/asprd)
+    else: # RTPS inflation
+        asprd = np.sqrt(asprd); fsprd = np.sqrt(fsprd)
+        inflation_factor = 1.+covinflate1*(fsprd-asprd)/asprd
     pvprime = pvprime*inflation_factor
     pvens = pvprime + pvensmean_a
 
     # print out analysis error, spread and innov stats for background
     pverr_a = (scalefact*(pvensmean_a-pv_truth[ntime]))**2
     pvsprd_a = ((scalefact*(pvensmean_a-pvens))**2).sum(axis=0)/(nanals-1)
-    print("%s %g %g %g %g %g %g %g %g %g %g %g" %\
+    print("%s %g %g %g %g %g %g %g %g %g %g" %\
     (ntime,np.sqrt(pverr_a.mean()),np.sqrt(pvsprd_a.mean()),\
      np.sqrt(pverr_b.mean()),np.sqrt(pvsprd_b.mean()),\
-     obinc_b,obsprd_b,obinc_a,obsprd_a,omaomb/oberrvar.mean(),obbias_b,inflation_factor.mean()))
+     obinc_b,obsprd_b,obinc_a,obsprd_a,omaomb/oberrvar.mean(),obbias_b))
 
     # save data.
     if savedata is not None:
@@ -365,62 +389,4 @@ for ntime in range(nassim):
     t2 = time.time()
     if profile: print('cpu time for ens forecast',t2-t1)
 
-    # compute spectra of error and spread
-    if ntime >= nassim_spinup:
-        pvfcstmean = pvens.mean(axis=0)
-        pverrspec = scalefact*rfft2(pvfcstmean - pv_truth[ntime+1])
-        psispec = models[0].invert(pverrspec)
-        psispec = psispec/(models[0].N*np.sqrt(2.))
-        kespec = (models[0].ksqlsq*(psispec*np.conjugate(psispec))).real
-        if kespec_errmean is None:
-            kespec_errmean =\
-            (models[0].ksqlsq*(psispec*np.conjugate(psispec))).real
-        else:
-            kespec_errmean = kespec_errmean + kespec
-        for nanal in range(nanals2):
-            pvsprdspec = scalefact*rfft2(pvens[nanal] - pvfcstmean)
-            psispec = models[0].invert(pvsprdspec)
-            psispec = psispec/(models[0].N*np.sqrt(2.))
-            kespec = (models[0].ksqlsq*(psispec*np.conjugate(psispec))).real
-            if kespec_sprdmean is None:
-                kespec_sprdmean =\
-                (models[0].ksqlsq*(psispec*np.conjugate(psispec))).real/nanals2
-            else:
-                kespec_sprdmean = kespec_sprdmean+kespec/nanals2
-        ncount += 1
-
 if savedata: nc.close()
-
-kespec_sprdmean = kespec_sprdmean/ncount
-kespec_errmean = kespec_errmean/ncount
-
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-N = models[0].N
-k = np.abs((N*np.fft.fftfreq(N))[0:(N/2)+1])
-l = N*np.fft.fftfreq(N)
-k,l = np.meshgrid(k,l)
-ktot = np.sqrt(k**2+l**2)
-ktotmax = (N/2)+1
-kespec_err = np.zeros(ktotmax,np.float)
-kespec_sprd = np.zeros(ktotmax,np.float)
-for i in range(kespec_errmean.shape[2]):
-    for j in range(kespec_errmean.shape[1]):
-        totwavenum = ktot[j,i]
-        if int(totwavenum) < ktotmax:
-            kespec_err[int(totwavenum)] = kespec_err[int(totwavenum)] +\
-            kespec_errmean[:,j,i].mean(axis=0)
-            kespec_sprd[int(totwavenum)] = kespec_sprd[int(totwavenum)] +\
-            kespec_sprdmean[:,j,i].mean(axis=0)
-
-print('# mean error/spread',kespec_errmean.sum(), kespec_sprdmean.sum())
-plt.figure()
-wavenums = np.arange(ktotmax,dtype=np.float)
-for n in range(1,ktotmax):
-    print('# ',wavenums[n],kespec_err[n],kespec_sprd[n])
-plt.loglog(wavenums[1:-1],kespec_err[1:-1],color='r')
-plt.loglog(wavenums[1:-1],kespec_sprd[1:-1],color='b')
-plt.title('error (red) and spread (blue) spectra')
-exptname = os.getenv('exptname','test')
-plt.savefig('errorspread_spectra_%s.png' % exptname)
