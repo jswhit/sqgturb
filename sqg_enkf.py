@@ -3,6 +3,7 @@ from sqgturb import SQG, rfft2, irfft2
 import numpy as np
 from netCDF4 import Dataset
 import sys, time, os
+from scipy import linalg
 from sqgturb import cartdist,enkf_update,gaspcohn, bulk_ensrf
 
 # EnKF cycling for SQG turbulence model model with boundary temp obs,
@@ -139,13 +140,28 @@ if not use_letkf:
 else:
     obcovlocal = None
 
-n = 0
-covlocal_modelspace = np.empty((nx*ny,nx*ny),np.float)
-x1 = x.reshape(nx*ny); y1 = y.reshape(nx*ny)
-for n in range(nx*ny):
-    dist = cartdist(x1[n],y1[n],x1,y1,nc_climo.L,nc_climo.L)
-    covlocal_modelspace[n,:] = gaspcohn(dist/hcovlocal_scale)
+if global_enkf: # model-space localization matrix
+    n = 0
+    covlocal_modelspace = np.empty((nx*ny,nx*ny),np.float)
+    x1 = x.reshape(nx*ny); y1 = y.reshape(nx*ny)
+    for n in range(nx*ny):
+        dist = cartdist(x1[n],y1[n],x1,y1,nc_climo.L,nc_climo.L)
+        covlocal_modelspace[n,:] = gaspcohn(dist/hcovlocal_scale)
 
+# square root of localization (for modulated ensemble localization)
+#evals, eigs = linalg.eigh(covlocal_modelspace)
+#evals = np.where(evals > 1.e-10, evals, 1.e-10)
+#evalsum = evals.sum(); neig = 0; frac = 0.0
+#thresh = 0.9
+#while frac < thresh:
+#    frac = evals[nx*ny-neig-1:nx*ny].sum()/evalsum
+##    print(neig,evals[nx*ny-neig-1],frac)
+#    neig += 1
+#zz = (eigs*np.sqrt(evals/frac)).T
+#z = zz[nx*ny-neig:nx*ny,:]
+#print('# model space localization: neig = %s, variance expl = %5.2f%%' %
+#        (neig,100*frac))
+ 
 obtimes = nc_truth.variables['t'][:]
 assim_interval = obtimes[1]-obtimes[0]
 assim_timesteps = int(np.round(assim_interval/models[0].dt))
@@ -288,8 +304,7 @@ for ntime in range(nassim):
 
     # EnKF update
     # create 1d state vector.
-    for nanal in range(nanals):
-        xens[nanal] = pvens[nanal].reshape((2,nx*ny))
+    xens = pvens.reshape(nanals,2,nx*ny)
     # update state vector.
     if direct_insertion and nobs == nx*ny:
         for nanal in range(nanals):
@@ -306,8 +321,7 @@ for ntime in range(nassim):
             xens =\
             enkf_update(xens,hxens,pvob,oberrvar,covlocal_tmp,vcovlocal_fact,obcovlocal=obcovlocal)
     # back to 3d state vector
-    for nanal in range(nanals):
-        pvens[nanal] = xens[nanal].reshape((2,ny,nx))
+    pvens = xens.reshape((nanals,2,ny,nx))
     t2 = time.time()
     if profile: print('cpu time for EnKF update',t2-t1)
 
