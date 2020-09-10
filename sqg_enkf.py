@@ -1,10 +1,9 @@
 from __future__ import print_function
-from sqgturb import SQG, rfft2, irfft2
 import numpy as np
 from netCDF4 import Dataset
 import sys, time, os
+from sqgturb import SQG, rfft2, irfft2, cartdist,enkf_update,gaspcohn, bulk_ensrf
 #from scipy import linalg
-from sqgturb import cartdist,enkf_update,gaspcohn, bulk_ensrf
 
 # EnKF cycling for SQG turbulence model with boundary temp obs,
 # horizontal and vertical localization.  Relaxation to prior spread
@@ -125,9 +124,9 @@ pv_truth = nc_truth.variables['pv']
 # set up arrays for obs and localization function
 if nobs < 0:
     nskip = -nobs
-    if nx%nobs != 0:
-        raise ValueError('nx must be divisible by nobs')
-    nobs = (nx/nobs)**2
+    if (nx*ny)%nobs != 0:
+        raise ValueError('nx*ny must be divisible by nobs')
+    nobs = (nx*ny)//nskip
     print('# nobs = %s' % nobs)
     fixed = True
 else:
