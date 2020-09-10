@@ -2,6 +2,8 @@ import numpy as np
 from numpy.linalg import eigh # scipy.linalg.eigh broken on my mac
 from scipy.linalg import cho_solve, cho_factor, svd, inv
 
+# function definitions.
+
 def symsqrt_psd(a, inv=False):
     """symmetric square-root of a symmetric positive definite matrix"""
     evals, eigs = eigh(a)
@@ -12,18 +14,8 @@ def symsqrt_psd(a, inv=False):
     else:
         return symsqrt
 
-def symsqrtinv_psd(a):
-    """inverse and inverse symmetric square-root of a symmetric positive
-    definite matrix"""
-    evals, eigs = eigh(a)
-    symsqrtinv =  (eigs * (1./np.sqrt(np.maximum(evals,0)))).dot(eigs.T)
-    inv =  (eigs * (1./np.maximum(evals,0))).dot(eigs.T)
-    return symsqrtinv, inv
-
-# function definitions.
-
 def cartdist(x1,y1,x2,y2,xmax,ymax):
-    # cartesian distance on doubly periodic plane
+    """cartesian distance on doubly periodic plane"""
     dx = np.abs(x1 - x2)
     dy = np.abs(y1 - y2)
     dx = np.where(dx > 0.5*xmax, xmax - dx, dx)
@@ -31,9 +23,11 @@ def cartdist(x1,y1,x2,y2,xmax,ymax):
     return np.sqrt(dx**2 + dy**2)
 
 def gaspcohn(r):
-    # Gaspari-Cohn taper function.
-    # very close to exp(-(r/c)**2), where c = sqrt(0.15)
-    # r should be >0 and normalized so taper = 0 at r = 1
+    """
+    Gaspari-Cohn taper function.
+    very close to exp(-(r/c)**2), where c = sqrt(0.15)
+    r should be >0 and normalized so taper = 0 at r = 1
+    """
     rr = 2.*r
     rr += 1.e-13 # avoid divide by zero warnings from numpy
     taper = np.where(r<=0.5, \
@@ -110,7 +104,7 @@ def enkf_update(xens,hxens,obs,oberrs,covlocal,vcovlocal_fact,obcovlocal=None):
         return xens
 
 def bulk_ensrf(xens,indxobi,obs,oberrs,covlocal1,vcovlocal_fact,pv_scalefact,denkf=False):
-    """bulk potter method"""
+    """bulk potter method (global matrix solution)"""
 
     nanals, nlevs, ndim1 = xens.shape; nobs1 = obs.shape[-1]
     nobs = 2*nobs1; ndim = 2*ndim1
