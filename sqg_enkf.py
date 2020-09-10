@@ -57,12 +57,6 @@ profile = False # turn on profiling?
 use_letkf = False # use serial EnSRF
 global_enkf = False # global EnSRF solve
 
-# if nobs > 0, each ob time nobs ob locations are randomly sampled (without
-# replacement) from the model grid
-# if nobs < 0, fixed network of every Nth grid point used (N = -nobs)
-nobs = 2304 # number of obs to assimilate (randomly distributed)
-#nobs = -1 # fixed network, every -nobs grid points. nobs=-1 obs at all pts.
-
 direct_insertion = False 
 if direct_insertion: print('# direct insertion!')
 
@@ -117,6 +111,12 @@ vcovlocal_fact = gaspcohn(np.array(Lr/hcovlocal_scale))
 
 print("# hcovlocal=%g vcovlocal=%s diff_efold=%s covinf1=%s covinf2=%s nanals=%s" %\
      (hcovlocal_scale/1000.,vcovlocal_fact,diff_efold,covinflate1,covinflate2,nanals))
+
+# if nobs > 0, each ob time nobs ob locations are randomly sampled (without
+# replacement) from the model grid
+# if nobs < 0, fixed network of every Nth grid point used (N = -nobs)
+nobs = nx*ny//4 # number of obs to assimilate (randomly distributed)
+#nobs = -1 # fixed network, every -nobs grid points. nobs=-1 obs at all pts.
 
 # nature run
 nc_truth = Dataset(filename_truth)
