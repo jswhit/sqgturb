@@ -53,7 +53,7 @@ savedata = None # if not None, netcdf filename to save data.
 profile = False # turn on profiling?
 
 use_letkf = False # use serial EnSRF
-global_enkf = True # global EnSRF solve
+global_enkf = False # global EnSRF solve
 
 # if nobs > 0, each ob time nobs ob locations are randomly sampled (without
 # replacement) from the model grid
@@ -71,17 +71,10 @@ oberrstdev = 1.0 # ob error standard deviation in K
 nassim = 800 # assimilation times to run
 nassim_spinup = 400
 
-# smoothing parameters for forward operator.
-#use_gaussian_filter=True
-#if use_gaussian_filter:
-#    filter_width = 4
-#else:
-#    filter_width = 10
-
 # nature run created using sqg_run.py.
-filename_climo = 'sqg_N128_3hrly.nc' # file name for forecast model climo
+filename_climo = 'sqg_N96_3hrly.nc' # file name for forecast model climo
 # perfect model
-filename_truth = 'sqg_N128_3hrly.nc' # file name for nature run to draw obs
+filename_truth = 'sqg_N96_3hrly.nc' # file name for nature run to draw obs
 
 print('# filename_modelclimo=%s' % filename_climo)
 print('# filename_truth=%s' % filename_truth)
@@ -117,7 +110,7 @@ for nanal in range(nanals):
 # vertical localization scale
 Lr = np.sqrt(models[0].nsq)*models[0].H/models[0].f
 vcovlocal_fact = gaspcohn(np.array(Lr/hcovlocal_scale))
-vcovlocal_fact = 1.0 # no vertical localization
+#vcovlocal_fact = 1.0 # no vertical localization
 
 print("# hcovlocal=%g vcovlocal=%s diff_efold=%s covinf1=%s covinf2=%s nanals=%s" %\
      (hcovlocal_scale/1000.,vcovlocal_fact,diff_efold,covinflate1,covinflate2,nanals))
@@ -135,10 +128,6 @@ if nobs < 0:
     fixed = True
 else:
     fixed = False
-#if use_gaussian_filter:
-#    print('# forward operator gaussian filter with stdev %s' % filter_width)
-#else:
-#    print('# forward operator %s x %s block mean' %(filter_width,filter_width))
 oberrvar = oberrstdev**2*np.ones(nobs,np.float)
 pvob = np.empty((2,nobs),np.float)
 covlocal = np.empty((ny,nx),np.float)
@@ -311,7 +300,7 @@ for ntime in range(nassim):
         np.random.normal(scale=oberrstdev,size=(2,nx*ny))/scalefact
     else:
         if global_enkf:
-            xens = bulk_ensrf(xens,indxob,pvob,oberrvar,covlocal_modelspace,vcovlocal_fact,scalefact,denkf=True)
+            xens = bulk_ensrf(xens,indxob,pvob,oberrvar,covlocal_modelspace,vcovlocal_fact,scalefact,denkf=False)
         else:
             xens =\
             enkf_update(xens,hxens,pvob,oberrvar,covlocal_tmp,vcovlocal_fact,obcovlocal=obcovlocal)
