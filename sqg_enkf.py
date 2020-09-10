@@ -6,11 +6,11 @@ import sys, time, os
 #from scipy import linalg
 from sqgturb import cartdist,enkf_update,gaspcohn, bulk_ensrf
 
-# EnKF cycling for SQG turbulence model model with boundary temp obs,
+# EnKF cycling for SQG turbulence model with boundary temp obs,
 # horizontal and vertical localization.  Relaxation to prior spread
 # inflation, or Hodyss and Campbell inflation.
 # Random or fixed observing network (obs on either boundary or
-# both).
+# both). Options for serial EnSRF, global EnSRF or LETKF.
 
 if len(sys.argv) == 1:
    msg="""
@@ -31,8 +31,9 @@ python sqg_enkf.py hcovlocal_scale <covinflate1 covinflate2>
 # horizontal covariance localization length scale in meters.
 hcovlocal_scale = float(sys.argv[1])
 # vertical covariance localization factor
-# is related to horizontal scale by vcovlocal_fact = L_r/hcovlocal_scale
-# where here L_r is Rossby radius
+# is related to horizontal scale by vcovlocal_fact = GC(L_r/hcovlocal_scale)
+# where here L_r is Rossby radius and GC is the gaspari-cohn localization function.
+# defined s.t. GC(0)=1, GC(x) = 0 for x >= 1.
 
 # optional inflation parameters:
 # (covinflate2 <= 0 for RTPS inflation
@@ -54,7 +55,7 @@ savedata = None # if not None, netcdf filename to save data.
 profile = False # turn on profiling?
 
 use_letkf = False # use serial EnSRF
-global_enkf = True # global EnSRF solve
+global_enkf = False # global EnSRF solve
 
 # if nobs > 0, each ob time nobs ob locations are randomly sampled (without
 # replacement) from the model grid
