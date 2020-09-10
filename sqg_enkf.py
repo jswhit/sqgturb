@@ -76,7 +76,8 @@ print('# filename_modelclimo=%s' % filename_climo)
 print('# filename_truth=%s' % filename_truth)
 
 # fix random seed for reproducibility.
-np.random.seed(42)
+rsobs = np.random.RandomState(42) # fixed seed for observations
+rsics = np.random.RandomState() # varying seed for initial conditions
 
 # get model info
 nc_climo = Dataset(filename_climo)
@@ -86,7 +87,7 @@ scalefact = nc_climo.f*nc_climo.theta0/nc_climo.g
 x = nc_climo.variables['x'][:]
 y = nc_climo.variables['y'][:]
 pv_climo = nc_climo.variables['pv']
-indxran = np.random.choice(pv_climo.shape[0],size=nanals,replace=False)
+indxran = rsics.choice(pv_climo.shape[0],size=nanals,replace=False)
 x, y = np.meshgrid(x, y)
 nx = len(x); ny = len(y)
 pvens = np.empty((nanals,2,ny,nx),np.float32)
@@ -244,7 +245,7 @@ for ntime in range(nassim):
     t1 = time.time()
     if not fixed:
         p = np.ones((ny,nx),np.float)/(nx*ny)
-        indxob = np.sort(np.random.choice(nx*ny,nobs,replace=False,p=p.ravel()))
+        indxob = np.sort(rsobs.choice(nx*ny,nobs,replace=False,p=p.ravel()))
     else:
         mask = np.zeros((ny,nx),np.bool)
         nskip = int(nx/np.sqrt(nobs))
@@ -259,7 +260,7 @@ for ntime in range(nassim):
     for k in range(2):
         # surface temp obs
         pvob[k] = scalefact*pv_truth[ntime,k,:,:].ravel()[indxob]
-        pvob[k] += np.random.normal(scale=oberrstdev,size=nobs) # add ob errors
+        pvob[k] += rsobs.normal(scale=oberrstdev,size=nobs) # add ob errors
     xob = x.ravel()[indxob]
     yob = y.ravel()[indxob]
     # compute covariance localization function for each ob
@@ -311,10 +312,10 @@ for ntime in range(nassim):
         for nanal in range(nanals):
             xens[nanal] =\
             pv_truth[ntime].reshape(2,nx*ny) + \
-            np.random.normal(scale=oberrstdev,size=(2,nx*ny))/scalefact
+            rsobs.normal(scale=oberrstdev,size=(2,nx*ny))/scalefact
         xens = xens - xens.mean(axis=0) + \
         pv_truth[ntime].reshape(2,nx*ny) + \
-        np.random.normal(scale=oberrstdev,size=(2,nx*ny))/scalefact
+        rsobs.normal(scale=oberrstdev,size=(2,nx*ny))/scalefact
     else:
         if global_enkf:
             xens = bulk_ensrf(xens,indxob,pvob,oberrvar,covlocal_modelspace,vcovlocal_fact,scalefact,denkf=False)
