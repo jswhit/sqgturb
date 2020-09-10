@@ -116,7 +116,7 @@ print("# hcovlocal=%g vcovlocal=%s diff_efold=%s covinf1=%s covinf2=%s nanals=%s
 # replacement) from the model grid
 # if nobs < 0, fixed network of every Nth grid point used (N = -nobs)
 nobs = nx*ny//4 # number of obs to assimilate (randomly distributed)
-#nobs = -1 # fixed network, every -nobs grid points. nobs=-1 obs at all pts.
+#nobs = -4 # fixed network, every -nobs grid points. nobs=-1 obs at all pts.
 
 # nature run
 nc_truth = Dataset(filename_truth)
