@@ -1,4 +1,7 @@
 from __future__ import print_function
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
 import numpy as np
 from netCDF4 import Dataset
 import sys, time, os
@@ -270,11 +273,6 @@ for ntime in range(nassim):
             covlocal_tmp[nob] = covlocal.ravel()
             dist = cartdist(xob[nob],yob[nob],xob,yob,nc_climo.L,nc_climo.L)
             if not use_letkf: obcovlocal[nob] = gaspcohn(dist/hcovlocal_scale)
-            # plot covariance localization
-            #import matplotlib.pyplot as plt
-            #plt.contourf(x,y,covlocal,15)
-            #plt.show()
-            #raise SystemExit
 
     # first-guess spread (need later to compute inflation factor)
     fsprd = ((pvens - pvens.mean(axis=0))**2).sum(axis=0)/(nanals-1)
@@ -411,9 +409,6 @@ if savedata: nc.close()
 kespec_sprdmean = kespec_sprdmean/ncount
 kespec_errmean = kespec_errmean/ncount
 
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
 N = models[0].N
 k = np.abs((N*np.fft.fftfreq(N))[0:(N/2)+1])
 l = N*np.fft.fftfreq(N)
