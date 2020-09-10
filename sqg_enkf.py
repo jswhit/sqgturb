@@ -58,7 +58,7 @@ global_enkf = False # global EnSRF solve
 # if nobs > 0, each ob time nobs ob locations are randomly sampled (without
 # replacement) from the model grid
 # if nobs < 0, fixed network of every Nth grid point used (N = -nobs)
-nobs = 4096 # number of obs to assimilate (randomly distributed)
+nobs = 2304 # number of obs to assimilate (randomly distributed)
 #nobs = -1 # fixed network, every -nobs grid points. nobs=-1 obs at all pts.
 
 direct_insertion = False 
@@ -110,6 +110,7 @@ for nanal in range(nanals):
 # vertical localization scale
 Lr = np.sqrt(models[0].nsq)*models[0].H/models[0].f
 vcovlocal_fact = gaspcohn(np.array(Lr/hcovlocal_scale))
+#vcovlocal_fact = 0.0 # no increment at opposite boundary
 #vcovlocal_fact = 1.0 # no vertical localization
 
 print("# hcovlocal=%g vcovlocal=%s diff_efold=%s covinf1=%s covinf2=%s nanals=%s" %\
