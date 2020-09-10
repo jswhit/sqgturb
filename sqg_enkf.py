@@ -3,7 +3,7 @@ from sqgturb import SQG, rfft2, irfft2
 import numpy as np
 from netCDF4 import Dataset
 import sys, time, os
-from scipy import linalg
+#from scipy import linalg
 from sqgturb import cartdist,enkf_update,gaspcohn, bulk_ensrf
 
 # EnKF cycling for SQG turbulence model model with boundary temp obs,
@@ -54,7 +54,7 @@ savedata = None # if not None, netcdf filename to save data.
 profile = False # turn on profiling?
 
 use_letkf = False # use serial EnSRF
-global_enkf = False # global EnSRF solve
+global_enkf = True # global EnSRF solve
 
 # if nobs > 0, each ob time nobs ob locations are randomly sampled (without
 # replacement) from the model grid

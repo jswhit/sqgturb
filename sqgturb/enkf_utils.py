@@ -1,6 +1,5 @@
 import numpy as np
-from numpy.linalg import eigh # scipy.linalg.eigh broken on my mac
-from scipy.linalg import cho_solve, cho_factor, svd, inv
+from scipy.linalg import eigh, cho_solve, cho_factor, svd, inv
 
 # function definitions.
 
