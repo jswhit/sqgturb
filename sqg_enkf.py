@@ -3,7 +3,7 @@ from sqgturb import SQG, rfft2, irfft2
 import numpy as np
 from netCDF4 import Dataset
 import sys, time, os
-from sqgturb import cartdist,enkf_update,gaspcohn
+from sqgturb import cartdist,enkf_update,gaspcohn, bulk_ensrf
 
 # EnKF cycling for SQG turbulence model model with boundary temp obs,
 # horizontal and vertical localization.  Relaxation to prior spread
@@ -53,31 +53,35 @@ savedata = None # if not None, netcdf filename to save data.
 profile = False # turn on profiling?
 
 use_letkf = False # use serial EnSRF
+global_enkf = True # global EnSRF solve
 
 # if nobs > 0, each ob time nobs ob locations are randomly sampled (without
 # replacement) from the model grid
 # if nobs < 0, fixed network of every Nth grid point used (N = -nobs)
-nobs = 1024 # number of obs to assimilate (randomly distributed)
+nobs = 4096 # number of obs to assimilate (randomly distributed)
 #nobs = -1 # fixed network, every -nobs grid points. nobs=-1 obs at all pts.
 
-# if levob=0, sfc temp obs used.  if 1, lid temp obs used. If [0,1] obs at both
-# boundaries.
-levob = [0,1]; levob = list(levob); levob.sort()
-
-direct_insertion = False # only relevant for nobs=-1, levob=[0,1]
+direct_insertion = False 
 if direct_insertion: print('# direct insertion!')
 
 nanals = 20 # ensemble members
 
 oberrstdev = 1.0 # ob error standard deviation in K
 
-nassim = 1600 # assimilation times to run
-nassim_spinup = 800
+nassim = 800 # assimilation times to run
+nassim_spinup = 400
+
+# smoothing parameters for forward operator.
+#use_gaussian_filter=True
+#if use_gaussian_filter:
+#    filter_width = 4
+#else:
+#    filter_width = 10
 
 # nature run created using sqg_run.py.
-filename_climo = 'sqg_N64_3hrly.nc' # file name for forecast model climo
+filename_climo = 'sqg_N128_3hrly.nc' # file name for forecast model climo
 # perfect model
-filename_truth = 'sqg_N64_3hrly.nc' # file name for nature run to draw obs
+filename_truth = 'sqg_N128_3hrly.nc' # file name for nature run to draw obs
 
 print('# filename_modelclimo=%s' % filename_climo)
 print('# filename_truth=%s' % filename_truth)
@@ -113,9 +117,10 @@ for nanal in range(nanals):
 # vertical localization scale
 Lr = np.sqrt(models[0].nsq)*models[0].H/models[0].f
 vcovlocal_fact = gaspcohn(np.array(Lr/hcovlocal_scale))
+vcovlocal_fact = 1.0 # no vertical localization
 
-print("# hcovlocal=%g vcovlocal=%s diff_efold=%s levob=%s covinf1=%s covinf2=%s nanals=%s" %\
-     (hcovlocal_scale/1000.,vcovlocal_fact,diff_efold,levob,covinflate1,covinflate2,nanals))
+print("# hcovlocal=%g vcovlocal=%s diff_efold=%s covinf1=%s covinf2=%s nanals=%s" %\
+     (hcovlocal_scale/1000.,vcovlocal_fact,diff_efold,covinflate1,covinflate2,nanals))
 
 # nature run
 nc_truth = Dataset(filename_truth)
@@ -130,8 +135,12 @@ if nobs < 0:
     fixed = True
 else:
     fixed = False
+#if use_gaussian_filter:
+#    print('# forward operator gaussian filter with stdev %s' % filter_width)
+#else:
+#    print('# forward operator %s x %s block mean' %(filter_width,filter_width))
 oberrvar = oberrstdev**2*np.ones(nobs,np.float)
-pvob = np.empty((len(levob),nobs),np.float)
+pvob = np.empty((2,nobs),np.float)
 covlocal = np.empty((ny,nx),np.float)
 covlocal_tmp = np.empty((nobs,nx*ny),np.float)
 xens = np.empty((nanals,2,nx*ny),np.float)
@@ -139,6 +148,14 @@ if not use_letkf:
     obcovlocal = np.empty((nobs,nobs),np.float)
 else:
     obcovlocal = None
+
+n = 0
+covlocal_modelspace = np.empty((nx*ny,nx*ny),np.float)
+x1 = x.reshape(nx*ny); y1 = y.reshape(nx*ny)
+for n in range(nx*ny):
+    dist = cartdist(x1[n],y1[n],x1,y1,nc_climo.L,nc_climo.L)
+    covlocal_modelspace[n,:] = gaspcohn(dist/hcovlocal_scale)
+
 obtimes = nc_truth.variables['t'][:]
 assim_interval = obtimes[1]-obtimes[0]
 assim_timesteps = int(np.round(assim_interval/models[0].dt))
@@ -161,7 +178,6 @@ if savedata is not None:
    nc.hcovlocal_scale = hcovlocal_scale
    nc.vcovlocal_fact = vcovlocal_fact
    nc.oberrstdev = oberrstdev
-   nc.levob = levob
    nc.g = nc_climo.g; nc.theta0 = nc_climo.theta0
    nc.nsq = models[0].nsq
    nc.tdiab = models[0].tdiab
@@ -221,7 +237,7 @@ for ntime in range(nassim):
     t1 = time.time()
     if not fixed:
         p = np.ones((ny,nx),np.float)/(nx*ny)
-        indxob = np.random.choice(nx*ny,nobs,replace=False,p=p.ravel())
+        indxob = np.sort(np.random.choice(nx*ny,nobs,replace=False,p=p.ravel()))
     else:
         mask = np.zeros((ny,nx),np.bool)
         nskip = int(nx/np.sqrt(nobs))
@@ -233,19 +249,12 @@ for ntime in range(nassim):
             mask[0:ny:nskip,0:nx:nskip] = True
         tmp = np.arange(0,nx*ny).reshape(ny,nx)
         indxob = tmp[mask.nonzero()].ravel()
-    for k in range(len(levob)):
+    for k in range(2):
         # surface temp obs
         pvob[k] = scalefact*pv_truth[ntime,k,:,:].ravel()[indxob]
         pvob[k] += np.random.normal(scale=oberrstdev,size=nobs) # add ob errors
     xob = x.ravel()[indxob]
     yob = y.ravel()[indxob]
-    # plot ob network
-    #import matplotlib.pyplot as plt
-    #plt.contourf(x,y,pv_truth[0,1,...],15)
-    #plt.scatter(xob,yob,color='k')
-    #plt.axis('off')
-    #plt.show()
-    #raise SystemExit
     # compute covariance localization function for each ob
     if not fixed or ntime == 0:
         for nob in range(nobs):
@@ -265,9 +274,9 @@ for ntime in range(nassim):
 
     # compute forward operator.
     # hxens is ensemble in observation space.
-    hxens = np.empty((nanals,len(levob),nobs),np.float)
+    hxens = np.empty((nanals,2,nobs),np.float)
     for nanal in range(nanals):
-        for k in range(len(levob)):
+        for k in range(2):
             hxens[nanal,k,...] = scalefact*pvens[nanal,k,...].ravel()[indxob] # surface pv obs
     hxensmean_b = hxens.mean(axis=0)
     obsprd = ((hxens-hxensmean_b)**2).sum(axis=0)/(nanals-1)
@@ -292,7 +301,7 @@ for ntime in range(nassim):
     for nanal in range(nanals):
         xens[nanal] = pvens[nanal].reshape((2,nx*ny))
     # update state vector.
-    if direct_insertion and nobs == nx*ny and levob == [0,1]:
+    if direct_insertion and nobs == nx*ny:
         for nanal in range(nanals):
             xens[nanal] =\
             pv_truth[ntime].reshape(2,nx*ny) + \
@@ -301,8 +310,11 @@ for ntime in range(nassim):
         pv_truth[ntime].reshape(2,nx*ny) + \
         np.random.normal(scale=oberrstdev,size=(2,nx*ny))/scalefact
     else:
-        xens =\
-        enkf_update(xens,hxens,pvob,oberrvar,covlocal_tmp,levob,vcovlocal_fact,obcovlocal=obcovlocal)
+        if global_enkf:
+            xens = bulk_ensrf(xens,indxob,pvob,oberrvar,covlocal_modelspace,vcovlocal_fact,scalefact,denkf=True)
+        else:
+            xens =\
+            enkf_update(xens,hxens,pvob,oberrvar,covlocal_tmp,vcovlocal_fact,obcovlocal=obcovlocal)
     # back to 3d state vector
     for nanal in range(nanals):
         pvens[nanal] = xens[nanal].reshape((2,ny,nx))
@@ -311,7 +323,7 @@ for ntime in range(nassim):
 
     # forward operator on posterior ensemble.
     for nanal in range(nanals):
-        for k in range(len(levob)):
+        for k in range(2):
             hxens[nanal,k,...] = scalefact*pvens[nanal,k,...].ravel()[indxob] # surface pv obs
 
     # ob space diagnostics
