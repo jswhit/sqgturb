@@ -131,18 +131,24 @@ def bulk_ensrf(xens,indxobi,obs,oberrs,covlocal1,vcovlocal_fact,pv_scalefact,den
     Pb = np.dot(xprime.T,xprime)/(nanals-1)
     Pb = covlocal*Pb
     D = pv_scalefact**2*Pb[np.ix_(indxob,indxob)] + R
-    if denkf:
-        Dinv = cho_solve(cho_factor(D),np.eye(nobs))
-    else:
-        Dsqrt,Dinv = symsqrt_psd(D,inv=True)
+    eye = np.eye(nobs)
+    chofact = cho_factor(D)
+    Dinv = cho_solve(chofact, eye)
+    if not denkf:
+        if chofact[1]:
+            Dsqrt = np.triu(chofact[0])
+        else:
+            Dsqrt = np.tril(chofact[0])
+        #Dsqrt = symsqrt_psd(D,inv=False)
+        #Dtmp = np.dot(Dsqrt.T, Dsqrt)
+        #print(np.allclose(Dtmp-D, np.zeros((nobs, nobs))))
     kfgain = np.dot(pv_scalefact*Pb[:,indxob],Dinv)
     if denkf: # approximate reduced gain
         reducedgain = 0.5*kfgain
     else:
         tmp = Dsqrt + np.sqrt(R)
-        tmpinv = cho_solve(cho_factor(tmp),np.eye(nobs))
-        gainfact = np.dot(Dsqrt,tmpinv)
-        reducedgain = np.dot(kfgain, gainfact)
+        tmpinv = cho_solve(cho_factor(tmp),eye)
+        reducedgain = np.dot(kfgain, np.dot(Dsqrt,tmpinv))
 
     # mean and perturbation update
     xmean += np.dot(kfgain, obs-hxmean)
