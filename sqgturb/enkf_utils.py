@@ -129,6 +129,7 @@ def bulk_ensrf(xens,indxobi,obs,oberrs,covlocal1,vcovlocal_fact,pv_scalefact,den
         kfgain = np.dot(PbHT,Dinv)
         reducedgain = 0.5*kfgain
     else:
+        # see https://doi.org/10.1175/JTECH-D-16-0140.1 eqn 5
         evals, eigs = eigh(D)
         Dinv =  (eigs * (1./evals)).dot(eigs.T)
         kfgain = np.dot(PbHT,Dinv)
