@@ -136,12 +136,14 @@ def bulk_ensrf(xens,indxobi,obs,oberrs,covlocal1,vcovlocal_fact,pv_scalefact,den
     Dinv = cho_solve(chofact, eye)
     if not denkf:
         if chofact[1]:
-            Dsqrt = np.triu(chofact[0])
-        else:
             Dsqrt = np.tril(chofact[0])
+        else:
+            Dsqrt = np.triu(chofact[0])
         #Dsqrt = symsqrt_psd(D,inv=False)
         #Dtmp = np.dot(Dsqrt.T, Dsqrt)
         #print(np.allclose(Dtmp-D, np.zeros((nobs, nobs))))
+        #print(np.abs(Dtmp-D).max())
+        #raise SystemExit
     kfgain = np.dot(pv_scalefact*Pb[:,indxob],Dinv)
     if denkf: # approximate reduced gain
         reducedgain = 0.5*kfgain
