@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.linalg import eigh, cho_solve, cho_factor, svd, inv
+from scipy.linalg import eigh, cho_solve, cho_factor, svd, inv, pinvh
 
 # function definitions.
 
@@ -132,17 +132,13 @@ def bulk_ensrf(xens,indxobi,obs,oberrs,covlocal1,vcovlocal_fact,pv_scalefact,den
     Pb = covlocal*Pb
     D = pv_scalefact**2*Pb[np.ix_(indxob,indxob)] + R
     eye = np.eye(nobs)
-    chofact = cho_factor(D)
-    Dinv = cho_solve(chofact, eye)
-    if not denkf:
-        if chofact[1]:
-            Dsqrt = np.tril(chofact[0])
-        else:
-            Dsqrt = np.triu(chofact[0])
-        #Dsqrt = symsqrt_psd(D,inv=False)
+    if denkf:
+        Dinv = cho_solve(cho_factor(D), eye)
+    else:
+        Dsqrt,Dinv = symsqrt_psd(D,inv=True)
+        # check square root
         #Dtmp = np.dot(Dsqrt.T, Dsqrt)
         #print(np.allclose(Dtmp-D, np.zeros((nobs, nobs))))
-        #print(np.abs(Dtmp-D).max())
         #raise SystemExit
     kfgain = np.dot(pv_scalefact*Pb[:,indxob],Dinv)
     if denkf: # approximate reduced gain
