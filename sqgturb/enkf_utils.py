@@ -1,17 +1,7 @@
 import numpy as np
-from scipy.linalg import eigh, cho_solve, cho_factor, svd, inv, pinvh
+from scipy.linalg import eigh, cho_solve, cho_factor
 
 # function definitions.
-
-def symsqrt_psd(a, inv=False):
-    """symmetric square-root of a symmetric positive definite matrix"""
-    evals, eigs = eigh(a)
-    symsqrt =  (eigs * np.sqrt(np.maximum(evals,0))).dot(eigs.T)
-    if inv:
-        inv =  (eigs * (1./np.maximum(evals,0))).dot(eigs.T)
-        return symsqrt, inv
-    else:
-        return symsqrt
 
 def cartdist(x1,y1,x2,y2,xmax,ymax):
     """cartesian distance on doubly periodic plane"""
@@ -121,32 +111,29 @@ def bulk_ensrf(xens,indxobi,obs,oberrs,covlocal1,vcovlocal_fact,pv_scalefact,den
     xmean = xmean2.reshape(ndim)
     xprime = xprime2.reshape((nanals,ndim))
     obs = obs.reshape(nobs)
-    oberrvar = np.concatenate((oberrs,oberrs))
+    oberrstd = np.sqrt(np.concatenate((oberrs,oberrs)))
+    # normalize obs by ob erro stdev
+    obs = obs/oberrstd
 
     # forward operator
     hxmean = pv_scalefact*xmean[indxob]
-    hxprime = pv_scalefact*xprime[:,indxob]
+    hxprime = pv_scalefact*xprime[:,indxob]/oberrstd
 
-    R = np.diag(oberrvar)
+    eye = np.eye(nobs)
     Pb = np.dot(xprime.T,xprime)/(nanals-1)
     Pb = covlocal*Pb
-    D = pv_scalefact**2*Pb[np.ix_(indxob,indxob)] + R
-    eye = np.eye(nobs)
+    D = pv_scalefact**2*Pb[np.ix_(indxob,indxob)] + eye
+    PbHT = pv_scalefact*Pb[:,indxob]
     if denkf:
         Dinv = cho_solve(cho_factor(D), eye)
-    else:
-        Dsqrt,Dinv = symsqrt_psd(D,inv=True)
-        # check square root
-        #Dtmp = np.dot(Dsqrt.T, Dsqrt)
-        #print(np.allclose(Dtmp-D, np.zeros((nobs, nobs))))
-        #raise SystemExit
-    kfgain = np.dot(pv_scalefact*Pb[:,indxob],Dinv)
-    if denkf: # approximate reduced gain
+        kfgain = np.dot(PbHT,Dinv)
         reducedgain = 0.5*kfgain
     else:
-        tmp = Dsqrt + np.sqrt(R)
-        tmpinv = cho_solve(cho_factor(tmp),eye)
-        reducedgain = np.dot(kfgain, np.dot(Dsqrt,tmpinv))
+        evals, eigs = eigh(D)
+        Dinv =  (eigs * (1./evals)).dot(eigs.T)
+        kfgain = np.dot(PbHT,Dinv)
+        DplusDsqrtinv = (eigs * (1./(evals + np.sqrt(evals)))).dot(eigs.T)
+        reducedgain = np.dot(PbHT, DplusDsqrtinv)
 
     # mean and perturbation update
     xmean += np.dot(kfgain, obs-hxmean)
