@@ -57,7 +57,7 @@ savedata = None # if not None, netcdf filename to save data.
 profile = False # turn on profiling?
 
 use_letkf = False # use serial EnSRF
-global_enkf = False # global EnSRF solve
+global_enkf = True # global EnSRF solve
 
 direct_insertion = False 
 if direct_insertion: print('# direct insertion!')
@@ -130,10 +130,11 @@ if nobs < 0:
     if (nx*ny)%nobs != 0:
         raise ValueError('nx*ny must be divisible by nobs')
     nobs = (nx*ny)//nskip
-    print('# nobs = %s' % nobs)
+    print('# fixed network nobs = %s' % nobs)
     fixed = True
 else:
     fixed = False
+    print('# random network nobs = %s' % nobs)
 oberrvar = oberrstdev**2*np.ones(nobs,np.float)
 pvob = np.empty((2,nobs),np.float)
 covlocal = np.empty((ny,nx),np.float)
@@ -162,6 +163,7 @@ if global_enkf: # model-space localization matrix
 ##    print(neig,evals[nx*ny-neig-1],frac)
 #    neig += 1
 #zz = (eigs*np.sqrt(evals/frac)).T
+#zz = np.tile(zz,(1,2))
 #z = zz[nx*ny-neig:nx*ny,:]
 #print('# model space localization: neig = %s, variance expl = %5.2f%%' %
 #        (neig,100*frac))
@@ -314,7 +316,7 @@ for ntime in range(nassim):
         pv_truth[ntime].reshape(2,nx*ny) + \
         rsobs.normal(scale=oberrstdev,size=(2,nx*ny))/scalefact
     else:
-        if global_enkf:
+        if global_enkf and not use_letkf:
             xens = bulk_ensrf(xens,indxob,pvob,oberrvar,covlocal_modelspace,vcovlocal_fact,scalefact,denkf=False)
         else:
             xens =\
