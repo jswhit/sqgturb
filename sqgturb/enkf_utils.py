@@ -120,8 +120,7 @@ def bulk_ensrf(xens,indxobi,obs,oberrs,covlocal1,vcovlocal_fact,pv_scalefact,den
     hxprime = pv_scalefact*xprime[:,indxob]/oberrstd
 
     eye = np.eye(nobs)
-    Pb = np.dot(xprime.T,xprime)/(nanals-1)
-    Pb = covlocal*Pb
+    Pb = covlocal*np.dot(xprime.T,xprime)/(nanals-1)
     D = pv_scalefact**2*Pb[np.ix_(indxob,indxob)] + eye
     PbHT = pv_scalefact*Pb[:,indxob]
     if denkf:
