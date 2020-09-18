@@ -83,7 +83,7 @@ def enkf_update(xens,hxens,obs,oberrs,covlocal,vcovlocal_fact,obcovlocal=None,de
         def calcwts(hx,Rinv,ominusf):
             YbRinv = np.dot(hx, Rinv)
             pa = (nanals-1)*np.eye(nanals) + np.dot(YbRinv, hx.T)
-            if denkf: # just return Kalman Gain
+            if denkf: # just return what's needed to compute Kalman Gain
                return np.dot(cho_solve(cho_factor(pa), np.eye(nanals)), YbRinv)
             evals, eigs = np.linalg.eigh(pa)
             painv = np.dot(np.dot(eigs, np.diag(np.sqrt(1./evals))), eigs.T)
@@ -99,9 +99,9 @@ def enkf_update(xens,hxens,obs,oberrs,covlocal,vcovlocal_fact,obcovlocal=None,de
                 wts = calcwts(hx[:,mask],Rinv,ominusf)
                 if denkf:
                     kfgain = np.dot(wts.T, xprime[:,k,n])
-                    xmean[k,n] = xmean[k,n] + np.dot(kfgain, ominusf)
-                    xprime[:,k,n] = xprime[:,k,n] - 0.5*np.dot(kfgain,hx[:,mask].T)
-                    xens[:,k,n] = xmean[k,n]+xprime[:,k,n]
+                    xmean[k,n] += np.dot(kfgain, ominusf)
+                    xprime[:,k,n] -= 0.5*np.dot(kfgain,hx[:,mask].T)
+                    xens[:,k,n] = xmean[k,n] + xprime[:,k,n]
                 else:
                     xens[:,k,n] = xmean[k,n] + np.dot(wts.T, xprime[:,k,n])
         return xens
