@@ -56,8 +56,9 @@ savedata = None # if not None, netcdf filename to save data.
 
 profile = False # turn on profiling?
 
-use_letkf = False # use serial EnSRF
-global_enkf = True # global EnSRF solve
+use_letkf = True  # use serial EnSRF
+global_enkf = False # global EnSRF solve
+denkf = True # use Sakov DEnKF to update ens perts
 
 direct_insertion = False 
 if direct_insertion: print('# direct insertion!')
@@ -317,10 +318,10 @@ for ntime in range(nassim):
         rsobs.normal(scale=oberrstdev,size=(2,nx*ny))/scalefact
     else:
         if global_enkf and not use_letkf:
-            xens = bulk_ensrf(xens,indxob,pvob,oberrvar,covlocal_modelspace,vcovlocal_fact,scalefact,denkf=False)
+            xens = bulk_ensrf(xens,indxob,pvob,oberrvar,covlocal_modelspace,vcovlocal_fact,scalefact,denkf=denkf)
         else:
             xens =\
-            enkf_update(xens,hxens,pvob,oberrvar,covlocal_tmp,vcovlocal_fact,obcovlocal=obcovlocal)
+            enkf_update(xens,hxens,pvob,oberrvar,covlocal_tmp,vcovlocal_fact,obcovlocal=obcovlocal,denkf=denkf)
     # back to 3d state vector
     pvens = xens.reshape((nanals,2,ny,nx))
     t2 = time.time()

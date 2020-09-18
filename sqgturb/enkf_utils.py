@@ -27,7 +27,7 @@ def gaspcohn(r):
                + 4.0 - 2.0 / (3.0 * rr), taper)
     return taper
 
-def enkf_update(xens,hxens,obs,oberrs,covlocal,vcovlocal_fact,obcovlocal=None):
+def enkf_update(xens,hxens,obs,oberrs,covlocal,vcovlocal_fact,obcovlocal=None,denkf=False):
     """serial potter method or LETKF (if obcovlocal is None)"""
 
     nanals, nlevs, ndim = xens.shape; nobs = obs.shape[-1]
@@ -43,8 +43,11 @@ def enkf_update(xens,hxens,obs,oberrs,covlocal,vcovlocal_fact,obcovlocal=None):
                 ominusf = ob-hxmean[kob,nob].copy()
                 hxens = hxprime[:,kob,nob].copy().reshape((nanals, 1))
                 hpbht = (hxens**2).sum()/(nanals-1)
-                gainfact = ((hpbht+oberr)/hpbht*\
-                           (1.-np.sqrt(oberr/(hpbht+oberr))))
+                if denkf:
+                   gainfact = 0.5
+                else:
+                   gainfact = ((hpbht+oberr)/hpbht*\
+                              (1.-np.sqrt(oberr/(hpbht+oberr))))
                 # state space update
                 # only update points closer than localization radius to ob
                 mask = covlocal[nob,:] > 1.e-10
@@ -80,16 +83,27 @@ def enkf_update(xens,hxens,obs,oberrs,covlocal,vcovlocal_fact,obcovlocal=None):
         def calcwts(hx,Rinv,ominusf):
             YbRinv = np.dot(hx, Rinv)
             pa = (nanals-1)*np.eye(nanals) + np.dot(YbRinv, hx.T)
+            if denkf: # just return Kalman Gain
+               return np.dot(cho_solve(cho_factor(pa), np.eye(nanals)), YbRinv)
             evals, eigs = np.linalg.eigh(pa)
             painv = np.dot(np.dot(eigs, np.diag(np.sqrt(1./evals))), eigs.T)
+            #if denkf:
+            #    return np.dot(np.dot(painv, painv.T), YbRinv)
             tmp = np.dot(np.dot(np.dot(painv, painv.T), YbRinv), ominusf)
             return np.sqrt(nanals-1)*painv + tmp[:,np.newaxis]
         for n in range(ndim1):
             for k in range(2):
                 mask = covlocal_tmp[:,k,n] > 1.e-10
                 Rinv = np.diag(covlocal_tmp[mask,k,n]/oberrvar[mask])
-                wts = calcwts(hx[:,mask],Rinv,omf[mask])
-                xens[:,k,n] = xmean[k,n] + np.dot(wts.T, xprime[:,k,n])
+                ominusf = omf[mask]
+                wts = calcwts(hx[:,mask],Rinv,ominusf)
+                if denkf:
+                    kfgain = np.dot(wts.T, xprime[:,k,n])
+                    xmean[k,n] = xmean[k,n] + np.dot(kfgain, ominusf)
+                    xprime[:,k,n] = xprime[:,k,n] - 0.5*np.dot(kfgain,hx[:,mask].T)
+                    xens[:,k,n] = xmean[k,n]+xprime[:,k,n]
+                else:
+                    xens[:,k,n] = xmean[k,n] + np.dot(wts.T, xprime[:,k,n])
         return xens
 
 def bulk_ensrf(xens,indxobi,obs,oberrs,covlocal1,vcovlocal_fact,pv_scalefact,denkf=False):
