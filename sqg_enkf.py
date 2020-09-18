@@ -58,7 +58,7 @@ profile = False # turn on profiling?
 
 use_letkf = True  # use serial EnSRF
 global_enkf = False # global EnSRF solve
-denkf = True # use Sakov DEnKF to update ens perts
+denkf = False # use Sakov DEnKF to update ens perts
 
 direct_insertion = False 
 if direct_insertion: print('# direct insertion!')
