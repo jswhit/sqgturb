@@ -417,7 +417,7 @@ k = np.abs((N*np.fft.fftfreq(N))[0:(N//2)+1])
 l = N*np.fft.fftfreq(N)
 k,l = np.meshgrid(k,l)
 ktot = np.sqrt(k**2+l**2)
-ktotmax = (N/2)+1
+ktotmax = (N//2)+1
 kespec_err = np.zeros(ktotmax,np.float)
 kespec_sprd = np.zeros(ktotmax,np.float)
 for i in range(kespec_errmean.shape[2]):
