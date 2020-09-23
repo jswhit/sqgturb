@@ -413,7 +413,7 @@ kespec_sprdmean = kespec_sprdmean/ncount
 kespec_errmean = kespec_errmean/ncount
 
 N = models[0].N
-k = np.abs((N*np.fft.fftfreq(N))[0:(N/2)+1])
+k = np.abs((N*np.fft.fftfreq(N))[0:(N//2)+1])
 l = N*np.fft.fftfreq(N)
 k,l = np.meshgrid(k,l)
 ktot = np.sqrt(k**2+l**2)
