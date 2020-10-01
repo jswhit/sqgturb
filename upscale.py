@@ -20,9 +20,9 @@ def block_mean(ar, fact):
 
 def spectrunc(specarr,N):
     fact = float(N)/float(specarr.shape[1])
-    specarr_trunc = np.zeros((2, N, N/2+1), specarr.dtype)
-    specarr_trunc[:,0:N/2,0:N/2] = fact**2*specarr[:,0:N/2,0:N/2]
-    specarr_trunc[:,-N/2:,0:N/2] = fact**2*specarr[:,-N/2:,0:N/2]
+    specarr_trunc = np.zeros((2, N, N//2+1), specarr.dtype)
+    specarr_trunc[:,0:N//2,0:N//2] = fact**2*specarr[:,0:N//2,0:N//2]
+    specarr_trunc[:,-N//2:,0:N//2] = fact**2*specarr[:,-N//2:,0:N//2]
     return specarr_trunc
 
 # spectrally truncate or block average data in filenamein, write to filenameout on Nout x Nout
