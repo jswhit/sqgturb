@@ -15,13 +15,17 @@ import os
 #dt = 90 # time step in seconds
 #diff_efold = 1800. # time scale for hyperdiffusion at smallest resolved scale
 
-#N = 128
-#dt = 600
-#diff_efold = 86400./3.
+N = 192
+dt = 300
+diff_efold = 86400./8.
 
-N = 96 
-dt = 900
+N = 128
+dt = 600
 diff_efold = 86400./3.
+
+#N = 96 
+#dt = 900
+#diff_efold = 86400./2.
 
 #N = 64
 #dt = 1200
@@ -36,7 +40,7 @@ dealias = True # dealiased with 2/3 rule?
 # corresponding to ekman depth of 141-316 m over ocean.
 # spindown time of a barotropic vortex is tau = H/(f*dek), 10 days for
 # H=10km, f=0.0001, dek=100m.
-dek = 0. # applied only at surface if symmetric=False
+dek = 0 # applied only at surface if symmetric=False
 nsq = 1.e-4; f=1.e-4; g = 9.8; theta0 = 300
 H = 10.e3 # lid height
 r = dek*nsq/f

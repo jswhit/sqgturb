@@ -42,9 +42,12 @@ hcovlocal_scale = float(sys.argv[1])
 # (http://journals.ametsoc.org/doi/10.1175/MWR-D-11-00276.1),
 # otherwise use Hodyss et al inflation
 # (http://journals.ametsoc.org/doi/abs/10.1175/MWR-D-15-0329.1)
-if len(sys.argv) > 2:
+if len(sys.argv) == 3:
     covinflate1 = float(sys.argv[2])
     covinflate2 = -1
+elif len(sys.argv) == 4:
+    covinflate1 = float(sys.argv[2])
+    covinflate2 = float(sys.argv[3])
 else:
     covinflate1 = 1.
     covinflate2 = 1.
@@ -65,15 +68,16 @@ if direct_insertion: print('# direct insertion!')
 
 nanals = 20 # ensemble members
 
-oberrstdev = 1.0 # ob error standard deviation in K
+oberrstdev = 1./np.sqrt(2.) # ob error standard deviation in K
 
 nassim = 800 # assimilation times to run
 nassim_spinup = 400
 
 # nature run created using sqg_run.py.
-filename_climo = 'sqg_N96_3hrly.nc' # file name for forecast model climo
+filename_climo = 'sqg_N128_3hrly.nc' # file name for forecast model climo
 # perfect model
-filename_truth = 'sqg_N96_3hrly.nc' # file name for nature run to draw obs
+filename_truth = 'sqg_N128_3hrly.nc' # file name for nature run to draw obs
+#filename_truth = 'sqg_N256_N128_3hrly.nc' # file name for nature run to draw obs
 
 print('# filename_modelclimo=%s' % filename_climo)
 print('# filename_truth=%s' % filename_truth)
@@ -113,6 +117,7 @@ vcovlocal_fact = gaspcohn(np.array(Lr/hcovlocal_scale))
 #vcovlocal_fact = 0.0 # no increment at opposite boundary
 #vcovlocal_fact = 1.0 # no vertical localization
 
+print('# use_letkf=%s global_enkf=%s denkf=%s' % (use_letkf,global_enkf,denkf))
 print("# hcovlocal=%g vcovlocal=%s diff_efold=%s covinf1=%s covinf2=%s nanals=%s" %\
      (hcovlocal_scale/1000.,vcovlocal_fact,diff_efold,covinflate1,covinflate2,nanals))
 
@@ -120,6 +125,7 @@ print("# hcovlocal=%g vcovlocal=%s diff_efold=%s covinf1=%s covinf2=%s nanals=%s
 # replacement) from the model grid
 # if nobs < 0, fixed network of every Nth grid point used (N = -nobs)
 nobs = nx*ny//4 # number of obs to assimilate (randomly distributed)
+#nobs = nx*ny//16 # number of obs to assimilate (randomly distributed)
 #nobs = -4 # fixed network, every -nobs grid points. nobs=-1 obs at all pts.
 
 # nature run
