@@ -59,8 +59,8 @@ savedata = None # if not None, netcdf filename to save data.
 
 profile = False # turn on profiling?
 
-use_letkf = True  # use serial EnSRF
-global_enkf = False # global EnSRF solve
+use_letkf = False  # use serial EnSRF
+global_enkf = True # global EnSRF solve
 denkf = False # use Sakov DEnKF to update ens perts
 
 direct_insertion = False 
@@ -68,16 +68,16 @@ if direct_insertion: print('# direct insertion!')
 
 nanals = 20 # ensemble members
 
-oberrstdev = 1./np.sqrt(2.) # ob error standard deviation in K
+oberrstdev = 1.0 # ob error standard deviation in K
 
-nassim = 800 # assimilation times to run
-nassim_spinup = 400
+nassim = 400 # assimilation times to run
+nassim_spinup = 200
 
 # nature run created using sqg_run.py.
-filename_climo = 'sqg_N128_3hrly.nc' # file name for forecast model climo
+filename_climo = 'sqg_N96_6hrly.nc' # file name for forecast model climo
 # perfect model
-filename_truth = 'sqg_N128_3hrly.nc' # file name for nature run to draw obs
-#filename_truth = 'sqg_N256_N128_3hrly.nc' # file name for nature run to draw obs
+filename_truth = 'sqg_N96_6hrly.nc' # file name for nature run to draw obs
+#filename_truth = 'sqg_N256_N96_6hrly.nc' # file name for nature run to draw obs
 
 print('# filename_modelclimo=%s' % filename_climo)
 print('# filename_truth=%s' % filename_truth)
@@ -124,9 +124,9 @@ print("# hcovlocal=%g vcovlocal=%s diff_efold=%s covinf1=%s covinf2=%s nanals=%s
 # if nobs > 0, each ob time nobs ob locations are randomly sampled (without
 # replacement) from the model grid
 # if nobs < 0, fixed network of every Nth grid point used (N = -nobs)
-nobs = nx*ny//4 # number of obs to assimilate (randomly distributed)
+#nobs = nx*ny//8 # number of obs to assimilate (randomly distributed)
 #nobs = nx*ny//16 # number of obs to assimilate (randomly distributed)
-#nobs = -4 # fixed network, every -nobs grid points. nobs=-1 obs at all pts.
+nobs = -2 # fixed network, every -nobs grid points. nobs=-1 obs at all pts.
 
 # nature run
 nc_truth = Dataset(filename_truth)
@@ -136,7 +136,7 @@ if nobs < 0:
     nskip = -nobs
     if (nx*ny)%nobs != 0:
         raise ValueError('nx*ny must be divisible by nobs')
-    nobs = (nx*ny)//nskip
+    nobs = (nx*ny)//nskip**2
     print('# fixed network nobs = %s' % nobs)
     fixed = True
 else:
@@ -259,15 +259,13 @@ for ntime in range(nassim):
         indxob = np.sort(rsobs.choice(nx*ny,nobs,replace=False,p=p.ravel()))
     else:
         mask = np.zeros((ny,nx),np.bool)
-        nskip = int(nx/np.sqrt(nobs))
         # if every other grid point observed, shift every other time step
         # so every grid point is observed in 2 cycle.
         if nskip == 2 and ntime%2:
             mask[1:ny:nskip,1:nx:nskip] = True
         else:
             mask[0:ny:nskip,0:nx:nskip] = True
-        tmp = np.arange(0,nx*ny).reshape(ny,nx)
-        indxob = tmp[mask.nonzero()].ravel()
+        indxob = np.flatnonzero(mask)
     for k in range(2):
         # surface temp obs
         pvob[k] = scalefact*pv_truth[ntime,k,:,:].ravel()[indxob]

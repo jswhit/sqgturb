@@ -23,9 +23,9 @@ N = 128
 dt = 600
 diff_efold = 86400./3.
 
-#N = 96 
-#dt = 900
-#diff_efold = 86400./2.
+N = 96 
+dt = 900
+diff_efold = 86400./3.
 
 #N = 64
 #dt = 1200
@@ -78,13 +78,13 @@ model = SQG(pv,nsq=nsq,f=f,U=U,H=H,r=r,tdiab=tdiab,dt=dt,
             precision=precision)
 
 #  initialize figure.
-outputinterval = 10800. # interval between frames in seconds
+outputinterval = 2.*10800. # interval between frames in seconds
 tmin = 100.*86400. # time to start saving data (in days)
 tmax = 300.*86400. # time to stop (in days)
 nsteps = int(tmax/outputinterval) # number of time steps to animate
 # set number of timesteps to integrate for each call to model.advance
 model.timesteps = int(outputinterval/model.dt)
-savedata = 'sqg_N%s_3hrly.nc' % N # save data plotted in a netcdf file.
+savedata = 'sqg_N%s_6hrly.nc' % N # save data plotted in a netcdf file.
 #savedata = None # don't save data
 plot = False # animate data as model is running?
 
