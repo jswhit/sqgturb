@@ -59,16 +59,16 @@ diff_efold = None # use diffusion from climo file
 profile = False # turn on profiling?
 
 use_letkf = False  # use serial EnSRF
-global_enkf = True # global EnSRF solve
+global_enkf = False # global EnSRF solve
 denkf = False # use Sakov DEnKF to update ens perts
-read_restart = True
-#savedata = None # if not None, netcdf filename to save data.
+read_restart = False
+savedata = None # if not None, netcdf filename to save data.
 #savedata = 'sqg_enkf.nc'
-savedata = 'restart'
-nassim = 101
-nassim_spinup = 1
-#nassim = 400 # assimilation times to run
-#nassim_spinup = 200
+#savedata = 'restart'
+#nassim = 101 
+#nassim_spinup = 1
+nassim = 400 # assimilation times to run
+nassim_spinup = 200
 
 direct_insertion = False 
 if direct_insertion: print('# direct insertion!')
@@ -138,7 +138,7 @@ print("# hcovlocal=%g vcovlocal=%s diff_efold=%s covinf1=%s covinf2=%s nanals=%s
 # if nobs > 0, each ob time nobs ob locations are randomly sampled (without
 # replacement) from the model grid
 # if nobs < 0, fixed network of every Nth grid point used (N = -nobs)
-#nobs = nx*ny//4 # number of obs to assimilate (randomly distributed)
+#nobs = nx*ny//3 # number of obs to assimilate (randomly distributed)
 #nobs = nx*ny//16 # number of obs to assimilate (randomly distributed)
 nobs = -1 # fixed network, every -nobs grid points. nobs=-1 obs at all pts.
 
