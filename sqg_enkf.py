@@ -53,38 +53,34 @@ else:
     covinflate2 = 1.
 exptname = os.getenv('exptname','test')
 threads = int(os.getenv('OMP_NUM_THREADS','1'))
-read_restart = False
 
 diff_efold = None # use diffusion from climo file
 
-savedata = None # if not None, netcdf filename to save data.
-#savedata = 'sqg_enkf.nc'
-#savedata = 'restart'
-
 profile = False # turn on profiling?
 
-use_letkf = True  # use serial EnSRF
-global_enkf = False # global EnSRF solve
+use_letkf = False  # use serial EnSRF
+global_enkf = True # global EnSRF solve
 denkf = False # use Sakov DEnKF to update ens perts
+read_restart = True
+#savedata = None # if not None, netcdf filename to save data.
+#savedata = 'sqg_enkf.nc'
+savedata = 'restart'
+nassim = 101
+nassim_spinup = 1
+#nassim = 400 # assimilation times to run
+#nassim_spinup = 200
 
 direct_insertion = False 
 if direct_insertion: print('# direct insertion!')
 
 nanals = 20 # ensemble members
 
-oberrstdev = 1.0 # ob error standard deviation in K
-
-if read_restart:
-    nassim = 101
-    nassim_spinup = 1
-else:
-    nassim = 200 # assimilation times to run
-    nassim_spinup = 100
+oberrstdev = 1. # ob error standard deviation in K
 
 # nature run created using sqg_run.py.
-filename_climo = 'sqg_N96_12hrly.nc' # file name for forecast model climo
+filename_climo = 'sqg_N96_6hrly.nc' # file name for forecast model climo
 # perfect model
-filename_truth = 'sqg_N96_12hrly.nc' # file name for nature run to draw obs
+filename_truth = 'sqg_N96_6hrly.nc' # file name for nature run to draw obs
 #filename_truth = 'sqg_N256_N96_12hrly.nc' # file name for nature run to draw obs
 
 print('# filename_modelclimo=%s' % filename_climo)
@@ -142,7 +138,7 @@ print("# hcovlocal=%g vcovlocal=%s diff_efold=%s covinf1=%s covinf2=%s nanals=%s
 # if nobs > 0, each ob time nobs ob locations are randomly sampled (without
 # replacement) from the model grid
 # if nobs < 0, fixed network of every Nth grid point used (N = -nobs)
-#nobs = nx*ny//8 # number of obs to assimilate (randomly distributed)
+#nobs = nx*ny//4 # number of obs to assimilate (randomly distributed)
 #nobs = nx*ny//16 # number of obs to assimilate (randomly distributed)
 nobs = -1 # fixed network, every -nobs grid points. nobs=-1 obs at all pts.
 
@@ -348,6 +344,7 @@ for ntime in range(nassim):
         pv_truth[ntime+ntstart].reshape(2,nx*ny) + \
         rsobs.normal(scale=oberrstdev,size=(2,nx*ny))/scalefact
     else:
+        # hxens,pvob are in PV units, xens is not 
         if global_enkf and not use_letkf:
             xens = bulk_ensrf(xens,indxob,pvob,oberrvar,covlocal_modelspace,vcovlocal_fact,scalefact,denkf=denkf)
         else:
