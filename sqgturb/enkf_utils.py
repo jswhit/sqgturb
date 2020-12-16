@@ -1,9 +1,10 @@
 import numpy as np
+from scipy.linalg import eigh, cho_solve, cho_factor
 
 # function definitions.
 
 def cartdist(x1,y1,x2,y2,xmax,ymax):
-    # cartesian distance on doubly periodic plane
+    """cartesian distance on doubly periodic plane"""
     dx = np.abs(x1 - x2)
     dy = np.abs(y1 - y2)
     dx = np.where(dx > 0.5*xmax, xmax - dx, dx)
@@ -11,9 +12,11 @@ def cartdist(x1,y1,x2,y2,xmax,ymax):
     return np.sqrt(dx**2 + dy**2)
 
 def gaspcohn(r):
-    # Gaspari-Cohn taper function.
-    # very close to exp(-(r/c)**2), where c = sqrt(0.15)
-    # r should be >0 and normalized so taper = 0 at r = 1
+    """
+    Gaspari-Cohn taper function.
+    very close to exp(-(r/c)**2), where c = sqrt(0.15)
+    r should be >0 and normalized so taper = 0 at r = 1
+    """
     rr = 2.*r
     rr += 1.e-13 # avoid divide by zero warnings from numpy
     taper = np.where(r<=0.5, \
@@ -24,24 +27,27 @@ def gaspcohn(r):
                + 4.0 - 2.0 / (3.0 * rr), taper)
     return taper
 
-def enkf_update(xens,hxens,obs,oberrs,covlocal,levob,vcovlocal_fact,obcovlocal=None):
+def enkf_update(xens,hxens,obs,oberrs,covlocal,vcovlocal_fact,obcovlocal=None,denkf=False):
     """serial potter method or LETKF (if obcovlocal is None)"""
 
     nanals, nlevs, ndim = xens.shape; nobs = obs.shape[-1]
     xmean = xens.mean(axis=0); xprime = xens-xmean
     hxmean = hxens.mean(axis=0); hxprime = hxens-hxmean
-    nlevob = len(levob); fact = np.array([1.,1.],np.float)
+    fact = np.array([1.,1.],np.float)
 
     if obcovlocal is not None:  # serial EnSRF update
 
-        for kob in range(nlevob):
+        for kob in range(2):
             fact[:] = 1.; fact[1-kob] = vcovlocal_fact
             for nob,ob,oberr in zip(np.arange(nobs),obs[kob],oberrs):
                 ominusf = ob-hxmean[kob,nob].copy()
                 hxens = hxprime[:,kob,nob].copy().reshape((nanals, 1))
                 hpbht = (hxens**2).sum()/(nanals-1)
-                gainfact = ((hpbht+oberr)/hpbht*\
-                           (1.-np.sqrt(oberr/(hpbht+oberr))))
+                if denkf:
+                   gainfact = 0.5
+                else:
+                   gainfact = ((hpbht+oberr)/hpbht*\
+                              (1.-np.sqrt(oberr/(hpbht+oberr))))
                 # state space update
                 # only update points closer than localization radius to ob
                 mask = covlocal[nob,:] > 1.e-10
@@ -63,11 +69,11 @@ def enkf_update(xens,hxens,obs,oberrs,covlocal,levob,vcovlocal_fact,obcovlocal=N
     else:  # LETKF update
 
         ndim1 = covlocal.shape[-1]
-        hx = np.empty((nanals,nlevob*nobs),np.float)
-        omf = np.empty(nlevob*nobs,np.float)
-        oberrvar = np.empty(nlevob*nobs, np.float)
-        covlocal_tmp = np.empty((nlevob*nobs,2,ndim1),np.float)
-        for kob in range(nlevob):
+        hx = np.empty((nanals,2*nobs),np.float)
+        omf = np.empty(2*nobs,np.float)
+        oberrvar = np.empty(2*nobs, np.float)
+        covlocal_tmp = np.empty((2*nobs,2,ndim1),np.float)
+        for kob in range(2):
             fact[:] = 1.; fact[1-kob] = vcovlocal_fact
             oberrvar[kob*nobs:(kob+1)*nobs] = oberrs[:]
             omf[kob*nobs:(kob+1)*nobs] = obs[kob,:]-hxmean[kob,:]
@@ -77,14 +83,79 @@ def enkf_update(xens,hxens,obs,oberrs,covlocal,levob,vcovlocal_fact,obcovlocal=N
         def calcwts(hx,Rinv,ominusf):
             YbRinv = np.dot(hx, Rinv)
             pa = (nanals-1)*np.eye(nanals) + np.dot(YbRinv, hx.T)
+            if denkf: # just return what's needed to compute Kalman Gain
+               return np.dot(cho_solve(cho_factor(pa), np.eye(nanals)), YbRinv)
             evals, eigs = np.linalg.eigh(pa)
             painv = np.dot(np.dot(eigs, np.diag(np.sqrt(1./evals))), eigs.T)
+            #if denkf:
+            #    return np.dot(np.dot(painv, painv.T), YbRinv)
             tmp = np.dot(np.dot(np.dot(painv, painv.T), YbRinv), ominusf)
             return np.sqrt(nanals-1)*painv + tmp[:,np.newaxis]
         for n in range(ndim1):
             for k in range(2):
                 mask = covlocal_tmp[:,k,n] > 1.e-10
                 Rinv = np.diag(covlocal_tmp[mask,k,n]/oberrvar[mask])
-                wts = calcwts(hx[:,mask],Rinv,omf[mask])
-                xens[:,k,n] = xmean[k,n] + np.dot(wts.T, xprime[:,k,n])
+                ominusf = omf[mask]
+                wts = calcwts(hx[:,mask],Rinv,ominusf)
+                if denkf:
+                    kfgain = np.dot(wts.T, xprime[:,k,n])
+                    xmean[k,n] += np.dot(kfgain, ominusf)
+                    xprime[:,k,n] -= 0.5*np.dot(kfgain,hx[:,mask].T)
+                    xens[:,k,n] = xmean[k,n] + xprime[:,k,n]
+                else:
+                    xens[:,k,n] = xmean[k,n] + np.dot(wts.T, xprime[:,k,n])
         return xens
+
+def bulk_ensrf(xens,indxobi,obs,oberrs,covlocal1,vcovlocal_fact,pv_scalefact,denkf=False):
+    """bulk potter method (global matrix solution)"""
+
+    nanals, nlevs, ndim1 = xens.shape; nobs1 = obs.shape[-1]
+    nobs = 2*nobs1; ndim = 2*ndim1
+    xmean2 = xens.mean(axis=0); xprime2 = xens-xmean2
+
+    # create H operator
+    iob = np.zeros(ndim1,np.bool)
+    iob[indxobi] = True
+    indxob = np.concatenate((iob,iob))
+
+    # create cov localization matrix
+    covlocal = np.block([[covlocal1,vcovlocal_fact*covlocal1],[vcovlocal_fact*covlocal1,covlocal1]])
+
+    # create 1d state vector arrays
+    xmean = xmean2.reshape(ndim)
+    xprime = xprime2.reshape((nanals,ndim))
+    obs = obs.reshape(nobs)
+    oberrstd = np.sqrt(np.concatenate((oberrs,oberrs)))
+    # normalize obs by ob erro stdev
+    obs = obs/oberrstd
+
+    # forward operator
+    hxmean = pv_scalefact*xmean[indxob]
+    hxprime = pv_scalefact*xprime[:,indxob]/oberrstd
+
+    eye = np.eye(nobs)
+    Pb = covlocal*np.dot(xprime.T,xprime)/(nanals-1)
+    D = pv_scalefact**2*Pb[np.ix_(indxob,indxob)] + eye
+    PbHT = pv_scalefact*Pb[:,indxob]
+    if denkf:
+        Dinv = cho_solve(cho_factor(D), eye)
+        kfgain = np.dot(PbHT,Dinv)
+        reducedgain = 0.5*kfgain
+    else:
+        # see https://doi.org/10.1175/JTECH-D-16-0140.1 eqn 5
+        evals, eigs = eigh(D)
+        Dinv =  (eigs * (1./evals)).dot(eigs.T)
+        kfgain = np.dot(PbHT,Dinv)
+        DplusDsqrtinv = (eigs * (1./(evals + np.sqrt(evals)))).dot(eigs.T)
+        reducedgain = np.dot(PbHT, DplusDsqrtinv)
+
+    # mean and perturbation update
+    xmean += np.dot(kfgain, obs-hxmean)
+    xprime -= np.dot(reducedgain,hxprime.T).T
+
+    # back to 2d state vectors
+    xmean2 = xmean.reshape((2,ndim1))
+    xprime2 = xprime.reshape((nanals,2,ndim1))
+    xens = xmean2 + xprime2
+
+    return xens
