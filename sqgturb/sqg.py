@@ -189,9 +189,9 @@ class SQG:
             pvspec = self.pvspec
         psispec = self.invert(pvspec)
         # nonlinear jacobian and thermal relaxation
-        v,u = self.xyderiv(psispec); u = -u
-        pvx,pvy = self.xyderiv(pvspec)
-        advection = u*pvx + v*pvy
+        psix, psiy   = self.xyderiv(psispec)
+        pvx,pvy      = self.xyderiv(pvspec)
+        advection    = psix*pvy - psiy*pvx
         jacobianspec = rfft2(advection,threads=self.threads)
         if self.dealias: # 2/3 rule: truncate spectral coefficients of jacobian
             jacobianspec = self.spectrunc(jacobianspec)
@@ -203,7 +203,7 @@ class SQG:
             if self.symmetric:
                 dpvspecdt[1] -= self.r*self.ksqlsq*psispec[1]
         # save wind field
-        self.u = u; self.v = v
+        self.u = -psiy; self.v = psix
         return dpvspecdt
 
     def timestep(self):
