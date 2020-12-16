@@ -191,8 +191,8 @@ class SQG:
         # nonlinear jacobian and thermal relaxation
         psix, psiy   = self.xyderiv(psispec)
         pvx,pvy      = self.xyderiv(pvspec)
-        advection    = psix*pvy - psiy*pvx
-        jacobianspec = rfft2(advection,threads=self.threads)
+        jacobian     = psix*pvy - psiy*pvx
+        jacobianspec = rfft2(jacobian, threads=self.threads)
         if self.dealias: # 2/3 rule: truncate spectral coefficients of jacobian
             jacobianspec = self.spectrunc(jacobianspec)
         dpvspecdt = (1./self.tdiab)*(self.pvspec_eq-pvspec)-jacobianspec
