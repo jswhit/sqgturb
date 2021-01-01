@@ -38,6 +38,7 @@ class SQG:
         dealias=True,
         threads=1,
         precision="single",
+        tstart=0,
     ):
         # initialize SQG model.
         if pv.shape[0] != 2:
@@ -76,7 +77,7 @@ class SQG:
             self.ekman = True
         self.r = np.array(r, dtype)  # Ekman damping (at z=0)
         self.tdiab = np.array(tdiab, dtype)  # thermal relaxation damping.
-        self.t = 0  # initialize time counter
+        self.t = tstart  # initialize time counter
         # setup basic state pv (for thermal relaxation)
         self.symmetric = symmetric  # symmetric jet, or jet with U=0 at sfc.
         y = np.arange(0, L, L / N, dtype=dtype)
