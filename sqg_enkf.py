@@ -58,17 +58,18 @@ diff_efold = None # use diffusion from climo file
 
 profile = False # turn on profiling?
 
-use_letkf = False  # use serial EnSRF
+use_letkf = True  # use serial EnSRF
 global_enkf = False # global EnSRF solve
 denkf = False # use Sakov DEnKF to update ens perts
 read_restart = False
 savedata = None # if not None, netcdf filename to save data.
+savedata = True # filename given by exptname env var
 #savedata = 'sqg_enkf.nc'
 #savedata = 'restart'
 #nassim = 101 
 #nassim_spinup = 1
 nassim = 400 # assimilation times to run
-nassim_spinup = 200
+nassim_spinup = 100
 
 direct_insertion = False 
 if direct_insertion: print('# direct insertion!')
@@ -78,9 +79,9 @@ nanals = 20 # ensemble members
 oberrstdev = 1. # ob error standard deviation in K
 
 # nature run created using sqg_run.py.
-filename_climo = 'sqg_N96_6hrly.nc' # file name for forecast model climo
+filename_climo = 'sqg_N96_8hrly.nc' # file name for forecast model climo
 # perfect model
-filename_truth = 'sqg_N96_6hrly.nc' # file name for nature run to draw obs
+filename_truth = 'sqg_N96_8hrly.nc' # file name for nature run to draw obs
 #filename_truth = 'sqg_N256_N96_12hrly.nc' # file name for nature run to draw obs
 
 print('# filename_modelclimo=%s' % filename_climo)
@@ -106,7 +107,7 @@ if not read_restart:
     pv_climo = nc_climo.variables['pv']
     indxran = rsics.choice(pv_climo.shape[0],size=nanals,replace=False)
 else:
-    ncinit = Dataset('%s.nc' % exptname, mode='r', format='NETCDF4_CLASSIC')
+    ncinit = Dataset('%s_restart.nc' % exptname, mode='r', format='NETCDF4_CLASSIC')
     ncinit.set_auto_mask(False)
     pvens[:] = ncinit.variables['pv_b'][-1,...]/scalefact
     tstart = ncinit.variables['t'][-1]
@@ -138,9 +139,9 @@ print("# hcovlocal=%g vcovlocal=%s diff_efold=%s covinf1=%s covinf2=%s nanals=%s
 # if nobs > 0, each ob time nobs ob locations are randomly sampled (without
 # replacement) from the model grid
 # if nobs < 0, fixed network of every Nth grid point used (N = -nobs)
-#nobs = nx*ny//3 # number of obs to assimilate (randomly distributed)
+nobs = nx*ny//4 # number of obs to assimilate (randomly distributed)
 #nobs = nx*ny//16 # number of obs to assimilate (randomly distributed)
-nobs = -1 # fixed network, every -nobs grid points. nobs=-1 obs at all pts.
+#nobs = -1 # fixed network, every -nobs grid points. nobs=-1 obs at all pts.
 
 # nature run
 nc_truth = Dataset(filename_truth)
@@ -156,6 +157,7 @@ if nobs < 0:
 else:
     fixed = False
     print('# random network nobs = %s' % nobs)
+if nobs == nx*ny//2 or nobs == nx*ny//4: fixed=True
 oberrvar = oberrstdev**2*np.ones(nobs,np.float)
 pvob = np.empty((2,nobs),np.float)
 covlocal = np.empty((ny,nx),np.float)
@@ -198,7 +200,7 @@ else:
     ntstart = 0
 assim_interval = obtimes[1]-obtimes[0]
 assim_timesteps = int(np.round(assim_interval/models[0].dt))
-print('# ntime,pverr_a,pvsprd_a,pverr_b,pvsprd_b,obinc_b,osprd_b,obinc_a,obsprd_a,omaomb/oberr,obbias_b,inflation')
+print('# ntime,pverr_a,pvsprd_a,pverr_b,pvsprd_b,obinc_b,osprd_b,obinc_a,obsprd_a,omaomb/oberr,obbias_b,inflation,tr(P^a)/tr(P^b)')
 
 # initialize model clock
 for nanal in range(nanals):
@@ -281,10 +283,20 @@ for ntime in range(nassim):
         mask = np.zeros((ny,nx),np.bool)
         # if every other grid point observed, shift every other time step
         # so every grid point is observed in 2 cycle.
-        if nskip == 2 and ntime%2:
-            mask[1:ny:nskip,1:nx:nskip] = True
-        else:
-            mask[0:ny:nskip,0:nx:nskip] = True
+        if nobs == nx*ny//2:
+            if ntime%2:
+               mask[:,1:nx:2] = True
+            else:
+               mask[:,0:nx:2] = True
+        if nobs == nx*ny//4:
+            if ntime%4==0:
+                mask[0:ny:2,0:nx:2] = True
+            elif ntime%4==1:
+                mask[0:ny:2,1:nx:2] = True
+            elif ntime%4==2:
+                mask[1:ny:2,0:nx:2] = True
+            elif ntime%4==3:
+                mask[1:ny:2,1:nx:2] = True
         indxob = np.flatnonzero(mask)
     for k in range(2):
         # surface temp obs
@@ -374,6 +386,7 @@ for ntime in range(nassim):
     pvensmean_a = pvens.mean(axis=0)
     pvprime = pvens-pvensmean_a
     asprd = (pvprime**2).sum(axis=0)/(nanals-1)
+    asprd_over_fsprd = asprd.mean()/fsprd.mean()
     if covinflate2 < 0:
         # relaxation to prior stdev (Whitaker & Hamill 2012)
         asprd = np.sqrt(asprd); fsprd = np.sqrt(fsprd)
@@ -392,10 +405,10 @@ for ntime in range(nassim):
     # print out analysis error, spread and innov stats for background
     pverr_a = (scalefact*(pvensmean_a-pv_truth[ntime+ntstart]))**2
     pvsprd_a = ((scalefact*(pvensmean_a-pvens))**2).sum(axis=0)/(nanals-1)
-    print("%s %g %g %g %g %g %g %g %g %g %g %g" %\
+    print("%s %g %g %g %g %g %g %g %g %g %g %g %g" %\
     (ntime+ntstart,np.sqrt(pverr_a.mean()),np.sqrt(pvsprd_a.mean()),\
      np.sqrt(pverr_b.mean()),np.sqrt(pvsprd_b.mean()),\
-     obinc_b,obsprd_b,obinc_a,obsprd_a,omaomb/oberrvar.mean(),obbias_b,inflation_factor.mean()))
+     obinc_b,obsprd_b,obinc_a,obsprd_a,omaomb/oberrvar.mean(),obbias_b,inflation_factor.mean(),asprd_over_fsprd))
 
     # save data.
     if savedata is not None:
