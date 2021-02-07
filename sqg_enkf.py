@@ -63,12 +63,12 @@ global_enkf = False # global EnSRF solve
 denkf = False # use Sakov DEnKF to update ens perts
 read_restart = False
 savedata = None # if not None, netcdf filename to save data.
-savedata = True # filename given by exptname env var
+#savedata = True # filename given by exptname env var
 #savedata = 'sqg_enkf.nc'
 #savedata = 'restart'
 #nassim = 101 
 #nassim_spinup = 1
-nassim = 400 # assimilation times to run
+nassim = 200 # assimilation times to run
 nassim_spinup = 100
 
 direct_insertion = False 
@@ -79,9 +79,9 @@ nanals = 20 # ensemble members
 oberrstdev = 1. # ob error standard deviation in K
 
 # nature run created using sqg_run.py.
-filename_climo = 'sqg_N96_8hrly.nc' # file name for forecast model climo
+filename_climo = 'sqg_N96_12hrly.nc' # file name for forecast model climo
 # perfect model
-filename_truth = 'sqg_N96_8hrly.nc' # file name for nature run to draw obs
+filename_truth = 'sqg_N96_12hrly.nc' # file name for nature run to draw obs
 #filename_truth = 'sqg_N256_N96_12hrly.nc' # file name for nature run to draw obs
 
 print('# filename_modelclimo=%s' % filename_climo)
@@ -139,7 +139,8 @@ print("# hcovlocal=%g vcovlocal=%s diff_efold=%s covinf1=%s covinf2=%s nanals=%s
 # if nobs > 0, each ob time nobs ob locations are randomly sampled (without
 # replacement) from the model grid
 # if nobs < 0, fixed network of every Nth grid point used (N = -nobs)
-nobs = nx*ny//4 # number of obs to assimilate (randomly distributed)
+nobs = nx*ny
+#nobs = 3*nx*ny//4 # number of obs to assimilate (randomly distributed)
 #nobs = nx*ny//16 # number of obs to assimilate (randomly distributed)
 #nobs = -1 # fixed network, every -nobs grid points. nobs=-1 obs at all pts.
 
@@ -157,6 +158,7 @@ if nobs < 0:
 else:
     fixed = False
     print('# random network nobs = %s' % nobs)
+# used fixed network if nobs is one half or one quarter of grid.
 if nobs == nx*ny//2 or nobs == nx*ny//4: fixed=True
 oberrvar = oberrstdev**2*np.ones(nobs,np.float)
 pvob = np.empty((2,nobs),np.float)
@@ -277,12 +279,15 @@ for ntime in range(nassim):
 
     t1 = time.time()
     if not fixed:
-        p = np.ones((ny,nx),np.float)/(nx*ny)
-        indxob = np.sort(rsobs.choice(nx*ny,nobs,replace=False,p=p.ravel()))
+        # randomly choose points from model grid
+        if nobs == nx*ny:
+            indxob = np.arange(nx*ny)
+        else:
+            indxob = np.sort(rsobs.choice(nx*ny,nobs,replace=False))
     else:
         mask = np.zeros((ny,nx),np.bool)
-        # if every other grid point observed, shift every other time step
-        # so every grid point is observed in 2 cycle.
+        # if every other grid point observed (or every 4th),
+        # shift so every grid point observed over 2 or 4 cycles.
         if nobs == nx*ny//2:
             if ntime%2:
                mask[:,1:nx:2] = True
