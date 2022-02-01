@@ -1,28 +1,10 @@
-from __future__ import print_function
 import numpy as np
-
-try:  # pyfftw is *much* faster
-    from pyfftw.interfaces import numpy_fft, cache
-
-    # print('# using pyfftw...')
-    cache.enable()
-    rfft2 = numpy_fft.rfft2
-    irfft2 = numpy_fft.irfft2
-except ImportError:  # fall back on numpy fft.
-    print("# WARNING: using numpy fft (install pyfftw for better performance)...")
-
-    def rfft2(*args, **kwargs):
-        kwargs.pop("threads", None)
-        return np.fft.rfft2(*args, **kwargs)
-
-    def irfft2(*args, **kwargs):
-        kwargs.pop("threads", None)
-        return np.fft.irfft2(*args, **kwargs)
-
+from .pyfft import Fouriert
 
 class SQG:
     def __init__(
         self,
+        ft,
         pv,
         f=1.0e-4,
         nsq=1.0e-4,
@@ -35,7 +17,6 @@ class SQG:
         diff_efold=None,
         symmetric=True,
         dt=None,
-        dealias=True,
         threads=1,
         precision="single",
         tstart=0,
@@ -43,17 +24,19 @@ class SQG:
         # initialize SQG model.
         if pv.shape[0] != 2:
             raise ValueError("1st dim of pv should be 2")
-        N = pv.shape[1]  # number of grid points in each direction
-        # N should be even
-        if N % 2:
-            raise ValueError("N must be even (powers of 2 are fastest)")
+        Nt = pv.shape[1]  # number of grid points in each direction
+        # Nt should be even
+        if Nt % 2:
+            raise ValueError("grid must be even (powers of 2 are fastest)")
         if dt is None:  # time step must be specified
             raise ValueError("must specify time step")
         if diff_efold is None:  # efolding time scale for diffusion must be specified
             raise ValueError("must specify efolding time scale for diffusion")
         # number of openmp threads to use for FFTs (only for pyfftw)
         self.threads = threads
-        self.N = N
+        self.N = 2*Nt//3
+        self.Nt = Nt
+        self.ft = ft
         if precision == "single":
             # ffts in single precision (faster)
             dtype = np.float32
@@ -70,7 +53,6 @@ class SQG:
         self.U = np.array(U, dtype)  # basic state velocity at z = H
         self.L = np.array(L, dtype)  # size of square domain.
         self.dt = np.array(dt, dtype)  # time step (seconds)
-        self.dealias = dealias  # if True, dealiasing applied using 2/3 rule.
         if r < 1.0e-10:
             self.ekman = False
         else:
@@ -80,10 +62,10 @@ class SQG:
         self.t = tstart  # initialize time counter
         # setup basic state pv (for thermal relaxation)
         self.symmetric = symmetric  # symmetric jet, or jet with U=0 at sfc.
-        y = np.arange(0, L, L / N, dtype=dtype)
-        pvbar = np.zeros((2, N), dtype)
+        y = np.arange(0, self.L, self.L / self.Nt, dtype=dtype)
+        pvbar = np.zeros((2, self.Nt), dtype)
         pi = np.array(np.pi, dtype)
-        l = 2.0 * pi / L
+        l = 2.0 * pi / self.L
         mu = l * np.sqrt(nsq) * H / f
         if symmetric:
             # symmetric version, no difference between upper and lower
@@ -108,37 +90,12 @@ class SQG:
             # + theta0 + (theta0*nsq*z/g)
             pvbar[:] = -(mu * U / (l * H)) * np.cos(l * y) / np.sinh(mu)
             pvbar[1, :] = pvbar[0, :] * np.cosh(mu)
-        pvbar.shape = (2, N, 1)
-        pvbar = pvbar * np.ones((2, N, N), dtype)
+        pvbar.shape = (2, self.Nt, 1)
+        pvbar = pvbar * np.ones((2, self.Nt, self.Nt), dtype)
         self.pvbar = pvbar
-        self.pvspec_eq = rfft2(pvbar)  # state to relax to with timescale tdiab
-        self.pvspec = rfft2(pv)  # initial pv field (spectral)
-        # spectral stuff
-        k = (N * np.fft.fftfreq(N))[0 : (N // 2) + 1]
-        l = N * np.fft.fftfreq(N)
-        k, l = np.meshgrid(k, l)
-        k = k.astype(dtype)
-        l = l.astype(dtype)
-        # dimensionalize wavenumbers.
-        k = 2.0 * pi * k / self.L
-        l = 2.0 * pi * l / self.L
-        ksqlsq = k ** 2 + l ** 2
-        self.k = k
-        self.l = l
-        self.ksqlsq = ksqlsq
-        self.ik = (1.0j * k).astype(np.complex64)
-        self.il = (1.0j * l).astype(np.complex64)
-        if dealias:  # arrays needed for dealiasing nonlinear Jacobian
-            k_pad = ((3 * N // 2) * np.fft.fftfreq(3 * N // 2))[0 : (3 * N // 4) + 1]
-            l_pad = (3 * N // 2) * np.fft.fftfreq(3 * N // 2)
-            k_pad, l_pad = np.meshgrid(k_pad, l_pad)
-            k_pad = k_pad.astype(dtype)
-            l_pad = l_pad.astype(dtype)
-            k_pad = 2.0 * pi * k_pad / self.L
-            l_pad = 2.0 * pi * l_pad / self.L
-            self.ik_pad = (1.0j * k_pad).astype(np.complex64)
-            self.il_pad = (1.0j * l_pad).astype(np.complex64)
-        mu = np.sqrt(ksqlsq) * np.sqrt(self.nsq) * self.H / self.f
+        self.pvspec_eq = self.ft.grdtospec(pvbar)  # state to relax to with timescale tdiab
+        self.pvspec = self.ft.grdtospec(pv)  # initial pv field (spectral)
+        mu = np.sqrt(self.ft.ksqlsq) * np.sqrt(self.nsq) * self.H / self.f
         mu = mu.clip(np.finfo(mu.dtype).eps)  # clip to avoid NaN
         self.Hovermu = self.H / mu
         mu = mu.astype(np.float64)  # cast to avoid overflow in sinh
@@ -146,8 +103,8 @@ class SQG:
         self.sinhmu = np.sinh(mu).astype(dtype)
         self.diff_order = np.array(diff_order, dtype)  # hyperdiffusion order
         self.diff_efold = np.array(diff_efold, dtype)  # hyperdiff time scale
-        ktot = np.sqrt(ksqlsq)
-        ktotcutoff = np.array(pi * N / self.L, dtype)
+        ktot = np.sqrt(self.ft.ksqlsq)
+        ktotcutoff = np.array(pi * self.N / self.L, dtype)
         # integrating factor for hyperdiffusion
         # with efolding time scale for diffusion of shortest wave (N/2)
         self.hyperdiff = np.exp(
@@ -189,51 +146,10 @@ class SQG:
         # number of timesteps given by 'timesteps' instance var.
         # if pv not specified, use pvspec instance variable.
         if pv is not None:
-            self.pvspec = rfft2(pv, threads=self.threads)
+            self.pvspec = self.ft.grdtospec(pv)
         for n in range(self.timesteps):
             self.timestep()
-        return irfft2(self.pvspec, threads=self.threads)
-
-    def specpad(self, specarr):
-        # pad spectral arrays with zeros to get
-        # interpolation to 3/2 larger grid using inverse fft.
-        # take care of normalization factor for inverse transform.
-        specarr_pad = np.zeros((2, 3 * self.N // 2, 3 * self.N // 4 + 1), specarr.dtype)
-        specarr_pad[:, 0 : self.N // 2, 0 : self.N // 2] = (
-            2.25 * specarr[:, 0 : self.N // 2, 0 : self.N // 2]
-        )
-        specarr_pad[:, -self.N // 2 :, 0 : self.N // 2] = (
-            2.25 * specarr[:, -self.N // 2 :, 0 : self.N // 2]
-        )
-        # include negative Nyquist frequency.
-        specarr_pad[:, 0 : self.N // 2, self.N // 2] = np.conjugate(
-            2.25 * specarr[:, 0 : self.N // 2, -1]
-        )
-        specarr_pad[:, -self.N // 2 :, self.N // 2] = np.conjugate(
-            2.25 * specarr[:, -self.N // 2 :, -1]
-        )
-        return specarr_pad
-
-    def spectrunc(self, specarr):
-        # truncate spectral array using 2/3 rule.
-        specarr_trunc = np.zeros((2, self.N, self.N // 2 + 1), specarr.dtype)
-        specarr_trunc[:, 0 : self.N // 2, 0 : self.N // 2] = specarr[
-            :, 0 : self.N // 2, 0 : self.N // 2
-        ]
-        specarr_trunc[:, -self.N // 2 :, 0 : self.N // 2] = specarr[
-            :, -self.N // 2 :, 0 : self.N // 2
-        ]
-        return specarr_trunc
-
-    def xyderiv(self, specarr):
-        if not self.dealias:
-            xderiv = irfft2(self.ik * specarr, threads=self.threads)
-            yderiv = irfft2(self.il * specarr, threads=self.threads)
-        else:  # pad spectral coeffs with zeros for dealiased jacobian
-            specarr_pad = self.specpad(specarr)
-            xderiv = irfft2(self.ik_pad * specarr_pad, threads=self.threads)
-            yderiv = irfft2(self.il_pad * specarr_pad, threads=self.threads)
-        return xderiv, yderiv
+        return self.ft.spectogrd(self.pvspec)
 
     def gettend(self, pvspec=None):
         # compute tendencies of pv on z=0,H
@@ -242,19 +158,17 @@ class SQG:
             pvspec = self.pvspec
         psispec = self.invert(pvspec)
         # nonlinear jacobian and thermal relaxation
-        psix, psiy = self.xyderiv(psispec)
-        pvx, pvy = self.xyderiv(pvspec)
+        psix, psiy = self.ft.getgrad(psispec)
+        pvx, pvy = self.ft.getgrad(pvspec)
         jacobian = psix * pvy - psiy * pvx
-        jacobianspec = rfft2(jacobian, threads=self.threads)
-        if self.dealias:  # 2/3 rule: truncate spectral coefficients of jacobian
-            jacobianspec = self.spectrunc(jacobianspec)
+        jacobianspec = self.ft.grdtospec(jacobian)
         dpvspecdt = (1.0 / self.tdiab) * (self.pvspec_eq - pvspec) - jacobianspec
         # Ekman damping at boundaries.
         if self.ekman:
-            dpvspecdt[0] += self.r * self.ksqlsq * psispec[0]
+            dpvspecdt[0] += self.r * self.ft.ksqlsq * psispec[0]
             # for asymmetric jet (U=0 at sfc), no Ekman layer at lid
             if self.symmetric:
-                dpvspecdt[1] -= self.r * self.ksqlsq * psispec[1]
+                dpvspecdt[1] -= self.r * self.ft.ksqlsq * psispec[1]
         # save wind field
         self.u = -psiy
         self.v = psix
