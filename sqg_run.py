@@ -76,9 +76,9 @@ model = SQG(ft,pv,nsq=nsq,f=f,U=U,H=H,r=r,tdiab=tdiab,dt=dt,
             symmetric=symmetric)
 
 #  initialize figure.
-outputinterval = 16*3600. # interval between frames in seconds
-tmin = 10.*86400. # time to start saving data (in days)
-tmax = 60.*86400. # time to stop (in days)
+outputinterval = 86400./4. # interval between frames in seconds
+tmin = 0.*86400. # time to start saving data (in days)
+tmax = 10.*86400. # time to stop (in days)
 nsteps = int(tmax/outputinterval) # number of time steps to animate
 # set number of timesteps to integrate for each call to model.advance
 model.timesteps = int(outputinterval/model.dt)
