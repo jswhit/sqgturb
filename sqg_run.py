@@ -76,15 +76,15 @@ model = SQG(ft,pv,nsq=nsq,f=f,U=U,H=H,r=r,tdiab=tdiab,dt=dt,
             symmetric=symmetric)
 
 #  initialize figure.
-outputinterval = 86400./4. # interval between frames in seconds
+outputinterval = 86400./8. # interval between frames in seconds
 tmin = 0.*86400. # time to start saving data (in days)
-tmax = 10.*86400. # time to stop (in days)
+tmax = 100.*86400. # time to stop (in days)
 nsteps = int(tmax/outputinterval) # number of time steps to animate
 # set number of timesteps to integrate for each call to model.advance
 model.timesteps = int(outputinterval/model.dt)
 #savedata = 'sqg_N%s_6hrly.nc' % N # save data plotted in a netcdf file.
 savedata = None # don't save data
-plot = False # animate data as model is running?
+plot = True # animate data as model is running?
 
 if savedata is not None:
     from netCDF4 import Dataset
