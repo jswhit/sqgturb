@@ -1,10 +1,10 @@
 import matplotlib
-matplotlib.use('qt4agg')
-from sqgturb import SQG, rfft2, irfft2
+matplotlib.use('qt5agg')
+from sqgturb import SQG, Fouriert
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
-import os
+import os,time
 
 # run SQG turbulence simulation, optionally plotting results to screen and/or saving to
 # netcdf file.
@@ -18,12 +18,12 @@ import os
 #N = 192
 #dt = 300
 #diff_efold = 86400./8.
-#
+ 
 #N = 128
 #dt = 600
 #diff_efold = 86400./3.
 
-N = 96 
+N = 144
 dt = 900
 diff_efold = 86400./3.
 
@@ -34,13 +34,14 @@ diff_efold = 86400./3.
 norder = 8 # order of hyperdiffusion
 dealias = True # dealiased with 2/3 rule?
 
+
 # Ekman damping coefficient r=dek*N**2/f, dek = ekman depth = sqrt(2.*Av/f))
 # Av (turb viscosity) = 2.5 gives dek = sqrt(5/f) = 223
 # for ocean Av is 1-5, land 5-50 (Lin and Pierrehumbert, 1988)
 # corresponding to ekman depth of 141-316 m over ocean.
 # spindown time of a barotropic vortex is tau = H/(f*dek), 10 days for
 # H=10km, f=0.0001, dek=100m.
-dek = 0 # applied only at surface if symmetric=False
+dek = 25 # applied only at surface if symmetric=False
 nsq = 1.e-4; f=1.e-4; g = 9.8; theta0 = 300
 H = 10.e3 # lid height
 r = dek*nsq/f
@@ -67,25 +68,22 @@ for k in range(2):
 
 # get OMP_NUM_THREADS (threads to use) from environment.
 threads = int(os.getenv('OMP_NUM_THREADS','1'))
-
-# single or double precision
-precision='single' # pyfftw FFTs twice as fast as double
+ft = Fouriert(2*N//3,L,threads=threads)
 
 # initialize qg model instance
-model = SQG(pv,nsq=nsq,f=f,U=U,H=H,r=r,tdiab=tdiab,dt=dt,
+model = SQG(ft,pv,nsq=nsq,f=f,U=U,H=H,r=r,tdiab=tdiab,dt=dt,
             diff_order=norder,diff_efold=diff_efold,
-            dealias=dealias,symmetric=symmetric,threads=threads,
-            precision=precision)
+            symmetric=symmetric)
 
 #  initialize figure.
-outputinterval = 86400./4. # interval between frames in seconds
-tmin = 100.*86400. # time to start saving data (in days)
-tmax = 600.*86400. # time to stop (in days)
+outputinterval = 16*3600. # interval between frames in seconds
+tmin = 10.*86400. # time to start saving data (in days)
+tmax = 60.*86400. # time to stop (in days)
 nsteps = int(tmax/outputinterval) # number of time steps to animate
 # set number of timesteps to integrate for each call to model.advance
 model.timesteps = int(outputinterval/model.dt)
-savedata = 'sqg_N%s_6hrly.nc' % N # save data plotted in a netcdf file.
-#savedata = None # don't save data
+#savedata = 'sqg_N%s_6hrly.nc' % N # save data plotted in a netcdf file.
+savedata = None # don't save data
 plot = False # animate data as model is running?
 
 if savedata is not None:
@@ -134,14 +132,14 @@ if plot:
         global im
         ax = fig.add_subplot(111)
         ax.axis('off')
-        pv = irfft2(model.pvspec[levplot])  # spectral to grid
+        pv = model.ft.spectogrd(model.pvspec[levplot])  # spectral to grid
         im = ax.imshow(scalefact*pv,cmap=plt.cm.jet,interpolation='nearest',origin='lower',vmin=vmin,vmax=vmax)
         return im,
     def updatefig(*args):
         global nout
         model.advance()
         t = model.t
-        pv = irfft2(model.pvspec)
+        pv = model.ft.spectogrd(model.pvspec) 
         hr = t/3600.
         spd = np.sqrt(model.u[levplot]**2+model.v[levplot]**2)
         print(hr,spd.max(),scalefact*pv.min(),scalefact*pv.max())
@@ -161,17 +159,19 @@ if plot:
     plt.show()
 else:
     t = 0.0
+    t1 = time.perf_counter()
     while t < tmax:
         model.advance()
         t = model.t
-        pv = irfft2(model.pvspec)
         hr = t/3600.
-        spd = np.sqrt(model.u[levplot]**2+model.v[levplot]**2)
-        print(hr,spd.max(),scalefact*pv.min(),scalefact*pv.max())
+        print('time t = %g hours' % hr)
         if savedata is not None and t >= tmin:
+            pv = model.ft.spectogrd(model.pvspec)
             print('saving data at t = t = %g hours' % hr)
             pvvar[nout,:,:,:] = pv
             tvar[nout] = t
             nc.sync()
             if t >= tmax: nc.close()
             nout = nout + 1
+    t2 = time.perf_counter()
+    print('total time = ',t2-t1)
