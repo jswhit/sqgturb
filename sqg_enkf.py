@@ -6,7 +6,6 @@ import numpy as np
 from netCDF4 import Dataset
 import sys, time, os
 from sqgturb import SQG, rfft2, irfft2, cartdist,enkf_update,gaspcohn, bulk_ensrf
-#from scipy import linalg
 
 # EnKF cycling for SQG turbulence model with boundary temp obs,
 # horizontal and vertical localization.  Relaxation to prior spread
@@ -58,17 +57,19 @@ diff_efold = None # use diffusion from climo file
 
 profile = False # turn on profiling?
 
-use_letkf = False  # use serial EnSRF
+use_letkf = True  # use LETKF
 global_enkf = False # global EnSRF solve
 denkf = False # use Sakov DEnKF to update ens perts
 read_restart = False
-savedata = None # if not None, netcdf filename to save data.
-#savedata = 'sqg_enkf.nc'
+# if savedata not None, netcdf filename will be defined by env var 'exptname'
+# if savedata = 'restart', only last time is saved (so expt can be restarted)
+#savedata = True 
 #savedata = 'restart'
+savedata = None
 #nassim = 101 
 #nassim_spinup = 1
-nassim = 400 # assimilation times to run
-nassim_spinup = 200
+nassim = 200 # assimilation times to run
+nassim_spinup = 100
 
 direct_insertion = False 
 if direct_insertion: print('# direct insertion!')
@@ -78,10 +79,9 @@ nanals = 20 # ensemble members
 oberrstdev = 1. # ob error standard deviation in K
 
 # nature run created using sqg_run.py.
-filename_climo = 'sqg_N96_6hrly.nc' # file name for forecast model climo
+filename_climo = 'sqg_N96_12hrly.nc' # file name for forecast model climo
 # perfect model
-filename_truth = 'sqg_N96_6hrly.nc' # file name for nature run to draw obs
-#filename_truth = 'sqg_N256_N96_12hrly.nc' # file name for nature run to draw obs
+filename_truth = 'sqg_N96_12hrly.nc' # file name for nature run to draw obs
 
 print('# filename_modelclimo=%s' % filename_climo)
 print('# filename_truth=%s' % filename_truth)
@@ -138,7 +138,7 @@ print("# hcovlocal=%g vcovlocal=%s diff_efold=%s covinf1=%s covinf2=%s nanals=%s
 # if nobs > 0, each ob time nobs ob locations are randomly sampled (without
 # replacement) from the model grid
 # if nobs < 0, fixed network of every Nth grid point used (N = -nobs)
-#nobs = nx*ny//3 # number of obs to assimilate (randomly distributed)
+#nobs = nx*ny//2 # number of obs to assimilate (randomly distributed)
 #nobs = nx*ny//16 # number of obs to assimilate (randomly distributed)
 nobs = -1 # fixed network, every -nobs grid points. nobs=-1 obs at all pts.
 
@@ -156,6 +156,7 @@ if nobs < 0:
 else:
     fixed = False
     print('# random network nobs = %s' % nobs)
+if nobs == nx*ny//2: fixed=True
 oberrvar = oberrstdev**2*np.ones(nobs,np.float)
 pvob = np.empty((2,nobs),np.float)
 covlocal = np.empty((ny,nx),np.float)
@@ -174,21 +175,6 @@ if global_enkf: # model-space localization matrix
         dist = cartdist(x1[n],y1[n],x1,y1,nc_climo.L,nc_climo.L)
         covlocal_modelspace[n,:] = gaspcohn(dist/hcovlocal_scale)
 
-# square root of localization (for modulated ensemble localization)
-#evals, eigs = linalg.eigh(covlocal_modelspace)
-#evals = np.where(evals > 1.e-10, evals, 1.e-10)
-#evalsum = evals.sum(); neig = 0; frac = 0.0
-#thresh = 0.9
-#while frac < thresh:
-#    frac = evals[nx*ny-neig-1:nx*ny].sum()/evalsum
-##    print(neig,evals[nx*ny-neig-1],frac)
-#    neig += 1
-#zz = (eigs*np.sqrt(evals/frac)).T
-#zz = np.tile(zz,(1,2))
-#z = zz[nx*ny-neig:nx*ny,:]
-#print('# model space localization: neig = %s, variance expl = %5.2f%%' %
-#        (neig,100*frac))
- 
 obtimes = nc_truth.variables['t'][:]
 if read_restart:
     timeslist = obtimes.tolist()
@@ -280,9 +266,12 @@ for ntime in range(nassim):
     else:
         mask = np.zeros((ny,nx),np.bool)
         # if every other grid point observed, shift every other time step
-        # so every grid point is observed in 2 cycle.
-        if nskip == 2 and ntime%2:
-            mask[1:ny:nskip,1:nx:nskip] = True
+        # so every grid point is observed in 2 cycles.
+        if nobs == nx*ny//2:
+            if ntime%2:
+                mask[0:ny,1:nx:2] = True
+            else:
+                mask[0:ny,0:nx:2] = True
         else:
             mask[0:ny:nskip,0:nx:nskip] = True
         indxob = np.flatnonzero(mask)

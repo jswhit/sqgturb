@@ -1,5 +1,5 @@
 import matplotlib
-matplotlib.use('qt4agg')
+matplotlib.use('agg')
 from sqgturb import SQG, rfft2, irfft2
 import numpy as np
 import matplotlib.pyplot as plt
@@ -75,16 +75,16 @@ precision='single' # pyfftw FFTs twice as fast as double
 model = SQG(pv,nsq=nsq,f=f,U=U,H=H,r=r,tdiab=tdiab,dt=dt,
             diff_order=norder,diff_efold=diff_efold,
             dealias=dealias,symmetric=symmetric,threads=threads,
-            precision=precision)
+            precision=precision,tstart=0)
 
 #  initialize figure.
-outputinterval = 86400./4. # interval between frames in seconds
+outputinterval = 12.*3600. # interval between frames in seconds
 tmin = 100.*86400. # time to start saving data (in days)
 tmax = 600.*86400. # time to stop (in days)
 nsteps = int(tmax/outputinterval) # number of time steps to animate
 # set number of timesteps to integrate for each call to model.advance
 model.timesteps = int(outputinterval/model.dt)
-savedata = 'sqg_N%s_6hrly.nc' % N # save data plotted in a netcdf file.
+savedata = 'sqg_N%s_12hrly.nc' % N # save data plotted in a netcdf file.
 #savedata = None # don't save data
 plot = False # animate data as model is running?
 
