@@ -84,7 +84,7 @@ tmax = 50.*86400. # time to stop (in days)
 nsteps = int(tmax/outputinterval) # number of time steps to animate
 # set number of timesteps to integrate for each call to model.advance
 model.timesteps = int(outputinterval/model.dt)
-savedata = 'sqg_N%s_6hrly_ens.nc' % N # save data to netcdf file
+savedata = 'sqg_N%s_6hrly_mpiens.nc' % N # save data to netcdf file
 
 if savedata is not None:
     from netCDF4 import Dataset
@@ -150,7 +150,7 @@ pvens2 = np.zeros((ranks,2,N,N,),np.float32)
 comm.Allreduce(pvens,pvens2, op=MPI.SUM)
 # 2) using Allgather
 pv = (scalefact*pv).astype(np.float32)
-comm.Allgather([pv, MPI.FLOAT],[pvens,MPI.FLOAT])
+comm.Allgather(pv,pvens)
 comm.barrier()
 # check results
 if rank == 0:
