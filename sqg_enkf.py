@@ -30,7 +30,13 @@ python sqg_enkf.py hcovlocal_scale <covinflate1 covinflate2>
    raise SystemExit(msg)
 
 # horizontal covariance localization length scale in meters.
-hcovlocal_scale = float(sys.argv[1])
+hcovlocal_scales = eval(sys.argv[1])
+nlscales = len(hcovlocal_scales)
+band_cutoffs = eval(sys.argv[2])
+nband_cutoffs = len(band_cutoffs)
+if nband_cutoffs != nlscales-1:
+    raise SystemExit('band_cutoffs should be one less than hcovlocal_scales')
+
 # vertical covariance localization factor
 # is related to horizontal scale by vcovlocal_fact = GC(L_r/hcovlocal_scale)
 # where here L_r is Rossby radius and GC is the gaspari-cohn localization function.
@@ -41,12 +47,12 @@ hcovlocal_scale = float(sys.argv[1])
 # (http://journals.ametsoc.org/doi/10.1175/MWR-D-11-00276.1),
 # otherwise use Hodyss et al inflation
 # (http://journals.ametsoc.org/doi/abs/10.1175/MWR-D-15-0329.1)
-if len(sys.argv) == 3:
-    covinflate1 = float(sys.argv[2])
+if len(sys.argv) == 4:
+    covinflate1 = float(sys.argv[3])
     covinflate2 = -1
-elif len(sys.argv) == 4:
-    covinflate1 = float(sys.argv[2])
-    covinflate2 = float(sys.argv[3])
+elif len(sys.argv) == 5:
+    covinflate1 = float(sys.argv[3])
+    covinflate2 = float(sys.argv[4])
 else:
     covinflate1 = 1.
     covinflate2 = 1.
@@ -79,9 +85,9 @@ nanals = 20 # ensemble members
 oberrstdev = 1. # ob error standard deviation in K
 
 # nature run created using sqg_run.py.
-filename_climo = 'sqg_N96_12hrly.nc' # file name for forecast model climo
+filename_climo = 'sqg_N96_6hrly.nc' # file name for forecast model climo
 # perfect model
-filename_truth = 'sqg_N96_12hrly.nc' # file name for nature run to draw obs
+filename_truth = 'sqg_N96_6hrly.nc' # file name for nature run to draw obs
 #filename_truth = 'sqg_N256_N96_12hrly.nc' # file name for nature run to draw obs
 
 print('# filename_modelclimo=%s' % filename_climo)
@@ -128,13 +134,14 @@ if read_restart: ncinit.close()
 
 # vertical localization scale
 Lr = np.sqrt(models[0].nsq)*models[0].H/models[0].f
-vcovlocal_fact = gaspcohn(np.array(Lr/hcovlocal_scale))
-#vcovlocal_fact = 0.0 # no increment at opposite boundary
-#vcovlocal_fact = 1.0 # no vertical localization
+vcovlocal_facts = [float(gaspcohn(np.array(Lr/hcovlocal_scale))) for hcovlocal_scale in hcovlocal_scales]
+#vcovlocal_facts = nlscales*[1.0] # no vertical localization
 
+hcovlocal_scales_km = [lscale/1000. for lscale in hcovlocal_scales]
 print('# use_letkf=%s global_enkf=%s denkf=%s' % (use_letkf,global_enkf,denkf))
-print("# hcovlocal=%g vcovlocal=%s diff_efold=%s covinf1=%s covinf2=%s nanals=%s" %\
-     (hcovlocal_scale/1000.,vcovlocal_fact,diff_efold,covinflate1,covinflate2,nanals))
+print("# hcovlocal=%s vcovlocal=%s diff_efold=%s covinf1=%s covinf2=%s nanals=%s" %\
+     (repr(hcovlocal_scales_km),repr(vcovlocal_facts),diff_efold,covinflate1,covinflate2,nanals))
+print('# band_cutoffs=%s' % repr(band_cutoffs))
 
 # if nobs > 0, each ob time nobs ob locations are randomly sampled (without
 # replacement) from the model grid
