@@ -114,6 +114,7 @@ def enkf_update(
             if denkf:  # just return what's needed to compute Kalman Gain
                 return np.dot(cho_solve(cho_factor(pa), np.eye(nanals)), YbRinv)
             evals, eigs = np.linalg.eigh(pa)
+            evals = evals.clip(min=np.finfo(evals.dtype).eps)
             painv = np.dot(np.dot(eigs, np.diag(np.sqrt(1.0 / evals))), eigs.T)
             # if denkf:
             #    return np.dot(np.dot(painv, painv.T), YbRinv)
@@ -184,6 +185,7 @@ def bulk_ensrf(
     else:
         # see https://doi.org/10.1175/JTECH-D-16-0140.1 eqn 5
         evals, eigs = eigh(D)
+        evals = evals.clip(min=np.finfo(evals.dtype).eps)
         Dinv = (eigs * (1.0 / evals)).dot(eigs.T)
         kfgain = np.dot(PbHT, Dinv)
         DplusDsqrtinv = (eigs * (1.0 / (evals + np.sqrt(evals)))).dot(eigs.T)
