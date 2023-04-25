@@ -169,14 +169,14 @@ def bulk_ensrf(
 
     # see https://doi.org/10.1175/JTECH-D-16-0140.1 eqn 5
 
-    # using Cholesky decomp
+    # using Cholesky and LU decomp
     Dsqrt, info = lapack.dpotrf(D,overwrite_a=0)
     Dinv, info = lapack.dpotri(Dsqrt)
     # lapack only returns the upper triangular part 
     Dinv += np.triu(Dinv, k=1).T
     kfgain = np.dot(PbHT, Dinv)
     Dsqrt = np.triu(Dsqrt)
-    DplusDsqrtinv = inv(D+Dsqrt)
+    DplusDsqrtinv = inv(D+Dsqrt) # uses lapack dgetrf,dgetri
     reducedgain = np.dot(PbHT, DplusDsqrtinv)
 
     # Using eigenanalysis
