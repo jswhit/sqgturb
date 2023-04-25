@@ -1,6 +1,6 @@
 from __future__ import print_function
 import matplotlib
-matplotlib.use('Agg')
+matplotlib.use('Qt5Agg')
 import matplotlib.pyplot as plt
 import numpy as np
 from netCDF4 import Dataset
@@ -160,10 +160,10 @@ else:
     fixed = False
     print('# random network nobs = %s' % nobs)
 if nobs == nx*ny//2: fixed=True # used fixed network for obs every other grid point
-oberrvar = oberrstdev**2*np.ones(nobs,np.float)
-pvob = np.empty((2,nobs),np.float)
-covlocal_tmp = np.empty((nlscales,nobs,nx*ny),np.float)
-xens = np.empty((nanals,2,nx*ny),np.float)
+oberrvar = oberrstdev**2*np.ones(nobs,np.float64)
+pvob = np.empty((2,nobs),np.float64)
+covlocal_tmp = np.empty((nlscales,nobs,nx*ny),np.float64)
+xens = np.empty((nanals,2,nx*ny),np.float64)
 
 obtimes = nc_truth.variables['t'][:]
 if read_restart:
@@ -259,7 +259,7 @@ for ntime in range(nassim):
         else:
             indxob = np.sort(rsobs.choice(nx*ny,nobs,replace=False))
     else:
-        mask = np.zeros((ny,nx),np.bool)
+        mask = np.zeros((ny,nx),bool)
         # if every other grid point observed, shift every other time step
         # so every grid point is observed in 2 cycles.
         if nobs == nx*ny//2:
@@ -285,18 +285,18 @@ for ntime in range(nassim):
                 covlocal_tmp[nlscale,nob,...] = covlocal.ravel()
 
     # first-guess spread (need later to compute inflation factor)
-    fsprd = ((pvens - pvens.mean(axis=0))**2).sum(axis=0)/(nanals-1)
+    pvensmean = pvens.mean(axis=0)
+    pvpert = pvens-pvensmean
+    fsprd = (pvpert**2).sum(axis=0)/(nanals-1)
 
     # filter backgrounds into different scale bands
     if nlscales == 1:
-        pvens_filtered_lst=[pvens]
+        pvens_filtered_lst=[pvpert]
     else: 
         pvens_filtered_lst=[]
-        pvfilt_save = np.zeros_like(pvens)
-        pvspec = rfft2(pvens)
-        print((models[0].wavenums).min(),(models[0].wavenums).max())
+        pvfilt_save = np.zeros_like(pvpert)
+        pvspec = rfft2(pvpert)
         for n,cutoff in enumerate(band_cutoffs):
-            print(n,cutoff)
             pvfiltspec = np.where(models[0].wavenums[np.newaxis,np.newaxis,...] < cutoff, pvspec, 0.+0.j)
             pvfilt = irfft2(pvfiltspec)
             pvens_filtered_lst.append(pvfilt-pvfilt_save)
@@ -304,14 +304,22 @@ for ntime in range(nassim):
         pvsum = np.zeros_like(pvens)
         for n in range(nband_cutoffs):
             pvsum += pvens_filtered_lst[n]
-        pvens_filtered_lst.append(pvens-pvsum)
+        pvens_filtered_lst.append(pvpert-pvsum)
     pvens_filtered = np.asarray(pvens_filtered_lst)
-    print(pvens_filtered.shape)
+    plt.figure()
+    plt.imshow((pvens-pvensmean)[0,-1,...])
+    plt.title('full')
+    for nlscale in range(nlscales):
+        import matplotlib.pyplot as plot
+        plt.figure()
+        plt.imshow(pvens_filtered[nlscale,0,-1,...])
+        plt.title('scale %s' % nlscale)
+    plt.show()
     raise SystemExit
 
     # compute forward operator.
     # hxens is ensemble in observation space.
-    hxens = np.empty((nanals,2,nobs),np.float)
+    hxens = np.empty((nanals,2,nobs),np.float64)
     for nanal in range(nanals):
         for k in range(2):
             hxens[nanal,k,...] = scalefact*pvens[nanal,k,...].ravel()[indxob] # surface pv obs
@@ -452,8 +460,8 @@ if ncount:
     k,l = np.meshgrid(k,l)
     ktot = np.sqrt(k**2+l**2)
     ktotmax = (N//2)+1
-    kespec_err = np.zeros(ktotmax,np.float)
-    kespec_sprd = np.zeros(ktotmax,np.float)
+    kespec_err = np.zeros(ktotmax,np.float64)
+    kespec_sprd = np.zeros(ktotmax,np.float64)
     for i in range(kespec_errmean.shape[2]):
         for j in range(kespec_errmean.shape[1]):
             totwavenum = ktot[j,i]
@@ -465,7 +473,7 @@ if ncount:
     
     print('# mean error/spread',kespec_errmean.sum(), kespec_sprdmean.sum())
     plt.figure()
-    wavenums = np.arange(ktotmax,dtype=np.float)
+    wavenums = np.arange(ktotmax,dtype=np.float64)
     for n in range(1,ktotmax):
         print('# ',wavenums[n],kespec_err[n],kespec_sprd[n])
     plt.loglog(wavenums[1:-1],kespec_err[1:-1],color='r')
