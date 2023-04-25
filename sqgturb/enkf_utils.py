@@ -37,7 +37,7 @@ def gaspcohn(r):
 
 
 def enkf_update(
-    xens, hxens, obs, oberrs, covlocal, vcovlocal_fact, obcovlocal=None, denkf=False
+    xens, hxens, obs, oberrs, covlocal, vcovlocal_fact, obcovlocal=None
 ):
     """serial potter method or LETKF (if obcovlocal is None)"""
 
@@ -58,14 +58,11 @@ def enkf_update(
                 ominusf = ob - hxmean[kob, nob].copy()
                 hxens = hxprime[:, kob, nob].copy().reshape((nanals, 1))
                 hpbht = (hxens ** 2).sum() / (nanals - 1)
-                if denkf:
-                    gainfact = 0.5
-                else:
-                    gainfact = (
-                        (hpbht + oberr)
-                        / hpbht
-                        * (1.0 - np.sqrt(oberr / (hpbht + oberr)))
-                    )
+                gainfact = (
+                    (hpbht + oberr)
+                    / hpbht
+                    * (1.0 - np.sqrt(oberr / (hpbht + oberr)))
+                )
                 # state space update
                 # only update points closer than localization radius to ob
                 mask = covlocal[nob, :] > 1.0e-10
@@ -111,12 +108,10 @@ def enkf_update(
         def calcwts(hx, Rinv, ominusf):
             YbRinv = np.dot(hx, Rinv)
             pa = (nanals - 1) * np.eye(nanals) + np.dot(YbRinv, hx.T)
-            #evals, eigs, info = lapack.dsyevd(pa)
-            evals, eigs, info, isuppz, info = lapack.dsyevr(pa)
+            evals, eigs, info = lapack.dsyevd(pa)
+            #evals, eigs, info, isuppz, info = lapack.dsyevr(pa)
             evals = evals.clip(min=np.finfo(evals.dtype).eps)
             painv = np.dot(np.dot(eigs, np.diag(np.sqrt(1.0 / evals))), eigs.T)
-            if denkf:
-               return np.dot(np.dot(painv, painv.T), YbRinv)
             tmp = np.dot(np.dot(np.dot(painv, painv.T), YbRinv), ominusf)
             return np.sqrt(nanals - 1) * painv + tmp[:, np.newaxis]
 
@@ -126,18 +121,12 @@ def enkf_update(
                 Rinv = np.diag(covlocal_tmp[mask, k, n] / oberrvar[mask])
                 ominusf = omf[mask]
                 wts = calcwts(hx[:, mask], Rinv, ominusf)
-                if denkf:
-                    kfgain = np.dot(wts.T, xprime[:, k, n])
-                    xmean[k, n] += np.dot(kfgain, ominusf)
-                    xprime[:, k, n] -= 0.5 * np.dot(kfgain, hx[:, mask].T)
-                    xens[:, k, n] = xmean[k, n] + xprime[:, k, n]
-                else:
-                    xens[:, k, n] = xmean[k, n] + np.dot(wts.T, xprime[:, k, n])
+                xens[:, k, n] = xmean[k, n] + np.dot(wts.T, xprime[:, k, n])
         return xens
 
 
 def bulk_ensrf(
-    xens, indxobi, obs, oberrs, covlocal1, vcovlocal_fact, pv_scalefact, denkf=False
+    xens, indxobi, obs, oberrs, covlocal1, vcovlocal_fact, pv_scalefact
 ):
     """bulk potter method (global matrix solution)"""
 
@@ -186,24 +175,18 @@ def bulk_ensrf(
     # lapack only returns the upper triangular part 
     Dinv += np.triu(Dinv, k=1).T
     kfgain = np.dot(PbHT, Dinv)
-    if denkf:
-        reducedgain = 0.5*kfgain
-    else:
-        Dsqrt = np.triu(Dsqrt)
-        DplusDsqrtinv = inv(D+Dsqrt)
-        reducedgain = np.dot(PbHT, DplusDsqrtinv)
+    Dsqrt = np.triu(Dsqrt)
+    DplusDsqrtinv = inv(D+Dsqrt)
+    reducedgain = np.dot(PbHT, DplusDsqrtinv)
 
     # Using eigenanalysis
-    ##evals, eigs, info = lapack.dsyevd(D)
-    #evals, eigs, info, isuppz, info = lapack.dsyevr(D)
+    #evals, eigs, info = lapack.dsyevd(D)
+    ##evals, eigs, info, isuppz, info = lapack.dsyevr(D)
     #evals = evals.clip(min=np.finfo(evals.dtype).eps)
     #Dinv = (eigs * (1.0 / evals)).dot(eigs.T)
     #kfgain = np.dot(PbHT, Dinv)
-    #if denkf:
-    #    reducedgain = 0.5*kfgain
-    #else:
-    #    DplusDsqrtinv = (eigs * (1.0 / (evals + np.sqrt(evals)))).dot(eigs.T)
-    #    reducedgain = np.dot(PbHT, DplusDsqrtinv)
+    #DplusDsqrtinv = (eigs * (1.0 / (evals + np.sqrt(evals)))).dot(eigs.T)
+    #reducedgain = np.dot(PbHT, DplusDsqrtinv)
 
     # mean and perturbation update
     xmean += np.dot(kfgain, obs - hxmean)
