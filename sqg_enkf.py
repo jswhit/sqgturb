@@ -63,8 +63,6 @@ diff_efold = None # use diffusion from climo file
 
 profile = False # turn on profiling?
 
-use_letkf = True  # use LETKF
-global_enkf = False # global EnSRF solve
 read_restart = False
 # if savedata not None, netcdf filename will be defined by env var 'exptname'
 # if savedata = 'restart', only last time is saved (so expt can be restarted)
@@ -84,9 +82,9 @@ nanals = 20 # ensemble members
 oberrstdev = 1. # ob error standard deviation in K
 
 # nature run created using sqg_run.py.
-filename_climo = 'sqg_N96_6hrly.nc' # file name for forecast model climo
+filename_climo = 'sqg_N96_12hrly.nc' # file name for forecast model climo
 # perfect model
-filename_truth = 'sqg_N96_6hrly.nc' # file name for nature run to draw obs
+filename_truth = 'sqg_N96_12hrly.nc' # file name for nature run to draw obs
 #filename_truth = 'sqg_N256_N96_12hrly.nc' # file name for nature run to draw obs
 
 print('# filename_modelclimo=%s' % filename_climo)
@@ -137,7 +135,6 @@ vcovlocal_facts = [float(gaspcohn(np.array(Lr/hcovlocal_scale))) for hcovlocal_s
 #vcovlocal_facts = nlscales*[1.0] # no vertical localization
 
 hcovlocal_scales_km = [lscale/1000. for lscale in hcovlocal_scales]
-print('# use_letkf=%s global_enkf=%s' % (use_letkf,global_enkf))
 print("# hcovlocal=%s vcovlocal=%s diff_efold=%s covinf1=%s covinf2=%s nanals=%s" %\
      (repr(hcovlocal_scales_km),repr(vcovlocal_facts),diff_efold,covinflate1,covinflate2,nanals))
 print('# band_cutoffs=%s' % repr(band_cutoffs))
@@ -165,21 +162,8 @@ else:
 if nobs == nx*ny//2: fixed=True # used fixed network for obs every other grid point
 oberrvar = oberrstdev**2*np.ones(nobs,np.float)
 pvob = np.empty((2,nobs),np.float)
-covlocal = np.empty((ny,nx),np.float)
-covlocal_tmp = np.empty((nobs,nx*ny),np.float)
+covlocal_tmp = np.empty((nlscales,nobs,nx*ny),np.float)
 xens = np.empty((nanals,2,nx*ny),np.float)
-if not use_letkf:
-    obcovlocal = np.empty((nobs,nobs),np.float)
-else:
-    obcovlocal = None
-
-if global_enkf: # model-space localization matrix
-    n = 0
-    covlocal_modelspace = np.empty((nx*ny,nx*ny),np.float)
-    x1 = x.reshape(nx*ny); y1 = y.reshape(nx*ny)
-    for n in range(nx*ny):
-        dist = cartdist(x1[n],y1[n],x1,y1,nc_climo.L,nc_climo.L)
-        covlocal_modelspace[n,:] = gaspcohn(dist/hcovlocal_scale)
 
 obtimes = nc_truth.variables['t'][:]
 if read_restart:
@@ -207,8 +191,9 @@ if savedata is not None:
    nc.L = models[0].L
    nc.H = models[0].H
    nc.nanals = nanals
-   nc.hcovlocal_scale = hcovlocal_scale
-   nc.vcovlocal_fact = vcovlocal_fact
+   nc.hcovlocal_scales = hcovlocal_scales
+   nc.vcovlocal_facts = vcovlocal_facts
+   nc.band_cutoffs = band_cutoffs
    nc.oberrstdev = oberrstdev
    nc.g = nc_climo.g; nc.theta0 = nc_climo.theta0
    nc.nsq = models[0].nsq
@@ -295,13 +280,34 @@ for ntime in range(nassim):
     if not fixed or ntime == 0:
         for nob in range(nobs):
             dist = cartdist(xob[nob],yob[nob],x,y,nc_climo.L,nc_climo.L)
-            covlocal = gaspcohn(dist/hcovlocal_scale)
-            covlocal_tmp[nob] = covlocal.ravel()
-            dist = cartdist(xob[nob],yob[nob],xob,yob,nc_climo.L,nc_climo.L)
-            if not use_letkf: obcovlocal[nob] = gaspcohn(dist/hcovlocal_scale)
+            for nlscale,hcovlocal_scale in enumerate(hcovlocal_scales):
+                covlocal = gaspcohn(dist/hcovlocal_scale)
+                covlocal_tmp[nlscale,nob,...] = covlocal.ravel()
 
     # first-guess spread (need later to compute inflation factor)
     fsprd = ((pvens - pvens.mean(axis=0))**2).sum(axis=0)/(nanals-1)
+
+    # filter backgrounds into different scale bands
+    if nlscales == 1:
+        pvens_filtered_lst=[pvens]
+    else: 
+        pvens_filtered_lst=[]
+        pvfilt_save = np.zeros_like(pvens)
+        pvspec = rfft2(pvens)
+        print((models[0].wavenums).min(),(models[0].wavenums).max())
+        for n,cutoff in enumerate(band_cutoffs):
+            print(n,cutoff)
+            pvfiltspec = np.where(models[0].wavenums[np.newaxis,np.newaxis,...] < cutoff, pvspec, 0.+0.j)
+            pvfilt = irfft2(pvfiltspec)
+            pvens_filtered_lst.append(pvfilt-pvfilt_save)
+            pvfilt_save=pvfilt
+        pvsum = np.zeros_like(pvens)
+        for n in range(nband_cutoffs):
+            pvsum += pvens_filtered_lst[n]
+        pvens_filtered_lst.append(pvens-pvsum)
+    pvens_filtered = np.asarray(pvens_filtered_lst)
+    print(pvens_filtered.shape)
+    raise SystemExit
 
     # compute forward operator.
     # hxens is ensemble in observation space.
@@ -344,11 +350,8 @@ for ntime in range(nassim):
         rsobs.normal(scale=oberrstdev,size=(2,nx*ny))/scalefact
     else:
         # hxens,pvob are in PV units, xens is not 
-        if global_enkf and not use_letkf:
-            xens = bulk_ensrf(xens,indxob,pvob,oberrvar,covlocal_modelspace,vcovlocal_fact,scalefact)
-        else:
-            xens =\
-            enkf_update(xens,hxens,pvob,oberrvar,covlocal_tmp,vcovlocal_fact,obcovlocal=obcovlocal)
+        xens =\
+        enkf_update(xens,hxens,pvob,oberrvar,covlocal_tmp,vcovlocal_fact,obcovlocal=None)
     # back to 3d state vector
     pvens = xens.reshape((nanals,2,ny,nx))
     t2 = time.time()

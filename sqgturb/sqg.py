@@ -116,9 +116,9 @@ class SQG:
         # spectral stuff
         k = (N * np.fft.fftfreq(N))[0 : (N // 2) + 1]
         l = N * np.fft.fftfreq(N)
-        k, l = np.meshgrid(k, l)
-        k = k.astype(dtype)
-        l = l.astype(dtype)
+        kk, ll = np.meshgrid(k, l)
+        k = kk.astype(dtype)
+        l = ll.astype(dtype)
         # dimensionalize wavenumbers.
         k = 2.0 * pi * k / self.L
         l = 2.0 * pi * l / self.L
@@ -140,6 +140,7 @@ class SQG:
             self.il_pad = (1.0j * l_pad).astype(np.complex64)
         mu = np.sqrt(ksqlsq) * np.sqrt(self.nsq) * self.H / self.f
         mu = mu.clip(np.finfo(mu.dtype).eps)  # clip to avoid NaN
+        self.wavenums = np.sqrt(kk**2+ll**2)
         self.Hovermu = self.H / mu
         mu = mu.astype(np.float64)  # cast to avoid overflow in sinh
         self.tanhmu = np.tanh(mu).astype(dtype)  # cast back to original type
