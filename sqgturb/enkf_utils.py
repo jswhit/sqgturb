@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.linalg import eigh, lapack
+from scipy.linalg import inv, lapack
 
 # function definitions.
 
@@ -108,7 +108,7 @@ def enkf_update(
         def calcwts(hx, Rinv, ominusf):
             YbRinv = np.dot(hx, Rinv)
             pa = (nanals - 1) * np.eye(nanals) + np.dot(YbRinv, hx.T)
-            evals, eigs = np.linalg.eigh(pa)
+            evals, eigs, info = lapack.dsyevd(pa)
             evals = evals.clip(min=np.finfo(evals.dtype).eps)
             painv = np.dot(np.dot(eigs, np.diag(np.sqrt(1.0 / evals))), eigs.T)
             tmp = np.dot(np.dot(np.dot(painv, painv.T), YbRinv), ominusf)
@@ -164,13 +164,27 @@ def bulk_ensrf(
     Pb = covlocal * np.dot(xprime.T, xprime) / (nanals - 1)
     D = pv_scalefact ** 2 * Pb[np.ix_(indxob, indxob)] + np.eye(nobs)
     PbHT = pv_scalefact * Pb[:, indxob]
+
     # see https://doi.org/10.1175/JTECH-D-16-0140.1 eqn 5
-    evals, eigs = eigh(D)
-    evals = evals.clip(min=np.finfo(evals.dtype).eps)
-    Dinv = (eigs * (1.0 / evals)).dot(eigs.T)
+
+    # using Cholesky and LU decomp
+    Dsqrt, info = lapack.dpotrf(D,overwrite_a=0)
+    Dinv, info = lapack.dpotri(Dsqrt)
+    # lapack only returns the upper triangular part
+    Dinv += np.triu(Dinv, k=1).T
     kfgain = np.dot(PbHT, Dinv)
-    DplusDsqrtinv = (eigs * (1.0 / (evals + np.sqrt(evals)))).dot(eigs.T)
+    Dsqrt = np.triu(Dsqrt)
+    DplusDsqrtinv = inv(D+Dsqrt) # uses lapack dgetrf,dgetri
     reducedgain = np.dot(PbHT, DplusDsqrtinv)
+
+    # Using eigenanalysis
+    #evals, eigs, info = lapack.dsyevd(D)
+    ##evals, eigs, info, isuppz, info = lapack.dsyevr(D)
+    #evals = evals.clip(min=np.finfo(evals.dtype).eps)
+    #Dinv = (eigs * (1.0 / evals)).dot(eigs.T)
+    #kfgain = np.dot(PbHT, Dinv)
+    #DplusDsqrtinv = (eigs * (1.0 / (evals + np.sqrt(evals)))).dot(eigs.T)
+    #reducedgain = np.dot(PbHT, DplusDsqrtinv)
 
     # mean and perturbation update
     xmean += np.dot(kfgain, obs - hxmean)
