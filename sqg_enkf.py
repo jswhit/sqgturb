@@ -65,7 +65,6 @@ profile = False # turn on profiling?
 
 use_letkf = True  # use LETKF
 global_enkf = False # global EnSRF solve
-denkf = False # use Sakov DEnKF to update ens perts
 read_restart = False
 # if savedata not None, netcdf filename will be defined by env var 'exptname'
 # if savedata = 'restart', only last time is saved (so expt can be restarted)
@@ -138,7 +137,7 @@ vcovlocal_facts = [float(gaspcohn(np.array(Lr/hcovlocal_scale))) for hcovlocal_s
 #vcovlocal_facts = nlscales*[1.0] # no vertical localization
 
 hcovlocal_scales_km = [lscale/1000. for lscale in hcovlocal_scales]
-print('# use_letkf=%s global_enkf=%s denkf=%s' % (use_letkf,global_enkf,denkf))
+print('# use_letkf=%s global_enkf=%s' % (use_letkf,global_enkf))
 print("# hcovlocal=%s vcovlocal=%s diff_efold=%s covinf1=%s covinf2=%s nanals=%s" %\
      (repr(hcovlocal_scales_km),repr(vcovlocal_facts),diff_efold,covinflate1,covinflate2,nanals))
 print('# band_cutoffs=%s' % repr(band_cutoffs))
@@ -346,10 +345,10 @@ for ntime in range(nassim):
     else:
         # hxens,pvob are in PV units, xens is not 
         if global_enkf and not use_letkf:
-            xens = bulk_ensrf(xens,indxob,pvob,oberrvar,covlocal_modelspace,vcovlocal_fact,scalefact,denkf=denkf)
+            xens = bulk_ensrf(xens,indxob,pvob,oberrvar,covlocal_modelspace,vcovlocal_fact,scalefact)
         else:
             xens =\
-            enkf_update(xens,hxens,pvob,oberrvar,covlocal_tmp,vcovlocal_fact,obcovlocal=obcovlocal,denkf=denkf)
+            enkf_update(xens,hxens,pvob,oberrvar,covlocal_tmp,vcovlocal_fact,obcovlocal=obcovlocal)
     # back to 3d state vector
     pvens = xens.reshape((nanals,2,ny,nx))
     t2 = time.time()

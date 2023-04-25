@@ -37,7 +37,7 @@ def gaspcohn(r):
 
 
 def enkf_update(
-    xens, hxens, obs, oberrs, covlocal, vcovlocal_fact, obcovlocal=None, denkf=False
+    xens, hxens, obs, oberrs, covlocal, vcovlocal_fact, obcovlocal=None
 ):
     """serial potter method or LETKF (if obcovlocal is None)"""
 
@@ -58,14 +58,11 @@ def enkf_update(
                 ominusf = ob - hxmean[kob, nob].copy()
                 hxens = hxprime[:, kob, nob].copy().reshape((nanals, 1))
                 hpbht = (hxens ** 2).sum() / (nanals - 1)
-                if denkf:
-                    gainfact = 0.5
-                else:
-                    gainfact = (
-                        (hpbht + oberr)
-                        / hpbht
-                        * (1.0 - np.sqrt(oberr / (hpbht + oberr)))
-                    )
+                gainfact = (
+                    (hpbht + oberr)
+                    / hpbht
+                    * (1.0 - np.sqrt(oberr / (hpbht + oberr)))
+                )
                 # state space update
                 # only update points closer than localization radius to ob
                 mask = covlocal[nob, :] > 1.0e-10
@@ -111,19 +108,11 @@ def enkf_update(
         def calcwts(hx, Rinv, ominusf):
             YbRinv = np.dot(hx, Rinv)
             pa = (nanals - 1) * np.eye(nanals) + np.dot(YbRinv, hx.T)
-            if denkf:  # just return what's needed to compute Kalman Gain
-                zz, info = lapack.dpotrf(pa)
-                painv, info = lapack.dpotri(zz)
-                painv = np.triu(painv) + np.triu(painv, k=1).T
-                return np.dot(painv, YbRinv)
-            else:
-                evals, eigs = np.linalg.eigh(pa)
-                evals = evals.clip(min=np.finfo(evals.dtype).eps)
-                painv = np.dot(np.dot(eigs, np.diag(np.sqrt(1.0 / evals))), eigs.T)
-                # if denkf:
-                #    return np.dot(np.dot(painv, painv.T), YbRinv)
-                tmp = np.dot(np.dot(np.dot(painv, painv.T), YbRinv), ominusf)
-                return np.sqrt(nanals - 1) * painv + tmp[:, np.newaxis]
+            evals, eigs = np.linalg.eigh(pa)
+            evals = evals.clip(min=np.finfo(evals.dtype).eps)
+            painv = np.dot(np.dot(eigs, np.diag(np.sqrt(1.0 / evals))), eigs.T)
+            tmp = np.dot(np.dot(np.dot(painv, painv.T), YbRinv), ominusf)
+            return np.sqrt(nanals - 1) * painv + tmp[:, np.newaxis]
 
         for n in range(ndim1):
             for k in range(2):
@@ -131,18 +120,12 @@ def enkf_update(
                 Rinv = np.diag(covlocal_tmp[mask, k, n] / oberrvar[mask])
                 ominusf = omf[mask]
                 wts = calcwts(hx[:, mask], Rinv, ominusf)
-                if denkf:
-                    kfgain = np.dot(wts.T, xprime[:, k, n])
-                    xmean[k, n] += np.dot(kfgain, ominusf)
-                    xprime[:, k, n] -= 0.5 * np.dot(kfgain, hx[:, mask].T)
-                    xens[:, k, n] = xmean[k, n] + xprime[:, k, n]
-                else:
-                    xens[:, k, n] = xmean[k, n] + np.dot(wts.T, xprime[:, k, n])
+                xens[:, k, n] = xmean[k, n] + np.dot(wts.T, xprime[:, k, n])
         return xens
 
 
 def bulk_ensrf(
-    xens, indxobi, obs, oberrs, covlocal1, vcovlocal_fact, pv_scalefact, denkf=False
+    xens, indxobi, obs, oberrs, covlocal1, vcovlocal_fact, pv_scalefact
 ):
     """bulk potter method (global matrix solution)"""
 
@@ -181,22 +164,13 @@ def bulk_ensrf(
     Pb = covlocal * np.dot(xprime.T, xprime) / (nanals - 1)
     D = pv_scalefact ** 2 * Pb[np.ix_(indxob, indxob)] + np.eye(nobs)
     PbHT = pv_scalefact * Pb[:, indxob]
-    if denkf:
-        # using Cholesky decomp
-        zz, info = lapack.dpotrf(D)
-        Dinv, info = lapack.dpotri(zz)
-        # lapack only returns the upper or lower triangular part
-        Dinv = np.triu(Dinv) + np.triu(Dinv, k=1).T
-        kfgain = np.dot(PbHT, Dinv)
-        reducedgain = 0.5*kfgain
-    else:
-        # see https://doi.org/10.1175/JTECH-D-16-0140.1 eqn 5
-        evals, eigs = eigh(D)
-        evals = evals.clip(min=np.finfo(evals.dtype).eps)
-        Dinv = (eigs * (1.0 / evals)).dot(eigs.T)
-        kfgain = np.dot(PbHT, Dinv)
-        DplusDsqrtinv = (eigs * (1.0 / (evals + np.sqrt(evals)))).dot(eigs.T)
-        reducedgain = np.dot(PbHT, DplusDsqrtinv)
+    # see https://doi.org/10.1175/JTECH-D-16-0140.1 eqn 5
+    evals, eigs = eigh(D)
+    evals = evals.clip(min=np.finfo(evals.dtype).eps)
+    Dinv = (eigs * (1.0 / evals)).dot(eigs.T)
+    kfgain = np.dot(PbHT, Dinv)
+    DplusDsqrtinv = (eigs * (1.0 / (evals + np.sqrt(evals)))).dot(eigs.T)
+    reducedgain = np.dot(PbHT, DplusDsqrtinv)
 
     # mean and perturbation update
     xmean += np.dot(kfgain, obs - hxmean)
