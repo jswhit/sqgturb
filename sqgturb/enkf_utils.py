@@ -41,20 +41,6 @@ def letkf_multiscale_update(xprime,xmean,hxprime,hxmean,obs,oberrs,covlocal,vcov
     nobs = obs.shape[-1]
     fact = np.array([1.0, 1.0], np.float64)
 
-    #   # R localization
-    #   Yb_sqrtRinv_lst=[]; Yb_Rinv_lst=[]; ylocal_lst=[]
-    #   for n in range(nlscales):
-    #       taper = local[n,indx[i],i]
-    #       Yb_sqrtRinv_lst.append(np.sqrt(taper/oberrvar)*ylocal[n])
-    #       Yb_Rinv_lst.append((taper/oberrvar)*ylocal[n])
-    #       ylocal_lst.append(yy[n,i,:])
-    #   Yb_sqrtRinv = np.vstack(Yb_sqrtRinv_lst)
-    #   Yb_Rinv = np.vstack(Yb_Rinv_lst)
-    #   ytmp = np.concatenate(ylocal_lst)
-    #   pa = np.eye(nsamples*nlscales) + np.dot(Yb_sqrtRinv, Yb_sqrtRinv.T)
-    #   painv = syminv(pa); painv_YbRinv = np.dot(painv, Yb_Rinv)
-    #   kfens_rloc[indx[i],i] = np.dot(ytmp, painv_YbRinv)
-
     ndim1 = covlocal.shape[-1]
     hx = np.empty((nlscales, nanals, 2 * nobs), np.float64)
     omf = np.empty(2 * nobs, np.float64)
@@ -75,23 +61,31 @@ def letkf_multiscale_update(xprime,xmean,hxprime,hxmean,obs,oberrs,covlocal,vcov
     def letkf_update(hx, Rinv, x, xm, ominusf):
         Yb_Rinv_lst=[]
         Yb_sqrtRinv_lst=[]
-        x_lst = []
         for n in range(nlscales):
             Yb_Rinv_lst.append(np.dot(hx[n], Rinv[n]))
             Yb_sqrtRinv_lst.append(np.dot(hx[n], np.sqrt(Rinv[n])))
-            x_lst.append(x[n])
         Yb_sqrtRinv = np.vstack(Yb_sqrtRinv_lst)
         Yb_Rinv = np.vstack(Yb_Rinv_lst)
-        xtmp = np.concatenate(x_lst)
         pa = (nanals - 1) *np.eye(nanals*nlscales) +\
              np.dot(Yb_sqrtRinv, Yb_sqrtRinv.T)
+
         evals, eigs, info = lapack.dsyevd(pa)
         evals = evals.clip(min=np.finfo(evals.dtype).eps)
-        painv = np.dot(np.dot(eigs, np.diag(np.sqrt(1.0 / evals))), eigs.T)
-        wts = np.sqrt(nanals-1)*painv
-        kfgain = np.dot(xtmp, np.dot(np.dot(painv, painv.T), Yb_Rinv))
+        painv = np.dot(np.dot(eigs, np.diag(1.0 / evals)), eigs.T)
+        pasqrtinv = np.dot(np.dot(eigs, np.diag(np.sqrt(1.0 / evals))), eigs.T)
+
+        #pasqrt, info = lapack.dpotrf(pa,overwrite_a=0)
+        #painv, info = lapack.dpotri(pasqrt)
+        #pasqrt = np.triu(pasqrt)
+        #painv += np.triu(painv, k=1).T
+        #pasqrtinv = inv(pasqrt)
+
+        wts = np.sqrt(nanals-1)*pasqrtinv
+        xtmp = x.reshape(nanals*nlscales)
+        kfgain = np.dot(xtmp, np.dot(painv, Yb_Rinv))
         xtmp = np.dot(wts.T, xtmp)
         xm += np.dot(kfgain, ominusf)
+
         return xtmp.reshape(nlscales, nanals), xm
 
     covlocal_tmp = covlocal_tmp.clip(min=np.finfo(covlocal_tmp.dtype).eps)
