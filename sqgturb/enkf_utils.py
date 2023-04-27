@@ -35,6 +35,70 @@ def gaspcohn(r):
     )
     return taper
 
+def letkf_multiscale_update(xprime,xmean,hxmean,hxprime,obs,oberrs,covlocal,vcovlocal_facts):
+
+    nlscales, nanals, nlevs, ndim = xprime.shape
+    nobs = obs.shape[-1]
+    fact = np.array([1.0, 1.0], np.float64)
+
+    #   # R localization
+    #   Yb_sqrtRinv_lst=[]; Yb_Rinv_lst=[]; ylocal_lst=[]
+    #   for n in range(nlscales):
+    #       taper = local[n,indx[i],i]
+    #       Yb_sqrtRinv_lst.append(np.sqrt(taper/oberrvar)*ylocal[n])
+    #       Yb_Rinv_lst.append((taper/oberrvar)*ylocal[n])
+    #       ylocal_lst.append(yy[n,i,:])
+    #   Yb_sqrtRinv = np.vstack(Yb_sqrtRinv_lst)
+    #   Yb_Rinv = np.vstack(Yb_Rinv_lst)
+    #   ytmp = np.concatenate(ylocal_lst)
+    #   pa = np.eye(nsamples*nlscales) + np.dot(Yb_sqrtRinv, Yb_sqrtRinv.T)
+    #   painv = syminv(pa); painv_YbRinv = np.dot(painv, Yb_Rinv)
+
+    ndim1 = covlocal.shape[-1]
+    hx = np.empty((nlscales, nanals, 2 * nobs), np.float64)
+    omf = np.empty(2 * nobs, np.float64)
+    oberrvar = np.empty(2 * nobs, np.float64)
+    covlocal_tmp = np.empty((nlscales, 2 * nobs, 2, ndim1), np.float64)
+    for kob in range(2):
+        fact[:] = 1.0
+        oberrvar[kob * nobs : (kob + 1) * nobs] = oberrs[:]
+        omf[kob * nobs : (kob + 1) * nobs] = obs[kob, :] - hxmean[kob, :]
+        for nlscale in range(nlscales):
+            fact[1 - kob] = vcovlocal_facts[nlscale]
+            hx[nlscale, :, kob * nobs : (kob + 1) * nobs] = hxprime[nlscale, :, kob, :]
+            for k in range(2):
+                covlocal_tmp[nlscale, kob * nobs : (kob + 1) * nobs, k, :] = (
+                    fact[k] * covlocal[nlscale, :, :]
+            )
+
+    def calcwts(hx, Rinv, ominusf):
+        Yb_Rinv_lst=[]
+        Yb_sqrtRinv_lst=[]
+        for n in range(nlscales):
+            Yb_Rinv_lst.append(np.dot(hx[n], Rinv[n]))
+            Yb_sqrtRinv_lst.append(np.dot(hx[n], np.sqrt(Rinv[n])))
+        Yb_sqrtRinv = np.vstack(Yb_sqrtRinv_lst)
+        Yb_Rinv = np.vstack(Yb_Rinv_lst)
+        pa = (nanals - 1) * nlscales * np.eye(nanals*nlscales) +\
+             np.dot(Yb_sqrtRinv, Yb_sqrtRinv.T)
+        evals, eigs, info = lapack.dsyevd(pa)
+        evals = evals.clip(min=np.finfo(evals.dtype).eps)
+        painv = np.dot(np.dot(eigs, np.diag(np.sqrt(1.0 / evals))), eigs.T)
+        tmp = np.dot(np.dot(np.dot(painv, painv.T), Yb_Rinv), ominusf)
+        return np.sqrt(nanals - 1) * painv + tmp[:, np.newaxis]
+
+    for n in range(ndim1):
+        for k in range(2):
+            Rinv_lst = []
+            mask = covlocal_tmp[0, :, k, n] > 1.0e-10
+            for nscale in range(nlscales):
+                Rinv_lst.append(np.diag(covlocal_tmp[nscale, mask, k, n] /
+                                    oberrvar[mask]))
+            ominusf = omf[mask]
+            wts = calcwts(hx[:, :, mask], Rinv_lst, ominusf)
+            xens[:, k, n] = xmean[k, n] + np.dot(wts.T, xprime[:, k, n])
+    return xens
+
 
 def enkf_update(
     xens, hxens, obs, oberrs, covlocal, vcovlocal_fact, obcovlocal=None

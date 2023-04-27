@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from netCDF4 import Dataset
 import sys, time, os
-from sqgturb import SQG, rfft2, irfft2, cartdist,enkf_update,gaspcohn, bulk_ensrf
+from sqgturb import SQG, rfft2, irfft2, cartdist,letkf_multiscale_update, gaspcohn
 
 # EnKF cycling for SQG turbulence model with boundary temp obs,
 # horizontal and vertical localization.  Relaxation to prior spread
@@ -66,16 +66,13 @@ profile = False # turn on profiling?
 read_restart = False
 # if savedata not None, netcdf filename will be defined by env var 'exptname'
 # if savedata = 'restart', only last time is saved (so expt can be restarted)
-#savedata = True 
+#savedata = True
 #savedata = 'restart'
 savedata = None
-#nassim = 101 
+#nassim = 101
 #nassim_spinup = 1
 nassim = 200 # assimilation times to run
 nassim_spinup = 100
-
-direct_insertion = False 
-if direct_insertion: print('# direct insertion!')
 
 nanals = 20 # ensemble members
 
@@ -292,7 +289,7 @@ for ntime in range(nassim):
     # filter backgrounds into different scale bands
     if nlscales == 1:
         pvens_filtered_lst=[pvpert]
-    else: 
+    else:
         pvens_filtered_lst=[]
         pvfilt_save = np.zeros_like(pvpert)
         pvspec = rfft2(pvpert)
@@ -306,31 +303,40 @@ for ntime in range(nassim):
             pvsum += pvens_filtered_lst[n]
         pvens_filtered_lst.append(pvpert-pvsum)
     pvens_filtered = np.asarray(pvens_filtered_lst)
-    plt.figure()
-    plt.imshow((pvens-pvensmean)[0,-1,...])
-    plt.title('full')
-    for nlscale in range(nlscales):
-        import matplotlib.pyplot as plot
-        plt.figure()
-        plt.imshow(pvens_filtered[nlscale,0,-1,...])
-        plt.title('scale %s' % nlscale)
-    plt.show()
-    raise SystemExit
+    #plt.figure()
+    #plt.imshow((pvens-pvensmean)[0,-1,...])
+    #plt.title('full')
+    #for nlscale in range(nlscales):
+    #    import matplotlib.pyplot as plot
+    #    plt.figure()
+    #    plt.imshow(pvens_filtered[nlscale,0,-1,...])
+    #    plt.title('scale %s' % nlscale)
+    #plt.show()
+    #raise SystemExit
 
     # compute forward operator.
     # hxens is ensemble in observation space.
-    hxens = np.empty((nanals,2,nobs),np.float64)
+    hxens = np.empty((nlscales,nanals,2,nobs),np.float64)
+    hxensmean = np.empty((2,nobs),np.float64)
+    for nlscale in range(nlscales):
+        for nanal in range(nanals):
+            for k in range(2):
+                hxens[nlscale,nanal,k,...] = scalefact*pvens_filtered[nlscale,nanal,k,...].ravel()[indxob] # surface pv obs
+    for k in range(2):
+        hxensmean[k,:] = scalefact*pvensmean[k,...].ravel()[indxob] # surface pv obs
+
+    hxens_b = np.empty((nanals,2,nobs),np.float64)
     for nanal in range(nanals):
         for k in range(2):
-            hxens[nanal,k,...] = scalefact*pvens[nanal,k,...].ravel()[indxob] # surface pv obs
-    hxensmean_b = hxens.mean(axis=0)
-    obsprd = ((hxens-hxensmean_b)**2).sum(axis=0)/(nanals-1)
+            hxens_b[nanal,k,...] = scalefact*pvens[nanal,k,...].ravel()[indxob] # surface pv obs
+    hxensmean_b = hxens_b.mean(axis=0)
+    obsprd = ((hxens_b-hxensmean_b)**2).sum(axis=0)/(nanals-1)
     # innov stats for background
     obfits = pvob - hxensmean_b
     obfits_b = (obfits**2).mean()
     obbias_b = obfits.mean()
     obsprd_b = obsprd.mean()
-    pvensmean_b = pvens.mean(axis=0).copy()
+    pvensmean_b = pvensmean.copy()
     pverr_b = (scalefact*(pvensmean_b-pv_truth[ntime+ntstart]))**2
     pvsprd_b = ((scalefact*(pvensmean_b-pvens))**2).sum(axis=0)/(nanals-1)
 
@@ -346,33 +352,29 @@ for ntime in range(nassim):
 
     # EnKF update
     # create 1d state vector.
-    xens = pvens.reshape(nanals,2,nx*ny)
+    xens = pvens_filtered.reshape(nlscales,nanals,2,nx*ny)
+    xensmean = pvensmean.reshape(2,nx*ny)
     # update state vector.
-    if direct_insertion and nobs == nx*ny:
-        for nanal in range(nanals):
-            xens[nanal] =\
-            pv_truth[ntime+ntstart].reshape(2,nx*ny) + \
-            rsobs.normal(scale=oberrstdev,size=(2,nx*ny))/scalefact
-        xens = xens - xens.mean(axis=0) + \
-        pv_truth[ntime+ntstart].reshape(2,nx*ny) + \
-        rsobs.normal(scale=oberrstdev,size=(2,nx*ny))/scalefact
-    else:
-        # hxens,pvob are in PV units, xens is not 
-        xens =\
-        enkf_update(xens,hxens,pvob,oberrvar,covlocal_tmp,vcovlocal_fact,obcovlocal=None)
+    # hxens,pvob are in PV units, xens is not
+    xens =\
+    letkf_multiscale_update(xens,xensmean,hxensmean,hxens,pvob,oberrvar,covlocal_tmp,vcovlocal_facts)
     # back to 3d state vector
-    pvens = xens.reshape((nanals,2,ny,nx))
+    pvens_filtered = xens.reshape((nlscales,nanals,2,ny,nx))
+    pvensmean = xensmean.reshape(2,nx,ny)
+    pvens = pvens_filtered.sum(axis=0)
+    pvens = pvens+pvensmean
     t2 = time.time()
     if profile: print('cpu time for EnKF update',t2-t1)
 
     # forward operator on posterior ensemble.
+    hxens_a = np.empty((nanals,2,nobs),np.float64)
     for nanal in range(nanals):
         for k in range(2):
-            hxens[nanal,k,...] = scalefact*pvens[nanal,k,...].ravel()[indxob] # surface pv obs
+            hxens_a[nanal,k,...] = scalefact*pvens[nanal,k,...].ravel()[indxob] # surface pv obs
 
     # ob space diagnostics
-    hxensmean_a = hxens.mean(axis=0)
-    obsprd_a = (((hxens-hxensmean_a)**2).sum(axis=0)/(nanals-1)).mean()
+    hxensmean_a = hxens_a.mean(axis=0)
+    obsprd_a = (((hxens_a-hxensmean_a)**2).sum(axis=0)/(nanals-1)).mean()
     # expected value is HPaHT (obsprd_a).
     obinc_a = ((hxensmean_a-hxensmean_b)*(pvob-hxensmean_a)).mean()
     # expected value is HPbHT (obsprd_b).
@@ -470,7 +472,7 @@ if ncount:
                 kespec_errmean[:,j,i].mean(axis=0)
                 kespec_sprd[int(totwavenum)] = kespec_sprd[int(totwavenum)] +\
                 kespec_sprdmean[:,j,i].mean(axis=0)
-    
+
     print('# mean error/spread',kespec_errmean.sum(), kespec_sprdmean.sum())
     plt.figure()
     wavenums = np.arange(ktotmax,dtype=np.float64)
