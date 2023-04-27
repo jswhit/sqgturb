@@ -35,7 +35,7 @@ def gaspcohn(r):
     )
     return taper
 
-def letkf_multiscale_update(xprime,xmean,hxmean,hxprime,obs,oberrs,covlocal,vcovlocal_facts):
+def letkf_multiscale_update(xprime,xmean,hxprime,hxmean,obs,oberrs,covlocal,vcovlocal_facts):
 
     nlscales, nanals, nlevs, ndim = xprime.shape
     nobs = obs.shape[-1]
@@ -61,10 +61,10 @@ def letkf_multiscale_update(xprime,xmean,hxmean,hxprime,obs,oberrs,covlocal,vcov
     oberrvar = np.empty(2 * nobs, np.float64)
     covlocal_tmp = np.empty((nlscales, 2 * nobs, 2, ndim1), np.float64)
     for kob in range(2):
-        fact[:] = 1.0
         oberrvar[kob * nobs : (kob + 1) * nobs] = oberrs[:]
         omf[kob * nobs : (kob + 1) * nobs] = obs[kob, :] - hxmean[kob, :]
         for nlscale in range(nlscales):
+            fact[:] = 1.0
             fact[1 - kob] = vcovlocal_facts[nlscale]
             hx[nlscale, :, kob * nobs : (kob + 1) * nobs] = hxprime[nlscale, :, kob, :]
             for k in range(2):
@@ -72,7 +72,7 @@ def letkf_multiscale_update(xprime,xmean,hxmean,hxprime,obs,oberrs,covlocal,vcov
                     fact[k] * covlocal[nlscale, :, :]
             )
 
-    def calcwts(hx, Rinv, x):
+    def letkf_update(hx, Rinv, x, xm, ominusf):
         Yb_Rinv_lst=[]
         Yb_sqrtRinv_lst=[]
         x_lst = []
@@ -88,22 +88,24 @@ def letkf_multiscale_update(xprime,xmean,hxmean,hxprime,obs,oberrs,covlocal,vcov
         evals, eigs, info = lapack.dsyevd(pa)
         evals = evals.clip(min=np.finfo(evals.dtype).eps)
         painv = np.dot(np.dot(eigs, np.diag(np.sqrt(1.0 / evals))), eigs.T)
+        wts = np.sqrt(nanals-1)*painv
         kfgain = np.dot(xtmp, np.dot(np.dot(painv, painv.T), Yb_Rinv))
-        return np.sqrt(nanals-1)*painv, kfgain
+        xtmp = np.dot(wts.T, xtmp)
+        xm += np.dot(kfgain, ominusf)
+        return xtmp.reshape(nlscales, nanals), xm
 
     covlocal_tmp = covlocal_tmp.clip(min=np.finfo(covlocal_tmp.dtype).eps)
     for n in range(ndim1):
         for k in range(2):
             Rinv_lst = []
+            # use largest localization scale to define local volume
             mask = covlocal_tmp[0, :, k, n] > 1.0e-10
             for nscale in range(nlscales):
                 Rinv_lst.append(np.diag(covlocal_tmp[nscale, mask, k, n] /
                                     oberrvar[mask]))
             ominusf = omf[mask]
-            wts, kfgain = calcwts(hx[:, :, mask], Rinv_lst, xprime[:,:,k,n])
-            xmean[k, n] += np.dot(kfgain,ominusf)
-            xprime[:, :, k, n] += (np.dot(wts.T, \
-            xprime[:, :, k, n].reshape(nlscales*nanals))).reshape(nlscales,nanals)
+            xprime[:,:,k,n],xmean[k,n] = \
+            letkf_update(hx[:, :, mask], Rinv_lst, xprime[:,:,k,n], xmean[k,n], ominusf)
 
     return xprime, xmean
 

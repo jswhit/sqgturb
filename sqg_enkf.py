@@ -357,7 +357,7 @@ for ntime in range(nassim):
     # update state vector.
     # hxens,pvob are in PV units, xens is not
     xens, xensmean =\
-    letkf_multiscale_update(xens,xensmean,hxensmean,hxens,pvob,oberrvar,covlocal_tmp,vcovlocal_facts)
+    letkf_multiscale_update(xens,xensmean,hxens,hxensmean,pvob,oberrvar,covlocal_tmp,vcovlocal_facts)
     # back to 3d state vector
     pvens_filtered = xens.reshape((nlscales,nanals,2,ny,nx))
     pvensmean = xensmean.reshape(2,nx,ny)
