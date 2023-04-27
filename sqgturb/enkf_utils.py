@@ -53,6 +53,7 @@ def letkf_multiscale_update(xprime,xmean,hxmean,hxprime,obs,oberrs,covlocal,vcov
     #   ytmp = np.concatenate(ylocal_lst)
     #   pa = np.eye(nsamples*nlscales) + np.dot(Yb_sqrtRinv, Yb_sqrtRinv.T)
     #   painv = syminv(pa); painv_YbRinv = np.dot(painv, Yb_Rinv)
+    #   kfens_rloc[indx[i],i] = np.dot(ytmp, painv_YbRinv)
 
     ndim1 = covlocal.shape[-1]
     hx = np.empty((nlscales, nanals, 2 * nobs), np.float64)
@@ -71,22 +72,26 @@ def letkf_multiscale_update(xprime,xmean,hxmean,hxprime,obs,oberrs,covlocal,vcov
                     fact[k] * covlocal[nlscale, :, :]
             )
 
-    def calcwts(hx, Rinv, ominusf):
+    def calcwts(hx, Rinv, x):
         Yb_Rinv_lst=[]
         Yb_sqrtRinv_lst=[]
+        x_lst = []
         for n in range(nlscales):
             Yb_Rinv_lst.append(np.dot(hx[n], Rinv[n]))
             Yb_sqrtRinv_lst.append(np.dot(hx[n], np.sqrt(Rinv[n])))
+            x_lst.append(x[n])
         Yb_sqrtRinv = np.vstack(Yb_sqrtRinv_lst)
         Yb_Rinv = np.vstack(Yb_Rinv_lst)
-        pa = (nanals - 1) * nlscales * np.eye(nanals*nlscales) +\
+        xtmp = np.concatenate(x_lst)
+        pa = (nanals - 1) *np.eye(nanals*nlscales) +\
              np.dot(Yb_sqrtRinv, Yb_sqrtRinv.T)
         evals, eigs, info = lapack.dsyevd(pa)
         evals = evals.clip(min=np.finfo(evals.dtype).eps)
         painv = np.dot(np.dot(eigs, np.diag(np.sqrt(1.0 / evals))), eigs.T)
-        tmp = np.dot(np.dot(np.dot(painv, painv.T), Yb_Rinv), ominusf)
-        return np.sqrt(nanals - 1) * painv + tmp[:, np.newaxis]
+        kfgain = np.dot(xtmp, np.dot(np.dot(painv, painv.T), Yb_Rinv))
+        return np.sqrt(nanals-1)*painv, kfgain
 
+    covlocal_tmp = covlocal_tmp.clip(min=np.finfo(covlocal_tmp.dtype).eps)
     for n in range(ndim1):
         for k in range(2):
             Rinv_lst = []
@@ -95,10 +100,12 @@ def letkf_multiscale_update(xprime,xmean,hxmean,hxprime,obs,oberrs,covlocal,vcov
                 Rinv_lst.append(np.diag(covlocal_tmp[nscale, mask, k, n] /
                                     oberrvar[mask]))
             ominusf = omf[mask]
-            wts = calcwts(hx[:, :, mask], Rinv_lst, ominusf)
-            xens[:, k, n] = xmean[k, n] + np.dot(wts.T, xprime[:, k, n])
-    return xens
+            wts, kfgain = calcwts(hx[:, :, mask], Rinv_lst, xprime[:,:,k,n])
+            xmean[k, n] += np.dot(kfgain,ominusf)
+            xprime[:, :, k, n] += (np.dot(wts.T, \
+            xprime[:, :, k, n].reshape(nlscales*nanals))).reshape(nlscales,nanals)
 
+    return xprime, xmean
 
 def enkf_update(
     xens, hxens, obs, oberrs, covlocal, vcovlocal_fact, obcovlocal=None
