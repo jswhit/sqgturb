@@ -5,7 +5,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from netCDF4 import Dataset
 import sys, time, os
-from sqgturb import SQG, rfft2, irfft2, cartdist,letkf_multiscale_update, gaspcohn
+from sqgturb import SQG, rfft2, irfft2, cartdist,letkf_multiscale_update,\
+gaspcohn, enkf_update
 
 # EnKF cycling for SQG turbulence model with boundary temp obs,
 # horizontal and vertical localization.  Relaxation to prior spread
@@ -356,8 +357,15 @@ for ntime in range(nassim):
     xensmean = pvensmean.reshape(2,nx*ny)
     # update state vector.
     # hxens,pvob are in PV units, xens is not
-    xens, xensmean =\
-    letkf_multiscale_update(xens,xensmean,hxens,hxensmean,pvob,oberrvar,covlocal_tmp,vcovlocal_facts)
+    #if nlscales == 1:
+    if 0:
+        xtot = enkf_update(xens[0]+xensmean, hxens[0]+hxensmean, pvob, oberrvar,
+        covlocal_tmp[0],vcovlocal_facts[0], obcovlocal=None)
+        xensmean = xtot.mean(axis=0)
+        xens[0]=xtot-xensmean
+    else:
+        xens, xensmean =\
+        letkf_multiscale_update(xens,xensmean,hxens,hxensmean,pvob,oberrvar,covlocal_tmp,vcovlocal_facts)
     # back to 3d state vector
     pvens_filtered = xens.reshape((nlscales,nanals,2,ny,nx))
     pvensmean = xensmean.reshape(2,nx,ny)
