@@ -6,7 +6,7 @@ import numpy as np
 from netCDF4 import Dataset
 import sys, time, os
 from sqgturb import SQG, rfft2, irfft2, cartdist,letkf_multiscale_update,\
-gaspcohn, enkf_update
+bulk_ensrf_multiscale,gaspcohn, enkf_update
 
 # EnKF cycling for SQG turbulence model with boundary temp obs,
 # horizontal and vertical localization.  Relaxation to prior spread
@@ -63,6 +63,8 @@ threads = int(os.getenv('OMP_NUM_THREADS','1'))
 diff_efold = None # use diffusion from climo file
 
 profile = False # turn on profiling?
+
+use_letkf=False # if False, use global EnSRF
 
 read_restart = False
 # if savedata not None, netcdf filename will be defined by env var 'exptname'
@@ -160,8 +162,16 @@ else:
 if nobs == nx*ny//2: fixed=True # used fixed network for obs every other grid point
 oberrvar = oberrstdev**2*np.ones(nobs,np.float64)
 pvob = np.empty((2,nobs),np.float64)
-covlocal_tmp = np.empty((nlscales,nobs,nx*ny),np.float64)
 xens = np.empty((nanals,2,nx*ny),np.float64)
+
+if not use_letkf: # model-space localization matrix
+    n = 0
+    covlocal_modelspace = np.empty((nlscales,nx*ny,nx*ny),np.float64)
+    x1 = x.reshape(nx*ny); y1 = y.reshape(nx*ny)
+    for nl in range(nlscales):
+        for n in range(nx*ny):
+            dist = cartdist(x1[n],y1[n],x1,y1,nc_climo.L,nc_climo.L)
+            covlocal_modelspace[nl,n,:] = gaspcohn(dist/hcovlocal_scales[nl])
 
 obtimes = nc_truth.variables['t'][:]
 if read_restart:
@@ -275,7 +285,8 @@ for ntime in range(nassim):
     xob = x.ravel()[indxob]
     yob = y.ravel()[indxob]
     # compute covariance localization function for each ob
-    if not fixed or ntime == 0:
+    if use_letkf and (not fixed or ntime == 0):
+        covlocal_tmp = np.empty((nlscales,nobs,nx*ny),np.float64)
         for nob in range(nobs):
             dist = cartdist(xob[nob],yob[nob],x,y,nc_climo.L,nc_climo.L)
             for nlscale,hcovlocal_scale in enumerate(hcovlocal_scales):
@@ -325,14 +336,9 @@ for ntime in range(nassim):
             for k in range(2):
                 hxens[nlscale,nanal,k,...] = scalefact*pvens_filtered[nlscale,nanal,k,...].ravel()[indxob] # surface pv obs
     for k in range(2):
-        hxensmean[k,:] = scalefact*pvensmean[k,...].ravel()[indxob] # surface pv obs
+        hxensmean[k,:] = scalefact*pvensmean[k,...].ravel()[indxob] 
     hxens_b = hxens.sum(axis=0)+hxensmean
     hxensmean_b = hxensmean
-    #hxens_b = np.empty((nanals,2,nobs),np.float64)
-    #for nanal in range(nanals):
-    #    for k in range(2):
-    #        hxens_b[nanal,k,...] = scalefact*pvens[nanal,k,...].ravel()[indxob] # surface pv obs
-    #hxensmean_b = hxens_b.mean(axis=0)
     obsprd = ((hxens_b-hxensmean_b)**2).sum(axis=0)/(nanals-1)
     # innov stats for background
     obfits = pvob - hxensmean_b
@@ -360,18 +366,22 @@ for ntime in range(nassim):
     # update state vector.
     # hxens,pvob are in PV units, xens is not
     #if nlscales == 1:
-    if 0:
-        xtot = enkf_update(xens[0]+xensmean, hxens[0]+hxensmean, pvob, oberrvar,
-        covlocal_tmp[0],vcovlocal_facts[0], obcovlocal=None)
-        xensmean = xtot.mean(axis=0)
-        xens[0]=xtot-xensmean
+    #   xtot = enkf_update(xens[0]+xensmean, hxens[0]+hxensmean, pvob, oberrvar,
+    #   covlocal_tmp[0],vcovlocal_facts[0], obcovlocal=None)
+    #   xensmean = xtot.mean(axis=0)
+    #   xens[0]=xtot-xensmean
+    if not use_letkf:
+        xens = bulk_ensrf_multiscale(xens,xensmean,indxob,pvob,oberrvar,covlocal_modelspace,vcovlocal_facts,scalefact)
+        pvens = xens.reshape((nanals,2,ny,nx))
+        pvensmean = pvens.mean(axis=0)
     else:
         xens, xensmean =\
         letkf_multiscale_update(xens,xensmean,hxens,hxensmean,pvob,oberrvar,covlocal_tmp,vcovlocal_facts)
-    # back to 3d state vector
-    pvens_filtered = xens.reshape((nlscales,nanals,2,ny,nx))
-    pvensmean = xensmean.reshape(2,nx,ny)
-    pvens = pvens_filtered.sum(axis=0) + pvensmean
+        # back to 3d state vector
+        pvens_filtered = xens.reshape((nlscales,nanals,2,ny,nx))
+        pvensmean = xensmean.reshape(2,nx,ny)
+        pvens = pvens_filtered.sum(axis=0) + pvensmean
+
     t2 = time.time()
     if profile: print('cpu time for EnKF update',t2-t1)
 

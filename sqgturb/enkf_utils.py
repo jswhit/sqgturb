@@ -262,3 +262,78 @@ def bulk_ensrf(
     xens = xmean2 + xprime2
 
     return xens
+
+def bulk_ensrf_multiscale(
+    xens, xensmean, indxobi, obs, oberrs, covlocal1, vcovlocal_facts, pv_scalefact
+):
+    """bulk potter method (global matrix solution)"""
+
+    nlscales, nanals, nlevs, ndim1 = xens.shape
+    nobs1 = obs.shape[-1]
+    nobs = 2 * nobs1
+    ndim = 2 * ndim1
+
+    # create H operator
+    iob = np.zeros(ndim1, np.bool)
+    iob[indxobi] = True
+    indxob = np.concatenate((iob, iob))
+
+    D = np.eye(nobs)
+    PbHT = np.zeros((ndim,nobs),np.float64)
+    xmean = xensmean.reshape(ndim)
+    obs = obs.reshape(nobs)
+    oberrstd = np.sqrt(np.concatenate((oberrs, oberrs)))
+    # normalize obs by ob erro stdev
+    obs = obs / oberrstd
+    # forward operator
+    hxmean = pv_scalefact * xmean[indxob]
+
+    for n in range(nlscales):
+        # create cov localization matrix
+        covlocal = np.block(
+            [
+                [covlocal1[n], vcovlocal_facts[n] * covlocal1[n]],
+                [vcovlocal_facts[n] * covlocal1[n], covlocal1[n]],
+            ]
+        )
+
+        # create 1d state vector arrays
+        xprime = xens[n].reshape((nanals, ndim))
+        # forward operator
+        hxprime = pv_scalefact * xprime[:, indxob] / oberrstd
+
+        Pb = covlocal * np.dot(xprime.T, xprime) / (nanals - 1)
+        D += pv_scalefact ** 2 * Pb[np.ix_(indxob, indxob)] + np.eye(nobs)
+        PbHT += pv_scalefact * Pb[:, indxob]
+
+    # see https://doi.org/10.1175/JTECH-D-16-0140.1 eqn 5
+
+    # using Cholesky and LU decomp
+    Dsqrt, info = lapack.dpotrf(D,overwrite_a=0)
+    Dinv, info = lapack.dpotri(Dsqrt)
+    # lapack only returns the upper triangular part
+    Dinv += np.triu(Dinv, k=1).T
+    kfgain = np.dot(PbHT, Dinv)
+    Dsqrt = np.triu(Dsqrt)
+    DplusDsqrtinv = inv(D+Dsqrt) # uses lapack dgetrf,dgetri
+    reducedgain = np.dot(PbHT, DplusDsqrtinv)
+
+    # Using eigenanalysis
+    #evals, eigs, info = lapack.dsyevd(D)
+    ##evals, eigs, info, isuppz, info = lapack.dsyevr(D)
+    #evals = evals.clip(min=np.finfo(evals.dtype).eps)
+    #Dinv = (eigs * (1.0 / evals)).dot(eigs.T)
+    #kfgain = np.dot(PbHT, Dinv)
+    #DplusDsqrtinv = (eigs * (1.0 / (evals + np.sqrt(evals)))).dot(eigs.T)
+    #reducedgain = np.dot(PbHT, DplusDsqrtinv)
+
+    # mean and perturbation update
+    xmean += np.dot(kfgain, obs - hxmean)
+    xprime = (xens.sum(axis=0)).reshape((nanals,ndim))
+    hxprime = pv_scalefact * xprime[:, indxob] / oberrstd
+    xprime -= np.dot(reducedgain, hxprime.T).T
+
+    # back to 2d state vectors
+    xens = xmean.reshape((2,ndim1)) + xprime.reshape((nanals, 2, ndim1))
+
+    return xens
