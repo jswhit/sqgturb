@@ -59,6 +59,7 @@ def letkf_multiscale_update(xprime,xmean,hxprime,hxmean,obs,oberrs,covlocal,vcov
             )
 
     def letkf_update(hx, Rinv, x, xm, ominusf):
+ 
         Yb_Rinv_lst=[]
         Yb_sqrtRinv_lst=[]
         for n in range(nlscales):
@@ -97,9 +98,8 @@ def letkf_multiscale_update(xprime,xmean,hxprime,hxmean,obs,oberrs,covlocal,vcov
             for nscale in range(nlscales):
                 Rinv_lst.append(np.diag(covlocal_tmp[nscale, mask, k, n] /
                                     oberrvar[mask]))
-            ominusf = omf[mask]
             xprime[:,:,k,n],xmean[k,n] = \
-            letkf_update(hx[:, :, mask], Rinv_lst, xprime[:,:,k,n], xmean[k,n], ominusf)
+            letkf_update(hx[:, :, mask], Rinv_lst, xprime[:,:,k,n], xmean[k,n], omf[mask])
 
     return xprime, xmean
 

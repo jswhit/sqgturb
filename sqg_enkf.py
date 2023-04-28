@@ -1,6 +1,6 @@
 from __future__ import print_function
 import matplotlib
-matplotlib.use('Qt5Agg')
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
 from netCDF4 import Dataset
@@ -358,14 +358,13 @@ for ntime in range(nassim):
     # update state vector.
     # hxens,pvob are in PV units, xens is not
     #if nlscales == 1:
-    if 0:
-        xtot = enkf_update(xens[0]+xensmean, hxens[0]+hxensmean, pvob, oberrvar,
-        covlocal_tmp[0],vcovlocal_facts[0], obcovlocal=None)
-        xensmean = xtot.mean(axis=0)
-        xens[0]=xtot-xensmean
-    else:
-        xens, xensmean =\
-        letkf_multiscale_update(xens,xensmean,hxens,hxensmean,pvob,oberrvar,covlocal_tmp,vcovlocal_facts)
+    #    xtot = enkf_update(xens[0]+xensmean, hxens[0]+hxensmean, pvob, oberrvar,
+    #    covlocal_tmp[0],vcovlocal_facts[0], obcovlocal=None)
+    #    xensmean = xtot.mean(axis=0)
+    #    xens[0]=xtot-xensmean
+    #else:
+    xens, xensmean =\
+    letkf_multiscale_update(xens,xensmean,hxens,hxensmean,pvob,oberrvar,covlocal_tmp,vcovlocal_facts)
     # back to 3d state vector
     pvens_filtered = xens.reshape((nlscales,nanals,2,ny,nx))
     pvensmean = xensmean.reshape(2,nx,ny)
