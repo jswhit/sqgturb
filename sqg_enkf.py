@@ -5,8 +5,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from netCDF4 import Dataset
 import sys, time, os
-from sqgturb import SQG, rfft2, irfft2, cartdist,letkf_multiscale_update,\
-bulk_ensrf_multiscale,gaspcohn, enkf_update
+from sqgturb import SQG, rfft2, irfft2, cartdist, letkf_multiscale_update,\
+                    bulk_ensrf_multiscale, gaspcohn
 
 # EnKF cycling for SQG turbulence model with boundary temp obs,
 # horizontal and vertical localization.  Relaxation to prior spread
@@ -87,6 +87,10 @@ filename_climo = 'sqg_N96_12hrly.nc' # file name for forecast model climo
 filename_truth = 'sqg_N96_12hrly.nc' # file name for nature run to draw obs
 #filename_truth = 'sqg_N256_N96_12hrly.nc' # file name for nature run to draw obs
 
+if use_letkf:
+    print('# LETKF solver with R localization')
+else:
+    print('# Global EnSRF solver with B localization')
 print('# filename_modelclimo=%s' % filename_climo)
 print('# filename_truth=%s' % filename_truth)
 
@@ -365,11 +369,6 @@ for ntime in range(nassim):
     xensmean = pvensmean.reshape(2,nx*ny)
     # update state vector.
     # hxens,pvob are in PV units, xens is not
-    #if nlscales == 1:
-    #   xtot = enkf_update(xens[0]+xensmean, hxens[0]+hxensmean, pvob, oberrvar,
-    #   covlocal_tmp[0],vcovlocal_facts[0], obcovlocal=None)
-    #   xensmean = xtot.mean(axis=0)
-    #   xens[0]=xtot-xensmean
     if not use_letkf:
         xens = bulk_ensrf_multiscale(xens,xensmean,indxob,pvob,oberrvar,covlocal_modelspace,vcovlocal_facts,scalefact)
         pvens = xens.reshape((nanals,2,ny,nx))
