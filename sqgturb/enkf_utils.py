@@ -114,7 +114,7 @@ def enkf_update(
     xprime = xens - xmean
     hxmean = hxens.mean(axis=0)
     hxprime = hxens - hxmean
-    fact = np.array([1.0, 1.0], np.float)
+    fact = np.array([1.0, 1.0], np.float64)
 
     if obcovlocal is not None:  # serial EnSRF update
 
@@ -157,10 +157,10 @@ def enkf_update(
     else:  # LETKF update
 
         ndim1 = covlocal.shape[-1]
-        hx = np.empty((nanals, 2 * nobs), np.float)
-        omf = np.empty(2 * nobs, np.float)
-        oberrvar = np.empty(2 * nobs, np.float)
-        covlocal_tmp = np.empty((2 * nobs, 2, ndim1), np.float)
+        hx = np.empty((nanals, 2 * nobs), np.float64)
+        omf = np.empty(2 * nobs, np.float64)
+        oberrvar = np.empty(2 * nobs, np.float64)
+        covlocal_tmp = np.empty((2 * nobs, 2, ndim1), np.float64)
         for kob in range(2):
             fact[:] = 1.0
             fact[1 - kob] = vcovlocal_fact

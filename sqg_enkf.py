@@ -304,6 +304,7 @@ for ntime in range(nassim):
             pvsum += pvens_filtered_lst[n]
         pvens_filtered_lst.append(pvpert-pvsum)
     pvens_filtered = np.asarray(pvens_filtered_lst)
+
     #plt.figure()
     #plt.imshow((pvens-pvensmean)[0,-1,...])
     #plt.title('full')
@@ -316,7 +317,7 @@ for ntime in range(nassim):
     #raise SystemExit
 
     # compute forward operator.
-    # hxens is ensemble in observation space.
+    # hxens is ensemble perts in observation space for each scale band.
     hxens = np.empty((nlscales,nanals,2,nobs),np.float64)
     hxensmean = np.empty((2,nobs),np.float64)
     for nlscale in range(nlscales):
@@ -325,12 +326,13 @@ for ntime in range(nassim):
                 hxens[nlscale,nanal,k,...] = scalefact*pvens_filtered[nlscale,nanal,k,...].ravel()[indxob] # surface pv obs
     for k in range(2):
         hxensmean[k,:] = scalefact*pvensmean[k,...].ravel()[indxob] # surface pv obs
-
-    hxens_b = np.empty((nanals,2,nobs),np.float64)
-    for nanal in range(nanals):
-        for k in range(2):
-            hxens_b[nanal,k,...] = scalefact*pvens[nanal,k,...].ravel()[indxob] # surface pv obs
-    hxensmean_b = hxens_b.mean(axis=0)
+    hxens_b = hxens.sum(axis=0)+hxensmean
+    hxensmean_b = hxensmean
+    #hxens_b = np.empty((nanals,2,nobs),np.float64)
+    #for nanal in range(nanals):
+    #    for k in range(2):
+    #        hxens_b[nanal,k,...] = scalefact*pvens[nanal,k,...].ravel()[indxob] # surface pv obs
+    #hxensmean_b = hxens_b.mean(axis=0)
     obsprd = ((hxens_b-hxensmean_b)**2).sum(axis=0)/(nanals-1)
     # innov stats for background
     obfits = pvob - hxensmean_b
@@ -358,18 +360,18 @@ for ntime in range(nassim):
     # update state vector.
     # hxens,pvob are in PV units, xens is not
     #if nlscales == 1:
-    #    xtot = enkf_update(xens[0]+xensmean, hxens[0]+hxensmean, pvob, oberrvar,
-    #    covlocal_tmp[0],vcovlocal_facts[0], obcovlocal=None)
-    #    xensmean = xtot.mean(axis=0)
-    #    xens[0]=xtot-xensmean
-    #else:
-    xens, xensmean =\
-    letkf_multiscale_update(xens,xensmean,hxens,hxensmean,pvob,oberrvar,covlocal_tmp,vcovlocal_facts)
+    if 0:
+        xtot = enkf_update(xens[0]+xensmean, hxens[0]+hxensmean, pvob, oberrvar,
+        covlocal_tmp[0],vcovlocal_facts[0], obcovlocal=None)
+        xensmean = xtot.mean(axis=0)
+        xens[0]=xtot-xensmean
+    else:
+        xens, xensmean =\
+        letkf_multiscale_update(xens,xensmean,hxens,hxensmean,pvob,oberrvar,covlocal_tmp,vcovlocal_facts)
     # back to 3d state vector
     pvens_filtered = xens.reshape((nlscales,nanals,2,ny,nx))
     pvensmean = xensmean.reshape(2,nx,ny)
-    pvens = pvens_filtered.sum(axis=0)
-    pvens = pvens+pvensmean
+    pvens = pvens_filtered.sum(axis=0) + pvensmean
     t2 = time.time()
     if profile: print('cpu time for EnKF update',t2-t1)
 
