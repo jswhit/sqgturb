@@ -42,7 +42,7 @@ def letkf_multiscale_update(xprime,xmean,hxprime,hxmean,obs,oberrs,covlocal,vcov
     fact = np.array([1.0, 1.0], np.float64)
 
     ndim1 = covlocal.shape[-1]
-    hx = np.empty((nlscales, nanals, 2 * nobs), np.float64)
+    hx = np.empty((nlscales, nanals, 2 * nobs), np.float64)/np.sqrt(nanals-1)
     omf = np.empty(2 * nobs, np.float64)
     oberrvar = np.empty(2 * nobs, np.float64)
     covlocal_tmp = np.empty((nlscales, 2 * nobs, 2, ndim1), np.float64)
@@ -67,7 +67,7 @@ def letkf_multiscale_update(xprime,xmean,hxprime,hxmean,obs,oberrs,covlocal,vcov
             Yb_sqrtRinv_lst.append(np.dot(hx[n], np.sqrt(Rinv[n])))
         Yb_sqrtRinv = np.vstack(Yb_sqrtRinv_lst)
         Yb_Rinv = np.vstack(Yb_Rinv_lst)
-        pa = (nanals - 1) *np.eye(nanals*nlscales) +\
+        pa = np.eye(nanals*nlscales) +\
              np.dot(Yb_sqrtRinv, Yb_sqrtRinv.T)
 
         evals, eigs, info = lapack.dsyevd(pa)
@@ -81,13 +81,12 @@ def letkf_multiscale_update(xprime,xmean,hxprime,hxmean,obs,oberrs,covlocal,vcov
         #painv += np.triu(painv, k=1).T
         #pasqrtinv = inv(pasqrt)
 
-        wts = np.sqrt(nanals-1)*pasqrtinv
-        xtmp = x.reshape(nanals*nlscales)
+        xtmp = x.ravel()
         kfgain = np.dot(xtmp, np.dot(painv, Yb_Rinv))
-        xtmp = np.dot(wts.T, xtmp)
+        x = np.sqrt(nanals-1)*np.dot(pasqrtinv.T, xtmp)
         xm += np.dot(kfgain, ominusf)
 
-        return xtmp.reshape(nlscales, nanals), xm
+        return x, xm
 
     covlocal_tmp = covlocal_tmp.clip(min=np.finfo(covlocal_tmp.dtype).eps)
     for n in range(ndim1):
