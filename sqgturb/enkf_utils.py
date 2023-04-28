@@ -86,7 +86,7 @@ def letkf_multiscale_update(xprime,xmean,hxprime,hxmean,obs,oberrs,covlocal,vcov
         x = np.sqrt(nanals-1)*np.dot(pasqrtinv.T, xtmp)
         xm += np.dot(kfgain, ominusf)
 
-        return x, xm
+        return x.reshape(nlscales,nanals), xm
 
     covlocal_tmp = covlocal_tmp.clip(min=np.finfo(covlocal_tmp.dtype).eps)
     for n in range(ndim1):
