@@ -64,7 +64,7 @@ diff_efold = None # use diffusion from climo file
 
 profile = False # turn on profiling?
 
-use_letkf=False # if False, use global EnSRF
+use_letkf=True # if False, use global EnSRF
 
 read_restart = False
 # if savedata not None, netcdf filename will be defined by env var 'exptname'
@@ -82,9 +82,9 @@ nanals = 20 # ensemble members
 oberrstdev = 1. # ob error standard deviation in K
 
 # nature run created using sqg_run.py.
-filename_climo = 'sqg_N96_12hrly.nc' # file name for forecast model climo
+filename_climo = 'sqg_N64_3hrly.nc' # file name for forecast model climo
 # perfect model
-filename_truth = 'sqg_N96_12hrly.nc' # file name for nature run to draw obs
+filename_truth = 'sqg_N64_3hrly.nc' # file name for nature run to draw obs
 #filename_truth = 'sqg_N256_N96_12hrly.nc' # file name for nature run to draw obs
 
 if use_letkf:
@@ -293,9 +293,9 @@ for ntime in range(nassim):
         covlocal_tmp = np.empty((nlscales,nobs,nx*ny),np.float64)
         for nob in range(nobs):
             dist = cartdist(xob[nob],yob[nob],x,y,nc_climo.L,nc_climo.L)
-            for nlscale,hcovlocal_scale in enumerate(hcovlocal_scales):
-                covlocal = gaspcohn(dist/hcovlocal_scale)
-                covlocal_tmp[nlscale,nob,...] = covlocal.ravel()
+            for nl in range(nlscales):
+                covlocal = gaspcohn(dist/hcovlocal_scales[nl])
+                covlocal_tmp[nl,nob,...] = covlocal.ravel()
 
     # first-guess spread (need later to compute inflation factor)
     pvensmean = pvens.mean(axis=0)
