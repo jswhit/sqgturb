@@ -21,15 +21,11 @@ import os
 #
 #N = 128
 #dt = 600
-#diff_efold = 86400./3.
-
-N = 96 
-dt = 900
+#N = 96 
+#dt = 900
+N = 64
+dt = 1200
 diff_efold = 86400./3.
-
-#N = 64
-#dt = 1200
-#diff_efold = 86400.
 
 norder = 8 # order of hyperdiffusion
 dealias = True # dealiased with 2/3 rule?
@@ -48,7 +44,7 @@ U = 30 # jet speed
 Lr = np.sqrt(nsq)*H/f # Rossby radius
 L = 20.*Lr
 # thermal relaxation time scale
-tdiab = 10.*86400 # in seconds
+tdiab = 15.*86400 # in seconds
 symmetric = True # (if False, asymmetric equilibrium jet with zero wind at sfc)
 # parameter used to scale PV to temperature units.
 scalefact = f*theta0/g
@@ -78,13 +74,13 @@ model = SQG(pv,nsq=nsq,f=f,U=U,H=H,r=r,tdiab=tdiab,dt=dt,
             precision=precision,tstart=0)
 
 #  initialize figure.
-outputinterval = 12.*3600. # interval between frames in seconds
+outputinterval = 6.*3600. # interval between frames in seconds
 tmin = 100.*86400. # time to start saving data (in days)
 tmax = 600.*86400. # time to stop (in days)
 nsteps = int(tmax/outputinterval) # number of time steps to animate
 # set number of timesteps to integrate for each call to model.advance
 model.timesteps = int(outputinterval/model.dt)
-savedata = 'sqg_N%s_12hrly.nc' % N # save data plotted in a netcdf file.
+savedata = 'sqg_N%s_6hrly.nc' % N # save data plotted in a netcdf file.
 #savedata = None # don't save data
 plot = False # animate data as model is running?
 
@@ -128,14 +124,14 @@ levplot = 1; nout = 0
 if plot:
     fig = plt.figure(figsize=(8,8))
     fig.subplots_adjust(left=0, bottom=0.0, top=1., right=1.)
-    vmin = scalefact*model.pvbar[levplot].min()
-    vmax = scalefact*model.pvbar[levplot].max()
+    vmin = 0.75*scalefact*model.pvbar[levplot].min()
+    vmax = 0.75*scalefact*model.pvbar[levplot].max()
     def initfig():
         global im
         ax = fig.add_subplot(111)
         ax.axis('off')
         pv = irfft2(model.pvspec[levplot])  # spectral to grid
-        im = ax.imshow(scalefact*pv,cmap=plt.cm.jet,interpolation='nearest',origin='lower',vmin=vmin,vmax=vmax)
+        im = ax.imshow(scalefact*pv,cmap=plt.cm.jet,interpolation='bicubic',origin='lower',vmin=vmin,vmax=vmax)
         return im,
     def updatefig(*args):
         global nout
