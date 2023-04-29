@@ -142,7 +142,7 @@ def bulk_ensrf_multiscale(
         hxprime = pv_scalefact * xprime[:, indxob] / oberrstd
 
         Pb = covlocal * np.dot(xprime.T, xprime) / (nanals - 1)
-        D += pv_scalefact ** 2 * Pb[np.ix_(indxob, indxob)] + np.eye(nobs)
+        D += pv_scalefact ** 2 * Pb[np.ix_(indxob, indxob)] 
         PbHT += pv_scalefact * Pb[:, indxob]
 
     # see https://doi.org/10.1175/JTECH-D-16-0140.1 eqn 5
