@@ -74,17 +74,17 @@ read_restart = False
 savedata = None
 #nassim = 101
 #nassim_spinup = 1
-nassim = 200 # assimilation times to run
-nassim_spinup = 100
+nassim = 400 # assimilation times to run
+nassim_spinup = 200
 
 nanals = 20 # ensemble members
 
 oberrstdev = 1. # ob error standard deviation in K
 
 # nature run created using sqg_run.py.
-filename_climo = 'sqg_N64_3hrly.nc' # file name for forecast model climo
+filename_climo = 'sqg_N64_6hrly.nc' # file name for forecast model climo
 # perfect model
-filename_truth = 'sqg_N64_3hrly.nc' # file name for nature run to draw obs
+filename_truth = 'sqg_N64_6hrly.nc' # file name for nature run to draw obs
 #filename_truth = 'sqg_N256_N96_12hrly.nc' # file name for nature run to draw obs
 
 if use_letkf:
@@ -146,8 +146,8 @@ print('# band_cutoffs=%s' % repr(band_cutoffs))
 # if nobs > 0, each ob time nobs ob locations are randomly sampled (without
 # replacement) from the model grid
 # if nobs < 0, fixed network of every Nth grid point used (N = -nobs)
-#nobs = nx*ny//16 # number of obs to assimilate (randomly distributed)
-nobs = -1 # fixed network, every -nobs grid points. nobs=-1 obs at all pts.
+nobs = nx*ny//2 # number of obs to assimilate (randomly distributed)
+#nobs = -1 # fixed network, every -nobs grid points. nobs=-1 obs at all pts.
 
 # nature run
 nc_truth = Dataset(filename_truth)
