@@ -125,6 +125,7 @@ def bulk_ensrf_multiscale(
     # forward operator
     hxmean = pv_scalefact * xmean[indxob]
 
+    Pb = np.zeros((ndim,ndim),np.float64)
     for n in range(nlscales):
         # create cov localization matrix
         covlocal = np.block(
@@ -134,10 +135,10 @@ def bulk_ensrf_multiscale(
             ]
         )
 
-        # create 1d state vector arrays
+        # create 2d state vector array
         xprime = xens[n].reshape((nanals, ndim))
 
-        Pb = covlocal * np.dot(xprime.T, xprime) / (nanals - 1)
+        Pb += covlocal * np.dot(xprime.T, xprime) / (nanals - 1)
 
 
     # see https://doi.org/10.1175/JTECH-D-16-0140.1 eqn 5
