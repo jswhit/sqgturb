@@ -168,7 +168,8 @@ def bulk_ensrf_multiscale(
     xmean += np.dot(kfgain, obs - hxmean)
     xprime_full = (xens.sum(axis=0)).reshape((nanals,ndim))
     hxprime_full = pv_scalefact * xprime_full[:, indxob] / oberrstd
-    xprime -= np.dot(reducedgain, hxprime_full.T).T
+    xprime_full -= np.dot(reducedgain, hxprime_full.T).T
 
     # back to 2d state vectors
-    return xmean.reshape((2,ndim1)) + xprime.reshape((nanals, 2, ndim1))
+    xens = xmean.reshape((2,ndim1)) + xprime_full.reshape((nanals, 2, ndim1))
+    return xens
