@@ -117,8 +117,6 @@ def bulk_ensrf_multiscale(
     iob[indxobi] = True
     indxob = np.concatenate((iob, iob))
 
-    D = np.eye(nobs)
-    PbHT = np.zeros((ndim,nobs),np.float64)
     xmean = xensmean.reshape(ndim)
     obs = obs.reshape(nobs)
     oberrstd = np.sqrt(np.concatenate((oberrs, oberrs)))
@@ -138,15 +136,14 @@ def bulk_ensrf_multiscale(
 
         # create 1d state vector arrays
         xprime = xens[n].reshape((nanals, ndim))
-        # forward operator
-        hxprime = pv_scalefact * xprime[:, indxob] / oberrstd
 
         Pb = covlocal * np.dot(xprime.T, xprime) / (nanals - 1)
-        D += pv_scalefact ** 2 * Pb[np.ix_(indxob, indxob)] 
-        PbHT += pv_scalefact * Pb[:, indxob]
+
 
     # see https://doi.org/10.1175/JTECH-D-16-0140.1 eqn 5
 
+    D = pv_scalefact ** 2 * Pb[np.ix_(indxob, indxob)] + np.eye(nobs)
+    PbHT = pv_scalefact * Pb[:, indxob]
     # using Cholesky and LU decomp
     Dsqrt, info = lapack.dpotrf(D,overwrite_a=0)
     Dinv, info = lapack.dpotri(Dsqrt)
@@ -168,9 +165,9 @@ def bulk_ensrf_multiscale(
 
     # mean and perturbation update
     xmean += np.dot(kfgain, obs - hxmean)
-    xprime = (xens.sum(axis=0)).reshape((nanals,ndim))
-    hxprime = pv_scalefact * xprime[:, indxob] / oberrstd
-    xprime -= np.dot(reducedgain, hxprime.T).T
+    xprime_full = (xens.sum(axis=0)).reshape((nanals,ndim))
+    hxprime_full = pv_scalefact * xprime_full[:, indxob] / oberrstd
+    xprime -= np.dot(reducedgain, hxprime_full.T).T
 
     # back to 2d state vectors
     xens = xmean.reshape((2,ndim1)) + xprime.reshape((nanals, 2, ndim1))
