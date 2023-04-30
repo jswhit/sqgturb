@@ -308,6 +308,8 @@ for ntime in range(nassim):
     #plt.figure()
     #plt.imshow((pvens-pvensmean)[0,-1,...])
     #plt.title('full')
+    #plt.imshow((pvens_filterd.sum(axis=0)[0,-1,...])
+    #plt.title('full2')
     #for nlscale in range(nlscales):
     #    import matplotlib.pyplot as plot
     #    plt.figure()

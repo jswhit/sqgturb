@@ -308,8 +308,16 @@ for ntime in range(nassim):
     pvens_filtered = np.asarray(pvens_filtered_lst)
 
     #plt.figure()
-    #plt.imshow((pvens-pvensmean)[0,-1,...])
+    #pvfull = (pvens-pvensmean)[0,-1,...]
+    #plt.imshow((pvfull)
     #plt.title('full')
+    #pvfull2 = (pvens_filtered.sum(axis=0))[0,-1,...]
+    #diff = pvfull-pvfull2
+    #print(pvfull.min(), pvfull.max())
+    #print(diff.min(), diff.max())
+    #plt.imshow(pvfull2)
+    #plt.title('full2')
+    #
     #for nlscale in range(nlscales):
     #    import matplotlib.pyplot as plot
     #    plt.figure()
