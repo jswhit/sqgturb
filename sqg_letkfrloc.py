@@ -286,6 +286,7 @@ for ntime in range(nassim):
     pvensmean = pvens.mean(axis=0)
     pvpert = pvens-pvensmean
     fsprd = (pvpert**2).sum(axis=0)/(nanals-1)
+    #print('total var 1',((pvpert**2).sum(axis=0)/(nanals-1)).mean())
 
     # filter backgrounds into different scale bands
     if nlscales == 1:
@@ -327,7 +328,7 @@ for ntime in range(nassim):
             for k in range(2):
                 hxens[nlscale,nanal,k,...] = scalefact*pvens_filtered[nlscale,nanal,k,...].ravel()[indxob] # surface pv obs
     for k in range(2):
-        hxensmean[k,:] = scalefact*pvensmean[k,...].ravel()[indxob] 
+        hxensmean[k,:] = scalefact*pvensmean[k,...].ravel()[indxob]
     hxens_b = hxens.sum(axis=0)+hxensmean
     hxensmean_b = hxensmean
     obsprd = ((hxens_b-hxensmean_b)**2).sum(axis=0)/(nanals-1)
@@ -354,6 +355,9 @@ for ntime in range(nassim):
     # create 1d state vector.
     xens = pvens_filtered.reshape(nlscales,nanals,2,nx*ny)
     xensmean = pvensmean.reshape(2,nx*ny)
+    #pvpert = np.vstack(xens)
+    #print(pvpert.shape)
+    #print('total var 2',((pvpert**2).sum(axis=0)/(nanals-1)).mean())
     # update state vector.
     # hxens,pvob are in PV units, xens is not
     xens, xensmean =\
