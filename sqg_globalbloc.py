@@ -72,26 +72,26 @@ read_restart = False
 savedata = None
 #nassim = 101
 #nassim_spinup = 1
-nassim = 400 # assimilation times to run
-nassim_spinup = 200
+nassim = 200 # assimilation times to run
+nassim_spinup = 100
 
-nanals = 10 # ensemble members
+nanals = 16  # ensemble members
 
 oberrstdev = 1. # ob error standard deviation in K
 
 # nature run created using sqg_run.py.
-filename_climo = 'sqg_N64_6hrly.nc' # file name for forecast model climo
+filename_climo = 'sqg_N96_6hrly.nc' # file name for forecast model climo
 # perfect model
-filename_truth = 'sqg_N64_6hrly.nc' # file name for nature run to draw obs
-#filename_truth = 'sqg_N256_N96_12hrly.nc' # file name for nature run to draw obs
+filename_truth = 'sqg_N96_6hrly.nc' # file name for nature run to draw obs
+#filename_truth = 'sqg_N192_N96_6hrly.nc' # file name for nature run to draw obs
 
-print('# Global EnSRF solver with B localization')
+print('# Global EnSRF solver with B localization %s ens members' % nanals)
 print('# filename_modelclimo=%s' % filename_climo)
 print('# filename_truth=%s' % filename_truth)
 
 # fix random seed for reproducibility.
 rsobs = np.random.RandomState(42) # fixed seed for observations
-rsics = np.random.RandomState() # varying seed for initial conditions
+rsics = np.random.RandomState(43) # varying seed for initial conditions
 
 # get model info
 nc_climo = Dataset(filename_climo)
@@ -141,7 +141,7 @@ print('# band_cutoffs=%s' % repr(band_cutoffs))
 # if nobs > 0, each ob time nobs ob locations are randomly sampled (without
 # replacement) from the model grid
 # if nobs < 0, fixed network of every Nth grid point used (N = -nobs)
-nobs = nx*ny//2 # number of obs to assimilate (randomly distributed)
+nobs = nx*ny//12 # number of obs to assimilate (randomly distributed)
 #nobs = -1 # fixed network, every -nobs grid points. nobs=-1 obs at all pts.
 
 # nature run
@@ -403,8 +403,8 @@ for ntime in range(nassim):
     # print out analysis error, spread and innov stats for background
     pverr_a = (scalefact*(pvensmean_a-pv_truth[ntime+ntstart]))**2
     pvsprd_a = ((scalefact*(pvensmean_a-pvens))**2).sum(axis=0)/(nanals-1)
-    print("%s %g %g %g %g %g %g %g %g %g %g %g %g" %\
-    (ntime+ntstart,np.sqrt(pverr_a.mean()),np.sqrt(pvsprd_a.mean()),\
+    print("%s %s %g %g %g %g %g %g %g %g %g %g %g %g" %\
+    (int(hcovlocal_scales_km[0]),ntime+ntstart,np.sqrt(pverr_a.mean()),np.sqrt(pvsprd_a.mean()),\
      np.sqrt(pverr_b.mean()),np.sqrt(pvsprd_b.mean()),\
      obinc_b,obsprd_b,obinc_a,obsprd_a,omaomb/oberrvar.mean(),obbias_b,inflation_factor.mean(),asprd_over_fsprd))
 
@@ -428,7 +428,7 @@ for ntime in range(nassim):
     # compute spectra of error and spread
     if ntime >= nassim_spinup:
         pvfcstmean = pvens.mean(axis=0)
-        pverrspec = scalefact*rfft2(pvfcstmean - pv_truth[ntime+ntstart])
+        pverrspec = scalefact*rfft2(pvfcstmean - pv_truth[ntime+ntstart+1])
         psispec = models[0].invert(pverrspec)
         psispec = psispec/(models[0].N*np.sqrt(2.))
         kespec = (models[0].ksqlsq*(psispec*np.conjugate(psispec))).real
