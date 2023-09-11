@@ -60,33 +60,53 @@ def letkf_multiscale_update(xprime,xmean,hxprime,hxmean,obs,oberrs,covlocal,vcov
 
     def letkf_update(hx, Rinv, x, xm, ominusf):
 
-        Yb_Rinv_lst=[]
-        Yb_sqrtRinv_lst=[]
         for n in range(nlscales):
-            Yb_Rinv_lst.append(np.dot(hx[n], Rinv[n]))
-            Yb_sqrtRinv_lst.append(np.dot(hx[n], np.sqrt(Rinv[n])))
-        Yb_sqrtRinv = np.vstack(Yb_sqrtRinv_lst)
-        Yb_Rinv = np.vstack(Yb_Rinv_lst)
-        pa = (nanals-1)*np.eye(nanals*nlscales) +\
-             np.dot(Yb_sqrtRinv, Yb_sqrtRinv.T)
+            Yb_Rinv = np.dot(hx[n], Rinv[n])
+            Yb_sqrtRinv = np.dot(hx[n], np.sqrt(Rinv[n]))
+            pa = (nanals-1)*np.eye(nanals) +\
+                  np.dot(Yb_sqrtRinv, Yb_sqrtRinv.T)
+            # Eigenanalysis
+            #evals, eigs, info = lapack.dsyevd(pa)
+            #evals = evals.clip(min=np.finfo(evals.dtype).eps)
+            #painv = np.dot(np.dot(eigs, np.diag(1.0 / evals)), eigs.T)
+            #pasqrtinv = np.dot(np.dot(eigs, np.diag(np.sqrt(1.0 / evals))), eigs.T)
+            # Cholesky decomp
+            pasqrt, info = lapack.dpotrf(pa,overwrite_a=0)
+            painv, info = lapack.dpotri(pasqrt)
+            pasqrt = np.triu(pasqrt)
+            painv += np.triu(painv, k=1).T
+            pasqrtinv = inv(pasqrt)
+            kfgain = np.dot(x[n], np.dot(painv, Yb_Rinv))
+            x[n] = np.sqrt(nanals-1)*np.dot(pasqrtinv.T, x[n])
+            xm += np.dot(kfgain, ominusf)
 
-        # Using eigenanalysis
-        #evals, eigs, info = lapack.dsyevd(pa)
-        #evals = evals.clip(min=np.finfo(evals.dtype).eps)
-        #painv = np.dot(np.dot(eigs, np.diag(1.0 / evals)), eigs.T)
-        #pasqrtinv = np.dot(np.dot(eigs, np.diag(np.sqrt(1.0 / evals))), eigs.T)
+        #Yb_Rinv_lst=[]
+        #Yb_sqrtRinv_lst=[]
+        #for n in range(nlscales):
+        #    Yb_Rinv_lst.append(np.dot(hx[n], Rinv[n]))
+        #    Yb_sqrtRinv_lst.append(np.dot(hx[n], np.sqrt(Rinv[n])))
+        #Yb_sqrtRinv = np.vstack(Yb_sqrtRinv_lst)
+        #Yb_Rinv = np.vstack(Yb_Rinv_lst)
+        #pa = (nanals-1)*np.eye(nanals*nlscales) +\
+        #     np.dot(Yb_sqrtRinv, Yb_sqrtRinv.T)
 
-        # Using cholesky decomp
-        pasqrt, info = lapack.dpotrf(pa,overwrite_a=0)
-        painv, info = lapack.dpotri(pasqrt)
-        pasqrt = np.triu(pasqrt)
-        painv += np.triu(painv, k=1).T
-        pasqrtinv = inv(pasqrt)
+        ## Using eigenanalysis
+        ##evals, eigs, info = lapack.dsyevd(pa)
+        ##evals = evals.clip(min=np.finfo(evals.dtype).eps)
+        ##painv = np.dot(np.dot(eigs, np.diag(1.0 / evals)), eigs.T)
+        ##pasqrtinv = np.dot(np.dot(eigs, np.diag(np.sqrt(1.0 / evals))), eigs.T)
 
-        xtmp = np.concatenate(x)
-        kfgain = np.dot(xtmp, np.dot(painv, Yb_Rinv))
-        x = np.sqrt(nanals-1)*np.dot(pasqrtinv.T, xtmp)
-        xm += np.dot(kfgain, ominusf)
+        ## Using cholesky decomp
+        #pasqrt, info = lapack.dpotrf(pa,overwrite_a=0)
+        #painv, info = lapack.dpotri(pasqrt)
+        #pasqrt = np.triu(pasqrt)
+        #painv += np.triu(painv, k=1).T
+        #pasqrtinv = inv(pasqrt)
+
+        #xtmp = np.concatenate(x)
+        #kfgain = np.dot(xtmp, np.dot(painv, Yb_Rinv))
+        #x = np.sqrt(nanals-1)*np.dot(pasqrtinv.T, xtmp)
+        #xm += np.dot(kfgain, ominusf)
 
         return x.reshape(nlscales,nanals), xm
 
