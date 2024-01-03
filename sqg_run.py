@@ -23,13 +23,13 @@ import os
 #dt = 600
 #diff_efold = 86400./3.
 
-N = 96
-dt = 900
-diff_efold = 86400./3.
+#N = 96
+#dt = 900
+#diff_efold = 86400./3.
 
-#N = 64
-#dt = 1200
-#diff_efold = 86400.
+N = 64
+dt = 1200
+diff_efold = 86400.
 
 norder = 8 # order of hyperdiffusion
 dealias = True # dealiased with 2/3 rule?
@@ -124,7 +124,7 @@ if savedata is not None:
     yvar[:] = np.arange(0,model.L,model.L/N)
     zvar[0] = 0; zvar[1] = model.H
 
-levplot = 1; nout = 0 # levplot < 0 is vertical mean PV
+levplot = -1; nout = 0 # levplot < 0 is vertical mean PV
 if plot:
     fig = plt.figure(figsize=(8,8))
     fig.subplots_adjust(left=0, bottom=0.0, top=1., right=1.)
@@ -158,7 +158,7 @@ if plot:
         im.set_data(scalefact*pv)
         if savedata is not None and t >= tmin:
             print('saving data at t = t = %g hours' % hr)
-            pvvar[nout,:,:,:] = pv
+            pvvar[nout,:,:,:] = irfft2(model.pvspec)
             tvar[nout] = t
             nc.sync()
             if t >= tmax: nc.close()
