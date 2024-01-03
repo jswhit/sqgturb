@@ -169,6 +169,13 @@ class SQG:
         )
         return psispec
 
+    def meantemp(self, pvspec=None):
+        if pvspec is None:
+            pvspec = self.pvspec
+        psispec = self.invert(pvspec=pvspec)
+        pvavspec = (psispec[1]-psispec[0])/self.H
+        return pvavspec
+
     def invert_inverse(self, psispec=None):
         if psispec is None:
             psispec = self.invert(self.pvspec)

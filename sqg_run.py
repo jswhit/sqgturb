@@ -1,5 +1,5 @@
 import matplotlib
-matplotlib.use('agg')
+matplotlib.use('qtagg')
 from sqgturb import SQG, rfft2, irfft2
 import numpy as np
 import matplotlib.pyplot as plt
@@ -23,7 +23,7 @@ import os
 #dt = 600
 #diff_efold = 86400./3.
 
-N = 96 
+N = 96
 dt = 900
 diff_efold = 86400./3.
 
@@ -78,15 +78,15 @@ model = SQG(pv,nsq=nsq,f=f,U=U,H=H,r=r,tdiab=tdiab,dt=dt,
             precision=precision,tstart=0)
 
 #  initialize figure.
-outputinterval = 12.*3600. # interval between frames in seconds
+outputinterval = 6.*3600. # interval between frames in seconds
 tmin = 100.*86400. # time to start saving data (in days)
 tmax = 600.*86400. # time to stop (in days)
 nsteps = int(tmax/outputinterval) # number of time steps to animate
 # set number of timesteps to integrate for each call to model.advance
 model.timesteps = int(outputinterval/model.dt)
-savedata = 'sqg_N%s_12hrly.nc' % N # save data plotted in a netcdf file.
+savedata = 'sqg_N%s_6hrly.nc' % N # save data plotted in a netcdf file.
 #savedata = None # don't save data
-plot = False # animate data as model is running?
+plot = True # animate data as model is running?
 
 if savedata is not None:
     from netCDF4 import Dataset
@@ -130,22 +130,32 @@ if plot:
     fig.subplots_adjust(left=0, bottom=0.0, top=1., right=1.)
     vmin = scalefact*model.pvbar[levplot].min()
     vmax = scalefact*model.pvbar[levplot].max()
+    if levplot < 0:
+        vmin=0.8*vmin; vmax=0.8*vmax
     def initfig():
         global im
         ax = fig.add_subplot(111)
         ax.axis('off')
-        pv = irfft2(model.pvspec[levplot])  # spectral to grid
+        if levplot < 0:
+            pvspec_mean = model.meantemp()
+            pv = irfft2(pvspec_mean)  # mean pv
+        else:
+            pv = irfft2(model.pvspec[levplot])  # spectral to grid
         im = ax.imshow(scalefact*pv,cmap=plt.cm.jet,interpolation='nearest',origin='lower',vmin=vmin,vmax=vmax)
         return im,
     def updatefig(*args):
         global nout
         model.advance()
         t = model.t
-        pv = irfft2(model.pvspec)
+        if levplot < 0:
+            pvspec_mean = model.meantemp()
+            pv = irfft2(pvspec_mean)  # mean pv
+        else:
+            pv = irfft2(model.pvspec[levplot])
         hr = t/3600.
         spd = np.sqrt(model.u[levplot]**2+model.v[levplot]**2)
         print(hr,spd.max(),scalefact*pv.min(),scalefact*pv.max())
-        im.set_data(scalefact*pv[levplot])
+        im.set_data(scalefact*pv)
         if savedata is not None and t >= tmin:
             print('saving data at t = t = %g hours' % hr)
             pvvar[nout,:,:,:] = pv
