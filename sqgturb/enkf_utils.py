@@ -47,16 +47,15 @@ def enkf_update(
     xprime = xens - xmean
     hxmean = hxens.mean(axis=0)
     hxprime = hxens - hxmean
-    fact = np.array([1.0, 1.0], np.float)
+    fact = np.array([1.0, 1.0], np.float32)
 
     if obcovlocal is not None:  # serial EnSRF update
 
-        for kob in range(2):
-            fact[:] = 1.0
-            fact[1 - kob] = vcovlocal_fact
-            for nob, ob, oberr in zip(np.arange(nobs), obs[kob], oberrs):
-                ominusf = ob - hxmean[kob, nob].copy()
-                hxens = hxprime[:, kob, nob].copy().reshape((nanals, 1))
+        if vcovlocal_fact < 0:  # 2d obs, no vertical localization
+            fact = np.array([-vcovlocal_fact, -vcovlocal_fact], np.float32)
+            for nob, ob, oberr in zip(np.arange(nobs), obs, oberrs):
+                ominusf = ob - hxmean[nob].copy()
+                hxens = hxprime[:, nob].copy().reshape((nanals, 1))
                 hpbht = (hxens ** 2).sum() / (nanals - 1)
                 gainfact = (
                     (hpbht + oberr)
@@ -76,35 +75,54 @@ def enkf_update(
                 # observation space update
                 # only update obs within localization radius
                 mask = obcovlocal[nob, :] > 1.0e-10
-                for k in range(2):
-                    pbht = (hxprime[:, k, mask].T * hxens[:, 0]).sum(axis=1) / float(
-                        nanals - 1
+                pbht = (hxprime[:, mask].T * hxens[:, 0]).sum(axis=1) / float(
+                    nanals - 1
+                )
+                kfgain = obcovlocal[nob, mask] * pbht / (hpbht + oberr)
+                hxmean[mask] = hxmean[mask] + kfgain * ominusf
+                hxprime[:, mask] = (
+                    hxprime[:, mask] - gainfact * kfgain * hxens
+                )
+        else:
+            for kob in range(2):
+                fact[:] = 1.0
+                fact[1 - kob] = vcovlocal_fact
+                for nob, ob, oberr in zip(np.arange(nobs), obs[kob], oberrs):
+                    ominusf = ob - hxmean[kob, nob].copy()
+                    hxens = hxprime[:, kob, nob].copy().reshape((nanals, 1))
+                    hpbht = (hxens ** 2).sum() / (nanals - 1)
+                    gainfact = (
+                        (hpbht + oberr)
+                        / hpbht
+                        * (1.0 - np.sqrt(oberr / (hpbht + oberr)))
                     )
-                    kfgain = fact[k] * obcovlocal[nob, mask] * pbht / (hpbht + oberr)
-                    hxmean[k, mask] = hxmean[k, mask] + kfgain * ominusf
-                    hxprime[:, k, mask] = (
-                        hxprime[:, k, mask] - gainfact * kfgain * hxens
-                    )
+                    # state space update
+                    # only update points closer than localization radius to ob
+                    mask = covlocal[nob, :] > 1.0e-10
+                    for k in range(2):
+                        pbht = (xprime[:, k, mask].T * hxens[:, 0]).sum(axis=1) / float(
+                            nanals - 1
+                        )
+                        kfgain = fact[k] * covlocal[nob, mask] * pbht / (hpbht + oberr)
+                        xmean[k, mask] = xmean[k, mask] + kfgain * ominusf
+                        xprime[:, k, mask] = xprime[:, k, mask] - gainfact * kfgain * hxens
+                    # observation space update
+                    # only update obs within localization radius
+                    mask = obcovlocal[nob, :] > 1.0e-10
+                    for k in range(2):
+                        pbht = (hxprime[:, k, mask].T * hxens[:, 0]).sum(axis=1) / float(
+                            nanals - 1
+                        )
+                        kfgain = fact[k] * obcovlocal[nob, mask] * pbht / (hpbht + oberr)
+                        hxmean[k, mask] = hxmean[k, mask] + kfgain * ominusf
+                        hxprime[:, k, mask] = (
+                            hxprime[:, k, mask] - gainfact * kfgain * hxens
+                        )
         return xmean + xprime
 
     else:  # LETKF update
 
         ndim1 = covlocal.shape[-1]
-        hx = np.empty((nanals, 2 * nobs), np.float)
-        omf = np.empty(2 * nobs, np.float)
-        oberrvar = np.empty(2 * nobs, np.float)
-        covlocal_tmp = np.empty((2 * nobs, 2, ndim1), np.float)
-        for kob in range(2):
-            fact[:] = 1.0
-            fact[1 - kob] = vcovlocal_fact
-            oberrvar[kob * nobs : (kob + 1) * nobs] = oberrs[:]
-            omf[kob * nobs : (kob + 1) * nobs] = obs[kob, :] - hxmean[kob, :]
-            hx[:, kob * nobs : (kob + 1) * nobs] = hxprime[:, kob, :]
-            for k in range(2):
-                covlocal_tmp[kob * nobs : (kob + 1) * nobs, k, :] = (
-                    fact[k] * covlocal[:, :]
-                )
-
         def calcwts(hx, Rinv, ominusf):
             YbRinv = np.dot(hx, Rinv)
             pa = (nanals - 1) * np.eye(nanals) + np.dot(YbRinv, hx.T)
@@ -114,14 +132,37 @@ def enkf_update(
             painv = np.dot(np.dot(eigs, np.diag(np.sqrt(1.0 / evals))), eigs.T)
             tmp = np.dot(np.dot(np.dot(painv, painv.T), YbRinv), ominusf)
             return np.sqrt(nanals - 1) * painv + tmp[:, np.newaxis]
+        if vcovlocal_fact < 0:  # 2d obs, no vertical localization
+            for n in range(ndim1):
+                mask = covlocal[:,n] > 1.0e-10
+                Rinv = np.diag(covlocal[mask, n] / oberrs[mask])
+                ominusf = (obs-hxmean)[mask]
+                wts = calcwts(hxprime[:, mask], Rinv, ominusf)
+                for k in range(2):
+                    xens[:, k, n] = xmean[k, n] + np.dot(wts.T, xprime[:, k, n])
+        else:
+            hx = np.empty((nanals, 2 * nobs), np.float32)
+            omf = np.empty(2 * nobs, np.float32)
+            oberrvar = np.empty(2 * nobs, np.float32)
+            covlocal_tmp = np.empty((2 * nobs, 2, ndim1), np.float32)
+            for kob in range(2):
+                fact[:] = 1.0
+                fact[1 - kob] = vcovlocal_fact
+                oberrvar[kob * nobs : (kob + 1) * nobs] = oberrs[:]
+                omf[kob * nobs : (kob + 1) * nobs] = obs[kob, :] - hxmean[kob, :]
+                hx[:, kob * nobs : (kob + 1) * nobs] = hxprime[:, kob, :]
+                for k in range(2):
+                    covlocal_tmp[kob * nobs : (kob + 1) * nobs, k, :] = (
+                        fact[k] * covlocal[:, :]
+                    )
+            for n in range(ndim1):
+                for k in range(2):
+                    mask = covlocal_tmp[:, k, n] > 1.0e-10
+                    Rinv = np.diag(covlocal_tmp[mask, k, n] / oberrvar[mask])
+                    ominusf = omf[mask]
+                    wts = calcwts(hx[:, mask], Rinv, ominusf)
+                    xens[:, k, n] = xmean[k, n] + np.dot(wts.T, xprime[:, k, n])
 
-        for n in range(ndim1):
-            for k in range(2):
-                mask = covlocal_tmp[:, k, n] > 1.0e-10
-                Rinv = np.diag(covlocal_tmp[mask, k, n] / oberrvar[mask])
-                ominusf = omf[mask]
-                wts = calcwts(hx[:, mask], Rinv, ominusf)
-                xens[:, k, n] = xmean[k, n] + np.dot(wts.T, xprime[:, k, n])
         return xens
 
 
@@ -132,7 +173,10 @@ def bulk_ensrf(
 
     nanals, nlevs, ndim1 = xens.shape
     nobs1 = obs.shape[-1]
-    nobs = 2 * nobs1
+    if vcovlocal_fact < 0:
+        nobs = nobs1
+    else:
+        nobs = 2 * nobs1
     ndim = 2 * ndim1
     xmean2 = xens.mean(axis=0)
     xprime2 = xens - xmean2
@@ -172,7 +216,7 @@ def bulk_ensrf(
     # using Cholesky and LU decomp
     Dsqrt, info = lapack.dpotrf(D,overwrite_a=0)
     Dinv, info = lapack.dpotri(Dsqrt)
-    # lapack only returns the upper triangular part 
+    # lapack only returns the upper triangular part
     Dinv += np.triu(Dinv, k=1).T
     kfgain = np.dot(PbHT, Dinv)
     Dsqrt = np.triu(Dsqrt)
