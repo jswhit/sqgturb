@@ -124,7 +124,7 @@ if savedata is not None:
     yvar[:] = np.arange(0,model.L,model.L/N)
     zvar[0] = 0; zvar[1] = model.H
 
-levplot = 1; nout = 0
+levplot = 1; nout = 0 # levplot < 0 is vertical mean PV
 if plot:
     fig = plt.figure(figsize=(8,8))
     fig.subplots_adjust(left=0, bottom=0.0, top=1., right=1.)
