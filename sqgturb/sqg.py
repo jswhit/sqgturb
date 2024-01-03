@@ -170,6 +170,13 @@ class SQG:
         return psispec
 
     def meantemp(self, pvspec=None):
+        # vertical integral from 0 to H of d/dz(eqn 4) in
+        # https://doi.org/10.1175/2008JAS2921.1,
+        # divided by H.
+        # Since the vertical integral of d/dz(psi eqn) is simply the
+        # psi eqn (eqn 4) - this boils down to evaluating psi at top
+        # minus psi at bottom and dividing by H.
+        # This is not the same as average of temperature at top and bottom!
         if pvspec is None:
             pvspec = self.pvspec
         psispec = self.invert(pvspec=pvspec)
