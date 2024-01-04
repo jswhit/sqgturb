@@ -268,6 +268,10 @@ for ntime in range(nassim):
     pvprime = pvens - pvensmean
 
     # modulate ensemble
+    #def modensv(enspert,sqrtcovlocal):
+    #    nanals = enspert.shape[0]
+    #    neig = sqrtcovlocal.shape[0]
+    #    return np.multiply(np.repeat(sqrtcovlocal[:,np.newaxis,:],nanals,axis=0),np.tile(enspert,(neig,1,1)))
     neig = vcovlocal_sqrt.shape[0]; nanals2 = neig*nanals
     pvprime2 = np.zeros((nanals2,2,ny,nx),pvprime.dtype)
     nanal2 = 0
@@ -279,8 +283,12 @@ for ntime in range(nassim):
             nanal2 += 1
     # normalize modulated ensemble so total variance unchanged.
     fsprd = (pvprime**2).sum(axis=0)/(nanals-1)
-    fsprd2 = ((pvprime2**2).sum(axis=0)/(nanals2-1))
-    pvprime2 = np.sqrt(fsprd/fsprd2)*pvprime2
+    #fsprd2 = ((pvprime2**2).sum(axis=0)/(nanals2-1))
+    #pvprime2 = np.sqrt(fsprd/fsprd2)*pvprime2
+    pvprime2 = np.sqrt(float(nanals2-1)/float(nanals-1))*pvprime2
+    #fsprd2 = ((pvprime2**2).sum(axis=0)/(nanals2-1))
+    #print(fsprd.mean(), fsprd2.mean())
+    #raise SystemExit
     #print(np.sqrt(var/var2), np.sqrt(float(nanals2-1)/float(nanals-1)))
 
     pvens2 = pvprime2 + pvensmean # modulated ensemble (size nanals2)
