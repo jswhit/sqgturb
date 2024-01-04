@@ -33,7 +33,7 @@ diff_efold = None # use diffusion from climo file
 
 profile = False # turn on profiling?
 
-use_letkf = True  # use LETKF, otherwise use serial EnSRF
+use_letkf = False  # use LETKF, otherwise use serial EnSRF
 read_restart = False
 # if savedata not None, netcdf filename will be defined by env var 'exptname'
 # if savedata = 'restart', only last time is saved (so expt can be restarted)
@@ -266,7 +266,6 @@ for ntime in range(nassim):
     # first-guess spread (need later to compute inflation factor)
     pvensmean = pvens.mean(axis=0)
     pvprime = pvens - pvensmean
-    fsprd = (pvprime**2).sum(axis=0)/(nanals-1)
 
     # modulate ensemble
     neig = vcovlocal_sqrt.shape[0]; nanals2 = neig*nanals
@@ -278,10 +277,10 @@ for ntime in range(nassim):
                 pvprime2[nanal2,k,...] =\
                 pvprime[nanal,k,...]*vcovlocal_sqrt[neig-j-1,k,np.newaxis,np.newaxis]
             nanal2 += 1
-
     # normalize modulated ensemble so total variance unchanged.
-    #var = ((pvprime**2).sum(axis=0)/(nanals-1)).mean()
-    #var2 = ((pvprime2**2).sum(axis=0)/(nanals2-1)).mean()
+    fsprd = (pvprime**2).sum(axis=0)/(nanals-1)
+    fsprd2 = ((pvprime2**2).sum(axis=0)/(nanals2-1))
+    pvprime2 = np.sqrt(fsprd/fsprd2)*pvprime2
     #print(np.sqrt(var/var2), np.sqrt(float(nanals2-1)/float(nanals-1)))
 
     pvens2 = pvprime2 + pvensmean # modulated ensemble (size nanals2)
@@ -293,12 +292,12 @@ for ntime in range(nassim):
     meanpvens = np.zeros((nanals,ny,nx),np.float32)
     for nanal in range(nanals):
         pvspec = rfft2(pvens[nanal])
-        meanpv = irfft2(models[nanal].meantemp(pvspec=pvspec))
+        meanpv = irfft2(models[0].meantemp(pvspec=pvspec))
         meanpvens[nanal] = meanpv
         hxens[nanal,...] = scalefact*meanpv.ravel()[indxob] # mean temp obs
     for nanal in range(nanals2):
         pvspec = rfft2(pvens2[nanal])
-        meanpv = irfft2(models[nanal].meantemp(pvspec=pvspec))
+        meanpv = irfft2(models[0].meantemp(pvspec=pvspec))
         hxens2[nanal,...] = scalefact*meanpv.ravel()[indxob] # mean temp obs
     hxensmean_b = hxens.mean(axis=0)
     obsprd = ((hxens-hxensmean_b)**2).sum(axis=0)/(nanals-1)
@@ -327,7 +326,7 @@ for ntime in range(nassim):
     # EnKF update
     # create 1d state vector.
     xens = pvens.reshape(nanals,2,nx*ny)
-    xens2 = pvens.reshape(nanals2,2,nx*ny)
+    xens2 = pvens2.reshape(nanals2,2,nx*ny)
 
     # update state vector.
     # hxens,pvob are in PV units, xens is not
