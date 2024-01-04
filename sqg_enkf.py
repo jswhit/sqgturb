@@ -6,9 +6,10 @@ import numpy as np
 from netCDF4 import Dataset
 import sys, time, os
 from sqgturb import SQG, rfft2, irfft2, cartdist,enkf_update,gaspcohn
+from scipy.linalg import eigh
 
 # EnKF cycling for SQG turbulence model with vertical mean temp obs,
-# horizontal but no vertical localization.
+# ob space horizontal and model space vertical localization.
 # Relaxation to prior spread inflation.
 # Random or fixed observing network.
 # Options for LETKF or serial EnSRF.
@@ -24,6 +25,7 @@ python sqg_enkf.py hcovlocal_scale covinflate>
 # horizontal covariance localization length scale in meters.
 hcovlocal_scale = float(sys.argv[1])
 covinflate = float(sys.argv[2])
+vcovlocal_fact = float(sys.argv[3])
 exptname = os.getenv('exptname','test')
 threads = int(os.getenv('OMP_NUM_THREADS','1'))
 
@@ -96,8 +98,8 @@ for nanal in range(nanals):
 if read_restart: ncinit.close()
 
 print('# use_letkf=%s' % (use_letkf))
-print("# hcovlocal=%g diff_efold=%s covinfate=%s nanals=%s" %\
-     (hcovlocal_scale/1000.,diff_efold,covinflate,nanals))
+print("# hcovlocal=%g vcovlocal=%g diff_efold=%s covinfate=%s nanals=%s" %\
+     (hcovlocal_scale/1000.,vcovlocal_fact,diff_efold,covinflate,nanals))
 
 # if nobs > 0, each ob time nobs ob locations are randomly sampled (without
 # replacement) from the model grid
@@ -130,7 +132,12 @@ if not use_letkf:
 else:
     obcovlocal = None
 
-# model-space localization matrix
+# square-root of vertical localization
+vloc = np.array([(1,vcovlocal_fact),(vcovlocal_fact,1)],np.float32).T
+evals, evecs = eigh(vloc)
+vcovlocal_sqrt = np.dot(evecs, np.diag(np.sqrt(evals)))
+
+# model-space horizontal localization matrix
 #n = 0
 #covlocal_modelspace = np.empty((nx*ny,nx*ny),np.float32)
 #x1 = x.reshape(nx*ny); y1 = y.reshape(nx*ny)
@@ -257,14 +264,34 @@ for ntime in range(nassim):
             if not use_letkf: obcovlocal[nob] = gaspcohn(dist/hcovlocal_scale)
 
     # first-guess spread (need later to compute inflation factor)
-    fsprd = ((pvens - pvens.mean(axis=0))**2).sum(axis=0)/(nanals-1)
+    pvensmean = pvens.mean(axis=0)
+    pvprime = pvens - pvensmean
+    fsprd = (pvprime**2).sum(axis=0)/(nanals-1)
 
-    # compute forward operator.
+    # modulate ensemble
+    neig = vcovlocal_sqrt.shape[0]; nanals2 = neig*nanals
+    pvprime2 = np.zeros((nanals2,2,ny,nx),pvprime.dtype)
+    nanal2 = 0
+    for j in range(neig):
+        for nanal in range(nanals):
+            for k in range(2):
+                pvprime2[nanal2,k,...] =\
+                pvprime[nanal,k,...]*vcovlocal_sqrt[neig-j-1,k,np.newaxis,np.newaxis]
+            nanal2 += 1
+
+    # normalize modulated ensemble so total variance unchanged.
+    #var = ((pvprime**2).sum(axis=0)/(nanals-1)).mean()
+    #var2 = ((pvprime2**2).sum(axis=0)/(nanals2-1)).mean()
+    #print(np.sqrt(var/var2), np.sqrt(float(nanals2-1)/float(nanals-1)))
+
+    pvens2 = pvprime2 + pvensmean # modulated ensemble (size nanals2)
+
+    # compute forward operator on modulated ensemble.
     # hxens is ensemble in observation space.
-    hxens = np.empty((nanals,nobs),np.float32)
-    meanpvens = np.zeros((nanals,ny,nx),np.float32)
-    for nanal in range(nanals):
-        pvspec = rfft2(pvens[nanal])
+    hxens = np.empty((nanals2,nobs),np.float32)
+    meanpvens = np.zeros((nanals2,ny,nx),np.float32)
+    for nanal in range(nanals2):
+        pvspec = rfft2(pvens2[nanal])
         meanpv = irfft2(models[nanal].meantemp(pvspec=pvspec))
         meanpvens[nanal] = meanpv
         hxens[nanal,...] = scalefact*meanpv.ravel()[indxob] # mean temp obs
@@ -295,6 +322,7 @@ for ntime in range(nassim):
     # EnKF update
     # create 1d state vector.
     xens = pvens.reshape(nanals,2,nx*ny)
+
     # update state vector.
     # hxens,pvob are in PV units, xens is not
     xens =\
