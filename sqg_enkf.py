@@ -288,13 +288,18 @@ for ntime in range(nassim):
 
     # compute forward operator on modulated ensemble.
     # hxens is ensemble in observation space.
-    hxens = np.empty((nanals2,nobs),np.float32)
-    meanpvens = np.zeros((nanals2,ny,nx),np.float32)
-    for nanal in range(nanals2):
-        pvspec = rfft2(pvens2[nanal])
+    hxens = np.empty((nanals,nobs),np.float32)
+    hxens2 = np.empty((nanals2,nobs),np.float32)
+    meanpvens = np.zeros((nanals,ny,nx),np.float32)
+    for nanal in range(nanals):
+        pvspec = rfft2(pvens[nanal])
         meanpv = irfft2(models[nanal].meantemp(pvspec=pvspec))
         meanpvens[nanal] = meanpv
         hxens[nanal,...] = scalefact*meanpv.ravel()[indxob] # mean temp obs
+    for nanal in range(nanals2):
+        pvspec = rfft2(pvens2[nanal])
+        meanpv = irfft2(models[nanal].meantemp(pvspec=pvspec))
+        hxens2[nanal,...] = scalefact*meanpv.ravel()[indxob] # mean temp obs
     hxensmean_b = hxens.mean(axis=0)
     obsprd = ((hxens-hxensmean_b)**2).sum(axis=0)/(nanals-1)
     # innov stats for background
@@ -322,11 +327,12 @@ for ntime in range(nassim):
     # EnKF update
     # create 1d state vector.
     xens = pvens.reshape(nanals,2,nx*ny)
+    xens2 = pvens.reshape(nanals2,2,nx*ny)
 
     # update state vector.
     # hxens,pvob are in PV units, xens is not
     xens =\
-    enkf_update(xens,hxens,pvob,oberrvar,covlocal_tmp,obcovlocal=obcovlocal)
+    enkf_update(xens,xens2,hxens,hxens2,pvob,oberrvar,covlocal_tmp,obcovlocal=obcovlocal)
     # back to 3d state vector
     pvens = xens.reshape((nanals,2,ny,nx))
     t2 = time.time()

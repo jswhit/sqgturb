@@ -37,24 +37,27 @@ def gaspcohn(r):
 
 
 def enkf_update(
-    xens, hxens, obs, oberrs, covlocal, obcovlocal=None
+    xens, xens2, hxens, hxens2, obs, oberrs, covlocal, obcovlocal=None
 ):
     """serial potter method or LETKF (if obcovlocal is None)"""
 
     nanals, nlevs, ndim = xens.shape
+    nanals2 = xens2.shape[0] # modulated ensemble
     nobs = obs.shape[-1]
     xmean = xens.mean(axis=0)
     xprime = xens - xmean
+    xprime2 = xens2 - xmean
     hxmean = hxens.mean(axis=0)
     hxprime = hxens - hxmean
-    fact = np.array([1.0, 1.0], np.float32)
+    hxprime2 = hxens2 - hxmean
 
     if obcovlocal is not None:  # serial EnSRF update
 
         for nob, ob, oberr in zip(np.arange(nobs), obs, oberrs):
             ominusf = ob - hxmean[nob].copy()
             hxens = hxprime[:, nob].copy()
-            hpbht = (hxens ** 2).sum() / (nanals - 1)
+            hxens2 = hxprime2[:, nob].copy()
+            hpbht = (hxens2 ** 2).sum() / (nanals2 - 1)
             gainfact = (
                 (hpbht + oberr)
                 / hpbht
@@ -64,12 +67,13 @@ def enkf_update(
             # only update points closer than localization radius to ob
             mask = covlocal[nob, :] > 1.0e-10
             for k in range(2):
-                pbht = (xprime[:, k, mask].T * hxens).sum(axis=1) / float(
+                pbht = (xprime2[:, k, mask].T * hxens2).sum(axis=1) / float(
                     nanals - 1
                 )
                 kfgain = covlocal[nob, mask] * pbht / (hpbht + oberr)
                 xmean[k, mask] += kfgain * ominusf
                 xprime[:, k, mask] -= gainfact * kfgain * hxens[:,np.newaxis]
+                xprime2[:, k, mask] -= gainfact * kfgain * hxens2[:,np.newaxis]
             # observation space update
             # only update obs within localization radius
             mask = obcovlocal[nob, :] > 1.0e-10
@@ -78,11 +82,12 @@ def enkf_update(
             )
             kfgain = obcovlocal[nob, mask] * pbht / (hpbht + oberr)
             hxmean[mask] += kfgain * ominusf
-            hxprime[:, mask] -= gainfact * kfgain * hxens[:,np.newaxis]
+            hxprime[:, mask]  -= gainfact * kfgain * hxens[:,np.newaxis]
+            hxprime2[:, mask] -= gainfact * kfgain * hxens2[:,np.newaxis]
 
         return xmean + xprime
 
-    else:  # LETKF update
+    else:  # LGETKF update
 
         def calcwts(hx, Rinv, ominusf):
             YbRinv = np.dot(hx, Rinv)
