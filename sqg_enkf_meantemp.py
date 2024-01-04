@@ -57,7 +57,7 @@ diff_efold = None # use diffusion from climo file
 
 profile = False # turn on profiling?
 
-use_letkf = False  # use LETKF
+use_letkf = True  # use LETKF
 global_enkf = False # global EnSRF solve
 read_restart = False
 # if savedata not None, netcdf filename will be defined by env var 'exptname'

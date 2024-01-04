@@ -52,10 +52,9 @@ def enkf_update(
     if obcovlocal is not None:  # serial EnSRF update
 
         if vcovlocal_fact < 0:  # 2d obs, no vertical localization
-            fact = np.array([-vcovlocal_fact, -vcovlocal_fact], np.float32)
             for nob, ob, oberr in zip(np.arange(nobs), obs, oberrs):
                 ominusf = ob - hxmean[nob].copy()
-                hxens = hxprime[:, nob].copy().reshape((nanals, 1))
+                hxens = hxprime[:, nob].copy()
                 hpbht = (hxens ** 2).sum() / (nanals - 1)
                 gainfact = (
                     (hpbht + oberr)
@@ -66,23 +65,21 @@ def enkf_update(
                 # only update points closer than localization radius to ob
                 mask = covlocal[nob, :] > 1.0e-10
                 for k in range(2):
-                    pbht = (xprime[:, k, mask].T * hxens[:, 0]).sum(axis=1) / float(
+                    pbht = (xprime[:, k, mask].T * hxens).sum(axis=1) / float(
                         nanals - 1
                     )
-                    kfgain = fact[k] * covlocal[nob, mask] * pbht / (hpbht + oberr)
-                    xmean[k, mask] = xmean[k, mask] + kfgain * ominusf
-                    xprime[:, k, mask] = xprime[:, k, mask] - gainfact * kfgain * hxens
+                    kfgain = covlocal[nob, mask] * pbht / (hpbht + oberr)
+                    xmean[k, mask] += kfgain * ominusf
+                    xprime[:, k, mask] -= gainfact * kfgain * hxens[:,np.newaxis]
                 # observation space update
                 # only update obs within localization radius
                 mask = obcovlocal[nob, :] > 1.0e-10
-                pbht = (hxprime[:, mask].T * hxens[:, 0]).sum(axis=1) / float(
+                pbht = (hxprime[:, mask].T * hxens).sum(axis=1) / float(
                     nanals - 1
                 )
                 kfgain = obcovlocal[nob, mask] * pbht / (hpbht + oberr)
-                hxmean[mask] = hxmean[mask] + kfgain * ominusf
-                hxprime[:, mask] = (
-                    hxprime[:, mask] - gainfact * kfgain * hxens
-                )
+                hxmean[mask] += kfgain * ominusf
+                hxprime[:, mask] -= gainfact * kfgain * hxens[:,np.newaxis]
         else:
             for kob in range(2):
                 fact[:] = 1.0
@@ -175,6 +172,7 @@ def bulk_ensrf(
     nobs1 = obs.shape[-1]
     if vcovlocal_fact < 0:
         nobs = nobs1
+        raise SystemExit("mean temp obs not supported")
     else:
         nobs = 2 * nobs1
     ndim = 2 * ndim1
