@@ -8,44 +8,22 @@ import sys, time, os
 from sqgturb import SQG, rfft2, irfft2, cartdist,enkf_update,gaspcohn
 
 # EnKF cycling for SQG turbulence model with vertical mean temp obs,
-# horizontal and vertical localization.  Relaxation to prior spread
-# inflation, or Hodyss and Campbell inflation.
-# Random or fixed observing network (obs on either boundary or
-# both). Options for serial EnSRF, global EnSRF or LETKF.
+# horizontal but no vertical localization.
+# Relaxation to prior spread inflation.
+# Random or fixed observing network.
+# Options for LETKF or serial EnSRF.
 
 if len(sys.argv) == 1:
    msg="""
-python sqg_enkf.py hcovlocal_scale <covinflate1 covinflate2>
+python sqg_enkf.py hcovlocal_scale covinflate>
    hcovlocal_scale = horizontal localization scale in km
-   vertical covariance length scale implied by scaling with Rossby radius.
-   covinflate1,covinflate2: inflation parameters (optional).
-   if only covinflate1 is specified, it is interpreted as the relaxation
-   factor for RTPS inflation.
-   if neither covinflate1 or covinflate2 specified
-   Hodyss et al inflation (http://journals.ametsoc.org/doi/abs/10.1175/MWR-D-15-0329.1)
-   with a=b=1 used.
-   if both covinflate1 and covinflate2 given, they correspond to a and b in the
-   Hodyss et al inflation (eqn 4.4).
+   covinflate: RTPS covinflate inflation parameter
    """
    raise SystemExit(msg)
 
 # horizontal covariance localization length scale in meters.
 hcovlocal_scale = float(sys.argv[1])
-
-# optional inflation parameters:
-# (covinflate2 <= 0 for RTPS inflation
-# (http://journals.ametsoc.org/doi/10.1175/MWR-D-11-00276.1),
-# otherwise use Hodyss et al inflation
-# (http://journals.ametsoc.org/doi/abs/10.1175/MWR-D-15-0329.1)
-if len(sys.argv) == 3:
-    covinflate1 = float(sys.argv[2])
-    covinflate2 = -1
-elif len(sys.argv) == 4:
-    covinflate1 = float(sys.argv[2])
-    covinflate2 = float(sys.argv[3])
-else:
-    covinflate1 = 1.
-    covinflate2 = 1.
+covinflate = float(sys.argv[2])
 exptname = os.getenv('exptname','test')
 threads = int(os.getenv('OMP_NUM_THREADS','1'))
 
@@ -118,8 +96,8 @@ for nanal in range(nanals):
 if read_restart: ncinit.close()
 
 print('# use_letkf=%s' % (use_letkf))
-print("# hcovlocal=%g diff_efold=%s covinf1=%s covinf2=%s nanals=%s" %\
-     (hcovlocal_scale/1000.,diff_efold,covinflate1,covinflate2,nanals))
+print("# hcovlocal=%g diff_efold=%s covinfate=%s nanals=%s" %\
+     (hcovlocal_scale/1000.,diff_efold,covinflate,nanals))
 
 # if nobs > 0, each ob time nobs ob locations are randomly sampled (without
 # replacement) from the model grid
@@ -152,13 +130,13 @@ if not use_letkf:
 else:
     obcovlocal = None
 
-#if global_enkf: # model-space localization matrix
-#    n = 0
-#    covlocal_modelspace = np.empty((nx*ny,nx*ny),np.float32)
-#    x1 = x.reshape(nx*ny); y1 = y.reshape(nx*ny)
-#    for n in range(nx*ny):
-#        dist = cartdist(x1[n],y1[n],x1,y1,nc_climo.L,nc_climo.L)
-#        covlocal_modelspace[n,:] = gaspcohn(dist/hcovlocal_scale)
+# model-space localization matrix
+#n = 0
+#covlocal_modelspace = np.empty((nx*ny,nx*ny),np.float32)
+#x1 = x.reshape(nx*ny); y1 = y.reshape(nx*ny)
+#for n in range(nx*ny):
+#    dist = cartdist(x1[n],y1[n],x1,y1,nc_climo.L,nc_climo.L)
+#    covlocal_modelspace[n,:] = gaspcohn(dist/hcovlocal_scale)
 
 obtimes = nc_truth.variables['t'][:]
 if read_restart:
@@ -235,7 +213,7 @@ if savedata is not None:
 kespec_errmean = None; kespec_sprdmean = None
 
 ncount = 0
-nanals2 = 4 # ensemble members used for kespec spread
+nanals2 = nanals//2 # ensemble members used for kespec spread
 
 for ntime in range(nassim):
 
@@ -347,18 +325,9 @@ for ntime in range(nassim):
     pvprime = pvens-pvensmean_a
     asprd = (pvprime**2).sum(axis=0)/(nanals-1)
     asprd_over_fsprd = asprd.mean()/fsprd.mean()
-    if covinflate2 < 0:
-        # relaxation to prior stdev (Whitaker & Hamill 2012)
-        asprd = np.sqrt(asprd); fsprd = np.sqrt(fsprd)
-        inflation_factor = 1.+covinflate1*(fsprd-asprd)/asprd
-    else:
-        # Hodyss et al 2016 inflation (covinflate1=covinflate2=1 works well in perfect
-        # model, linear gaussian scenario)
-        # inflation = asprd + (asprd/fsprd)**2((fsprd/nanals)+2*inc**2/(nanals-1))
-        inc = pvensmean_a - pvensmean_b
-        inflation_factor = covinflate1*asprd + \
-        (asprd/fsprd)**2*((fsprd/nanals) + covinflate2*(2.*inc**2/(nanals-1)))
-        inflation_factor = np.sqrt(inflation_factor/asprd)
+    # relaxation to prior stdev (Whitaker & Hamill 2012)
+    asprd = np.sqrt(asprd); fsprd = np.sqrt(fsprd)
+    inflation_factor = 1.+covinflate*(fsprd-asprd)/asprd
     pvprime = pvprime*inflation_factor
     pvens = pvprime + pvensmean_a
 
