@@ -148,7 +148,7 @@ else:
 assim_interval = obtimes[1]-obtimes[0]
 assim_timesteps = int(np.round(assim_interval/models[0].dt))
 print('# assim interval = %s secs (%s time steps)' % (assim_interval,assim_timesteps))
-print('# ntime,pverr_a,pvsprd_a,pverr_b,pvsprd_b,meanpverr_b,meanpvsprd_b,obinc_b,osprd_b,obinc_a,obsprd_a,omaomb/oberr,obbias_b,inflation,tr(P^a)/tr(P^b)')
+print('# ntime,pverr_a,pvsprd_a,pverr_b,pvsprd_b,meanpverr_b,meanpvsprd_b,obfits_b,osprd_b+R,obbias_b,inflation,tr(P^a)/tr(P^b)')
 
 # initialize model clock
 for nanal in range(nanals):
@@ -304,22 +304,6 @@ for ntime in range(nassim):
     t2 = time.time()
     if profile: print('cpu time for EnKF update',t2-t1)
 
-    # forward operator on posterior ensemble.
-    for nanal in range(nanals):
-        pvspec = rfft2(pvens[nanal])
-        meanpv = irfft2(models[nanal].meantemp(pvspec=pvspec))
-        hxens[nanal,...] = scalefact*meanpv.ravel()[indxob] # mean temp obs
-
-    # ob space diagnostics
-    hxensmean_a = hxens.mean(axis=0)
-    obsprd_a = (((hxens-hxensmean_a)**2).sum(axis=0)/(nanals-1)).mean()
-    # expected value is HPaHT (obsprd_a).
-    obinc_a = ((hxensmean_a-hxensmean_b)*(pvob-hxensmean_a)).mean()
-    # expected value is HPbHT (obsprd_b).
-    obinc_b = ((hxensmean_a-hxensmean_b)*(pvob-hxensmean_b)).mean()
-    # expected value R (oberrvar).
-    omaomb = ((pvob-hxensmean_a)*(pvob-hxensmean_b)).mean()
-
     # posterior multiplicative inflation.
     pvensmean_a = pvens.mean(axis=0)
     pvprime = pvens-pvensmean_a
@@ -334,11 +318,12 @@ for ntime in range(nassim):
     # print out analysis error, spread and innov stats for background
     pverr_a = (scalefact*(pvensmean_a-pv_truth[ntime+ntstart]))**2
     pvsprd_a = ((scalefact*(pvensmean_a-pvens))**2).sum(axis=0)/(nanals-1)
-    print("%s %g %g %g %g %g %g %g %g %g %g %g %g %g %g" %\
+    print("%s %g %g %g %g %g %g %g %g %g %g %g" %\
     (ntime+ntstart,np.sqrt(pverr_a.mean()),np.sqrt(pvsprd_a.mean()),\
      np.sqrt(pverr_b.mean()),np.sqrt(pvsprd_b.mean()),\
-     np.sqrt(meanpverr_b.mean()),np.sqrt(meanpvsprd_b.mean()),\
-     obinc_b,obsprd_b,obinc_a,obsprd_a,omaomb/oberrvar.mean(),obbias_b,inflation_factor.mean(),asprd_over_fsprd))
+     np.sqrt(meanpverr_b.mean()),np.sqrt(meanpvsprd_b.mean()),
+     np.sqrt(obfits_b),np.sqrt(obsprd_b+oberrstdev**2),obbias_b,
+     inflation_factor.mean(),asprd_over_fsprd))
 
     # save data.
     if savedata is not None:
