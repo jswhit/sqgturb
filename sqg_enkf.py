@@ -410,7 +410,7 @@ for ntime in range(nassim):
     # compute spectra of error and spread
     if ntime >= nassim_spinup:
         pvfcstmean = pvens.mean(axis=0)
-        pverrspec = scalefact*rfft2(pvfcstmean - pv_truth[ntime+ntstart])
+        pverrspec = scalefact*rfft2(pvfcstmean - pv_truth[ntime+ntstart+1])
         psispec = models[0].invert(pverrspec)
         psispec = psispec/(models[0].N*np.sqrt(2.))
         kespec = (models[0].ksqlsq*(psispec*np.conjugate(psispec))).real
