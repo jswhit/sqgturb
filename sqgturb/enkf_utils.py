@@ -84,7 +84,6 @@ def enkf_update(
 
     else:  # LETKF update
 
-        ndim1 = covlocal.shape[-1]
         def calcwts(hx, Rinv, ominusf):
             YbRinv = np.dot(hx, Rinv)
             pa = (nanals - 1) * np.eye(nanals) + np.dot(YbRinv, hx.T)
@@ -93,7 +92,8 @@ def enkf_update(
             painv = np.dot(np.dot(eigs, np.diag(np.sqrt(1.0 / evals))), eigs.T)
             tmp = np.dot(np.dot(np.dot(painv, painv.T), YbRinv), ominusf)
             return np.sqrt(nanals - 1) * painv + tmp[:, np.newaxis]
-        for n in range(ndim1):
+
+        for n in range(covlocal.shape[-1]):
             mask = covlocal[:,n] > 1.0e-10
             Rinv = np.diag(covlocal[mask, n] / oberrs[mask])
             ominusf = (obs-hxmean)[mask]
