@@ -213,7 +213,7 @@ if savedata is not None:
 kespec_errmean = None; kespec_sprdmean = None
 
 ncount = 0
-nanals2 = nanals//2 # ensemble members used for kespec spread
+nanals2 = min(10,nanals) # ensemble members used for kespec spread
 
 for ntime in range(nassim):
 
