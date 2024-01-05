@@ -33,7 +33,7 @@ diff_efold = None # use diffusion from climo file
 
 profile = False # turn on profiling?
 
-use_letkf = False  # use LETKF, otherwise use serial EnSRF
+use_letkf = True  # use LGETKF, otherwise use serial EnSRF
 read_restart = False
 # if savedata not None, netcdf filename will be defined by env var 'exptname'
 # if savedata = 'restart', only last time is saved (so expt can be restarted)
@@ -60,7 +60,7 @@ print('# filename_truth=%s' % filename_truth)
 
 # fix random seed for reproducibility.
 rsobs = np.random.RandomState(42) # fixed seed for observations
-rsics = np.random.RandomState() # varying seed for initial conditions
+rsics = np.random.RandomState(42) # varying seed for initial conditions
 
 # get model info
 nc_climo = Dataset(filename_climo)
@@ -133,9 +133,12 @@ else:
     obcovlocal = None
 
 # square-root of vertical localization
-vloc = np.array([(1,vcovlocal_fact),(vcovlocal_fact,1)],np.float32).T
-evals, evecs = eigh(vloc)
-vcovlocal_sqrt = np.dot(evecs, np.diag(np.sqrt(evals)))
+if vcovlocal_fact > 0.99: # no vertical localization
+    vcovlocal_sqrt = np.ones((1,2),np.float32)
+else:
+    vloc = np.array([(1,vcovlocal_fact),(vcovlocal_fact,1)],np.float32).T
+    evals, evecs = eigh(vloc)
+    vcovlocal_sqrt = np.dot(evecs, np.diag(np.sqrt(evals)))
 
 # model-space horizontal localization matrix
 #n = 0
@@ -220,7 +223,7 @@ if savedata is not None:
 kespec_errmean = None; kespec_sprdmean = None
 
 ncount = 0
-nanals2 = min(10,nanals) # ensemble members used for kespec spread
+nanalske = min(10,nanals) # ensemble members used for kespec spread
 
 for ntime in range(nassim):
 
@@ -273,13 +276,13 @@ for ntime in range(nassim):
     #    neig = sqrtcovlocal.shape[0]
     #    return np.multiply(np.repeat(sqrtcovlocal[:,np.newaxis,:],nanals,axis=0),np.tile(enspert,(neig,1,1)))
     neig = vcovlocal_sqrt.shape[0]; nanals2 = neig*nanals
-    pvprime2 = np.zeros((nanals2,2,ny,nx),pvprime.dtype)
+    pvprime2 = np.empty((nanals2,2,ny,nx),pvprime.dtype)
     nanal2 = 0
     for j in range(neig):
         for nanal in range(nanals):
             for k in range(2):
                 pvprime2[nanal2,k,...] =\
-                pvprime[nanal,k,...]*vcovlocal_sqrt[neig-j-1,k,np.newaxis,np.newaxis]
+                pvprime[nanal,k,...]*vcovlocal_sqrt[neig-j-1,k]
             nanal2 += 1
     # normalize modulated ensemble so total variance unchanged.
     fsprd = (pvprime**2).sum(axis=0)/(nanals-1)
@@ -395,16 +398,16 @@ for ntime in range(nassim):
             (models[0].ksqlsq*(psispec*np.conjugate(psispec))).real
         else:
             kespec_errmean = kespec_errmean + kespec
-        for nanal in range(nanals2):
+        for nanal in range(nanalske):
             pvsprdspec = scalefact*rfft2(pvens[nanal] - pvfcstmean)
             psispec = models[0].invert(pvsprdspec)
             psispec = psispec/(models[0].N*np.sqrt(2.))
             kespec = (models[0].ksqlsq*(psispec*np.conjugate(psispec))).real
             if kespec_sprdmean is None:
                 kespec_sprdmean =\
-                (models[0].ksqlsq*(psispec*np.conjugate(psispec))).real/nanals2
+                (models[0].ksqlsq*(psispec*np.conjugate(psispec))).real/nanalske
             else:
-                kespec_sprdmean = kespec_sprdmean+kespec/nanals2
+                kespec_sprdmean = kespec_sprdmean+kespec/nanalske
         ncount += 1
 
 if savedata: nc.close()
