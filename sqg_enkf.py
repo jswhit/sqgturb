@@ -275,14 +275,6 @@ for ntime in range(nassim):
     #    nanals = enspert.shape[0]
     #    neig = sqrtcovlocal.shape[0]
     #    return np.multiply(np.repeat(sqrtcovlocal[:,np.newaxis,:],nanals,axis=0),np.tile(enspert,(neig,1,1)))
-    #def expand_ens(ens,vcovloc_sqrt):
-    #    neig = vcovloc_sqrt.shape[0]
-    #    ens_expanded = np.empty(nanals*neig, ens.dtype)
-    #    for nanal in range(nanals):
-    #        for ne in range(neig):
-    #            nanalo = neig*(nanal-1) + ne
-    #            ens_expanded[nanalo] = ens_orig[nanal]*vcovloc_sqrt[ne]
-    #    return ens_expanded
     neig = vcovlocal_sqrt.shape[1]; nanals2 = neig*nanals
     pvprime2 = np.empty((nanals2,2,ny,nx),pvprime.dtype)
     nanal2 = 0
@@ -292,21 +284,13 @@ for ntime in range(nassim):
                 pvprime2[nanal2,k,...] =\
                 pvprime[nanal,k,...]*vcovlocal_sqrt[k,neig-j-1]
             nanal2 += 1
-    #crosscov = pvprime[:,0,...]*pvprime[:,1,...]/(nanals-1)
-    #print(crosscov.min(), crosscov.max())
-    #crosscov = pvprime2[:,0,...]*pvprime2[:,1,...]/(nanals2-1)
-    #print(crosscov.min(), crosscov.max())
+    # check modulation works# 
+    #crosscov1 = (pvprime[:,0,...]*pvprime[:,1,...]).sum(axis=0)/(nanals-1)
+    #crosscov2 = (pvprime2[:,0,...]*pvprime2[:,1,...]).sum(axis=0)/(nanals-1)
+    #print(vcovlocal_factt,(crosscov2/crosscov1).mean()) # should be the same
     #raise SystemExit
-    # normalize modulated ensemble so total variance unchanged.
-    fsprd = (pvprime**2).sum(axis=0)/(nanals-1)
-    #fsprd2 = ((pvprime2**2).sum(axis=0)/(nanals2-1))
-    #pvprime2 = np.sqrt(fsprd/fsprd2)*pvprime2
-    #pvprime2 = np.sqrt(float(nanals2-1)/float(nanals-1))*pvprime2
-    #fsprd2 = ((pvprime2**2).sum(axis=0)/(nanals2-1))
-    #print(fsprd.mean(), fsprd2.mean())
-    #raise SystemExit
-    #print(np.sqrt(var/var2), np.sqrt(float(nanals2-1)/float(nanals-1)))
 
+    fsprd = (pvprime**2).sum(axis=0)/(nanals-1)
     pvens2 = pvprime2 + pvensmean # modulated ensemble (size nanals2)
 
     # compute forward operator on modulated ensemble.
