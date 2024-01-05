@@ -136,7 +136,7 @@ else:
 if vcovlocal_fact > 0.99: # no vertical localization
     vcovlocal_sqrt = np.ones((1,2),np.float32)
 else:
-    vloc = np.array([(1,vcovlocal_fact),(vcovlocal_fact,1)],np.float32).T
+    vloc = np.array([(1,vcovlocal_fact),(vcovlocal_fact,1)],np.float32)
     evals, evecs = eigh(vloc)
     vcovlocal_sqrt = np.dot(evecs, np.diag(np.sqrt(evals)))
 
