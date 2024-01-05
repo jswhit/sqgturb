@@ -32,6 +32,7 @@ diff_efold = None # use diffusion from climo file
 profile = False # turn on profiling?
 
 use_letkf = True  # use LETKF, otherwise use serial EnSRF
+gainform = False  # if use_letkf=T, use gain-form
 read_restart = False
 # if savedata not None, netcdf filename will be defined by env var 'exptname'
 # if savedata = 'restart', only last time is saved (so expt can be restarted)
@@ -298,7 +299,7 @@ for ntime in range(nassim):
     # update state vector.
     # hxens,pvob are in PV units, xens is not
     xens =\
-    enkf_update(xens,hxens,pvob,oberrvar,covlocal_tmp,obcovlocal=obcovlocal)
+    enkf_update(xens,hxens,pvob,oberrvar,covlocal_tmp,obcovlocal=obcovlocal,gainform=gainform)
     # back to 3d state vector
     pvens = xens.reshape((nanals,2,ny,nx))
     t2 = time.time()

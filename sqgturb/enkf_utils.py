@@ -37,7 +37,7 @@ def gaspcohn(r):
 
 
 def enkf_update(
-    xens, hxens, obs, oberrs, covlocal, obcovlocal=None
+    xens, hxens, obs, oberrs, covlocal, obcovlocal=None, gainform=False
 ):
     """serial potter method or LETKF (if obcovlocal is None)"""
 
@@ -82,23 +82,78 @@ def enkf_update(
 
         return xmean + xprime
 
-    else:  # LETKF update
+    else:  # LGETKF update
 
-        def calcwts(hx, Rinv, ominusf):
-            YbRinv = np.dot(hx, Rinv)
-            pa = (nanals - 1) * np.eye(nanals) + np.dot(YbRinv, hx.T)
-            evals, eigs, info = lapack.dsyevd(pa)
-            evals = evals.clip(min=np.finfo(evals.dtype).eps)
-            painv = np.dot(np.dot(eigs, np.diag(np.sqrt(1.0 / evals))), eigs.T)
-            tmp = np.dot(np.dot(np.dot(painv, painv.T), YbRinv), ominusf)
-            return np.sqrt(nanals - 1) * painv + tmp[:, np.newaxis]
+        def calcwts(hx, Rinv, ominusf, gainform=gainform):
+
+            nanals = hx.shape[0]
+            if not gainform:
+                # 'regular' etkf solution
+                YbRinv = hx*Rinv
+                pa = (nanals - 1) * np.eye(nanals) + np.dot(YbRinv, hx.T)
+                evals, eigs, info = lapack.dsyevd(pa)
+                evals = evals.clip(min=np.finfo(evals.dtype).eps)
+                painv = np.dot(np.dot(eigs, np.diag(np.sqrt(1.0 / evals))), eigs.T)
+                tmp = np.dot(np.dot(np.dot(painv, painv.T), YbRinv), ominusf)
+                return np.sqrt(nanals - 1) * painv + tmp[:, np.newaxis], None
+            else:
+                # gain-form etkf solution
+                # HZ^T = hxens * R**-1/2
+                # compute eigenvectors/eigenvalues of HZ^T HZ (C=left SV)
+                # (in Bishop paper HZ is nobs, nanals, here is it nanals, nobs)
+                # normalize so dot product is covariance
+                normfact = np.array(np.sqrt(nanals-1),dtype=np.float32)
+                YbsqrtRinv = hx*np.sqrt(Rinv)/normfact  # use modulated ens here
+                YbRinv = hx*Rinv/normfact               # use modulated ens here
+                pa = np.dot(YbsqrtRinv,YbsqrtRinv.T)
+                evals, evecs, info = lapack.dsyevd(pa)
+                gamma_inv = np.zeros_like(evals)
+                for n in range(evals.shape[0]):
+                    if evals[n] > np.finfo(evals.dtype).eps:
+                        gamma_inv[n] = 1./evals[n]
+                    else:
+                        evals[n] = 0.
+                # gammapI used in calculation of posterior cov in ensemble space
+                gammapI = evals+1.
+                # create HZ^T R**-1/2
+                # compute factor to multiply with model space ensemble perturbations
+                # to compute analysis increment (for mean update).
+                # This is the factor C (Gamma + I)**-1 C^T (HZ)^ T R**-1/2 (y - HXmean)
+                # in Bishop paper (eqs 10-12).
+                # pa = C (Gamma + I)**-1 C^T (analysis error cov in ensemble space)
+                pa = np.dot(evecs/gammapI[np.newaxis,:],evecs.T)
+                # wts_ensmean = C (Gamma + I)**-1 C^T (HZ)^ T R**-1/2 (y - HXmean)
+                wts_ensmean = np.dot(pa, np.dot(YbRinv,ominusf))/normfact
+                # compute factor to multiply with model space ensemble perturbations
+                # to compute analysis increment (for perturbation update), save in single precision.
+                # This is -C [ (I - (Gamma+I)**-1/2)*Gamma**-1 ] C^T (HZ)^T R**-1/2 HXprime
+                # in Bishop paper (eqn 29).
+                # For DEnKF factor is -0.5*C (Gamma + I)**-1 C^T (HZ)^ T R**-1/2 HXprime
+                # = -0.5 Pa (HZ)^ T R**-1/2 HXprime (Pa already computed)
+                # pa = C [ (I - (Gamma+I)**-1/2)*Gamma**-1 ] C^T
+                # gammapI = sqrt(1.0/gammapI)
+                # ( pa=0.5*pa for denkf)
+                pa=np.dot(evecs*(1.-np.sqrt(1./gammapI[np.newaxis,:]))*gamma_inv[np.newaxis,:],evecs.T)
+                # wts_ensperts = -C [ (I - (Gamma+I)**-1/2)*Gamma**-1 ] C^T (HZ)^T R**-1/2 HXprime
+                # if denkf, wts_ensperts = -0.5 C (Gamma + I)**-1 C^T (HZ)^T R**-1/2 HXprime
+                wts_ensperts = -np.dot(pa, np.dot(YbRinv,hx.T)).T/normfact # use orig ens here
+                return wts_ensmean, wts_ensperts
 
         for n in range(covlocal.shape[-1]):
             mask = covlocal[:,n] > 1.0e-10
-            Rinv = np.diag(covlocal[mask, n] / oberrs[mask])
+            Rinv = covlocal[mask, n] / oberrs[mask]
             ominusf = (obs-hxmean)[mask]
-            wts = calcwts(hxprime[:, mask], Rinv, ominusf)
-            for k in range(2):
-                xens[:, k, n] = xmean[k, n] + np.dot(wts.T, xprime[:, k, n])
-
+            if not gainform:
+                wts, junk = calcwts(hxprime[:, mask], Rinv, ominusf, gainform=gainform)
+                for k in range(2):
+                    xens[:, k, n] = xmean[k, n] + np.dot(wts.T, xprime[:, k, n])
+            else:
+                wts_ensmean,wts_ensperts = calcwts(hxprime[:, mask], Rinv, ominusf, gainform=gainform)
+                # increments constructed from weighted modulated ensemble member prior perts.
+                for k in range(2):
+                    xmean[k,n] += np.dot(wts_ensmean,xprime[:,k,n]) # use mod ens for xprime
+                    # use orig ens on lhs, mod ens on rhs
+                    xprime[:,k,n] += np.dot(wts_ensperts,xprime[:,k,n]) 
+                xens[:,:,n] = xmean[:,n]+xprime[:,:,n]
+ 
         return xens
