@@ -60,7 +60,7 @@ print('# filename_truth=%s' % filename_truth)
 
 # fix random seed for reproducibility.
 rsobs = np.random.RandomState(42) # fixed seed for observations
-rsics = np.random.RandomState() # varying seed for initial conditions
+rsics = np.random.RandomState(24) # varying seed for initial conditions
 
 # get model info
 nc_climo = Dataset(filename_climo)
@@ -134,7 +134,7 @@ else:
 
 # square-root of vertical localization
 if vcovlocal_fact > 0.99: # no vertical localization
-    vcovlocal_sqrt = np.ones((1,2),np.float32)
+    vcovlocal_sqrt = np.ones((2,1),np.float32)
 else:
     vloc = np.array([(1,vcovlocal_fact),(vcovlocal_fact,1)],np.float32)
     evals, evecs = eigh(vloc)
@@ -275,20 +275,33 @@ for ntime in range(nassim):
     #    nanals = enspert.shape[0]
     #    neig = sqrtcovlocal.shape[0]
     #    return np.multiply(np.repeat(sqrtcovlocal[:,np.newaxis,:],nanals,axis=0),np.tile(enspert,(neig,1,1)))
-    neig = vcovlocal_sqrt.shape[0]; nanals2 = neig*nanals
+    #def expand_ens(ens,vcovloc_sqrt):
+    #    neig = vcovloc_sqrt.shape[0]
+    #    ens_expanded = np.empty(nanals*neig, ens.dtype)
+    #    for nanal in range(nanals):
+    #        for ne in range(neig):
+    #            nanalo = neig*(nanal-1) + ne
+    #            ens_expanded[nanalo] = ens_orig[nanal]*vcovloc_sqrt[ne]
+    #    return ens_expanded
+    neig = vcovlocal_sqrt.shape[1]; nanals2 = neig*nanals
     pvprime2 = np.empty((nanals2,2,ny,nx),pvprime.dtype)
     nanal2 = 0
     for j in range(neig):
         for nanal in range(nanals):
             for k in range(2):
                 pvprime2[nanal2,k,...] =\
-                pvprime[nanal,k,...]*vcovlocal_sqrt[neig-j-1,k]
+                pvprime[nanal,k,...]*vcovlocal_sqrt[k,neig-j-1]
             nanal2 += 1
+    #crosscov = pvprime[:,0,...]*pvprime[:,1,...]/(nanals-1)
+    #print(crosscov.min(), crosscov.max())
+    #crosscov = pvprime2[:,0,...]*pvprime2[:,1,...]/(nanals2-1)
+    #print(crosscov.min(), crosscov.max())
+    #raise SystemExit
     # normalize modulated ensemble so total variance unchanged.
     fsprd = (pvprime**2).sum(axis=0)/(nanals-1)
     #fsprd2 = ((pvprime2**2).sum(axis=0)/(nanals2-1))
     #pvprime2 = np.sqrt(fsprd/fsprd2)*pvprime2
-    pvprime2 = np.sqrt(float(nanals2-1)/float(nanals-1))*pvprime2
+    #pvprime2 = np.sqrt(float(nanals2-1)/float(nanals-1))*pvprime2
     #fsprd2 = ((pvprime2**2).sum(axis=0)/(nanals2-1))
     #print(fsprd.mean(), fsprd2.mean())
     #raise SystemExit

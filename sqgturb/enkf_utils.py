@@ -57,7 +57,7 @@ def enkf_update(
             ominusf = ob - hxmean[nob].copy()
             hxens = hxprime[:, nob].copy()
             hxens2 = hxprime2[:, nob].copy()
-            hpbht = (hxens2 ** 2).sum() / (nanals2 - 1)
+            hpbht = (hxens2 ** 2).sum() / (nanals - 1)
             gainfact = (
                 (hpbht + oberr)
                 / hpbht
@@ -136,7 +136,7 @@ def enkf_update(
             return wts_ensmean, wts_ensperts
 
         #print(xprime.min(), xprime.max())
-        xmeanb = xmean.copy()
+        #xmeanb = xmean.copy()
         for n in range(covlocal.shape[-1]):
             mask = covlocal[:,n] > 1.0e-10
             Rinv = covlocal[mask, n] / oberrs[mask]
@@ -149,9 +149,9 @@ def enkf_update(
                 xprime[:,k,n] += np.dot(wts_ensperts,xprime2[:,k,n]) 
             xens[:,:,n] = xmean[:,n]+xprime[:,:,n]
         #inc = xmeanb-xmean
-        #print(inc.min(), inc.max())
         #xprime = xens - xens.mean(axis=0)
         #print(xprime.min(), xprime.max())
+        #print(inc.min(), inc.max())
         #raise SystemExit
  
         return xens
