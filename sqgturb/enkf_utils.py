@@ -126,23 +126,19 @@ def enkf_update(
             # = -0.5 Pa (HZ)^ T R**-1/2 HXprime (Pa already computed)
             # pa = C [ (I - (Gamma+I)**-1/2)*Gamma**-1 ] C^T
             # gammapI = sqrt(1.0/gammapI)
-            # ( pa=0.5*pa for denkf)
             pa=np.dot(evecs*(1.-np.sqrt(1./gammapI[np.newaxis,:]))*gamma_inv[np.newaxis,:],evecs.T)
             # wts_ensperts = -C [ (I - (Gamma+I)**-1/2)*Gamma**-1 ] C^T (HZ)^T R**-1/2 HXprime
             # if denkf, wts_ensperts = -0.5 C (Gamma + I)**-1 C^T (HZ)^T R**-1/2 HXprime
             wts_ensperts = -np.dot(pa, np.dot(YbRinv,hx_orig.T)).T/normfact # use orig ens here
             return wts_ensmean, wts_ensperts
 
-        for n in range(covlocal.shape[-1]):
-            mask = covlocal[:,n] > 1.0e-10
-            Rinv = covlocal[mask, n] / oberrs[mask]
-            ominusf = (obs-hxmean)[mask]
-            wts_ensmean,wts_ensperts = calcwts(hxprime[:, mask], hxprime2[:, mask], Rinv, ominusf)
-            # increments constructed from weighted modulated ensemble member prior perts.
-            for k in range(2):
-                xmean[k,n] += np.dot(wts_ensmean,xprime2[:,k,n]) 
-                # use orig ens on lhs, mod ens on rhs
-                xprime[:,k,n] += np.dot(wts_ensperts,xprime2[:,k,n]) 
-            xens[:,:,n] = xmean[:,n]+xprime[:,:,n]
+        Rinv = 1./oberrs
+        ominusf = obs-hxmean
+        wts_ensmean,wts_ensperts = calcwts(hxprime, hxprime2, Rinv, ominusf)
+        for k in range(2):
+            xmean[k,:] += np.dot(wts_ensmean,xprime2[:,k,:]) 
+            # use orig ens on lhs, mod ens on rhs
+            xprime[:,k,:] += np.dot(wts_ensperts,xprime2[:,k,:]) 
+        xens = xmean+xprime
  
         return xens

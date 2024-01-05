@@ -144,7 +144,7 @@ evals, evecs = eigh(covlocal_modelspace,driver='evd')
 neig = 1
 for nn in range(1,nx*ny):
     percentvar = evals[-nn:].sum()/evals.sum()
-    if percentvar > 0.98: # perc variance cutoff truncation
+    if percentvar > 0.95: # perc variance cutoff truncation
         neig = nn
         break
 print('#neig = ',neig)
@@ -280,6 +280,7 @@ for ntime in range(nassim):
         neig = sqrtcovlocal.shape[0]
         return np.multiply(np.repeat(sqrtcovlocal[:,np.newaxis,:,:],nanals,axis=0),np.tile(enspert,(neig,1,1,1)))
 
+    nanals2 = nanals*neig
     pvprime2 = modens(pvprime,sqrtcovlocal)
 
     fsprd = (pvprime**2).sum(axis=0)/(nanals-1)
