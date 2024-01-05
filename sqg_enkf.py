@@ -25,7 +25,6 @@ python sqg_enkf.py hcovlocal_scale covinflate>
 # horizontal covariance localization length scale in meters.
 hcovlocal_scale = float(sys.argv[1])
 covinflate = float(sys.argv[2])
-vcovlocal_fact = float(sys.argv[3])
 exptname = os.getenv('exptname','test')
 threads = int(os.getenv('OMP_NUM_THREADS','1'))
 
@@ -98,8 +97,8 @@ for nanal in range(nanals):
 if read_restart: ncinit.close()
 
 print('# use_letkf=%s' % (use_letkf))
-print("# hcovlocal=%g vcovlocal=%g diff_efold=%s covinfate=%s nanals=%s" %\
-     (hcovlocal_scale/1000.,vcovlocal_fact,diff_efold,covinflate,nanals))
+print("# hcovlocal=%g diff_efold=%s covinfate=%s nanals=%s" %\
+     (hcovlocal_scale/1000.,diff_efold,covinflate,nanals))
 
 # if nobs > 0, each ob time nobs ob locations are randomly sampled (without
 # replacement) from the model grid
@@ -132,21 +131,26 @@ if not use_letkf:
 else:
     obcovlocal = None
 
-# square-root of vertical localization
-if vcovlocal_fact > 0.99: # no vertical localization
-    vcovlocal_sqrt = np.ones((2,1),np.float32)
-else:
-    vloc = np.array([(1,vcovlocal_fact),(vcovlocal_fact,1)],np.float32)
-    evals, evecs = eigh(vloc)
-    vcovlocal_sqrt = np.dot(evecs, np.diag(np.sqrt(evals)))
-
 # model-space horizontal localization matrix
-#n = 0
-#covlocal_modelspace = np.empty((nx*ny,nx*ny),np.float32)
-#x1 = x.reshape(nx*ny); y1 = y.reshape(nx*ny)
-#for n in range(nx*ny):
-#    dist = cartdist(x1[n],y1[n],x1,y1,nc_climo.L,nc_climo.L)
-#    covlocal_modelspace[n,:] = gaspcohn(dist/hcovlocal_scale)
+n = 0
+covlocal_modelspace = np.empty((nx*ny,nx*ny),np.float32)
+x1 = x.reshape(nx*ny); y1 = y.reshape(nx*ny)
+for n in range(nx*ny):
+    dist = cartdist(x1[n],y1[n],x1,y1,nc_climo.L,nc_climo.L)
+    covlocal_modelspace[n,:] = gaspcohn(dist/hcovlocal_scale)
+
+# square root of truncated localization matrix
+evals, evecs = eigh(covlocal_modelspace,driver='evd')
+neig = 1
+for nn in range(1,nx*ny):
+    percentvar = evals[-nn:].sum()/evals.sum()
+    if percentvar > 0.98: # perc variance cutoff truncation
+        neig = nn
+        break
+print('#neig = ',neig)
+evecs_norm = (evecs*np.sqrt(evals/percentvar)).T
+#sqrtcovlocal = evecs_norm[-neig:,:]
+sqrtcovlocal = evecs_norm[-neig:,:].reshape((neig,ny,nx))
 
 obtimes = nc_truth.variables['t'][:]
 if read_restart:
@@ -271,25 +275,12 @@ for ntime in range(nassim):
     pvprime = pvens - pvensmean
 
     # modulate ensemble
-    #def modensv(enspert,sqrtcovlocal):
-    #    nanals = enspert.shape[0]
-    #    neig = sqrtcovlocal.shape[0]
-    #    return np.multiply(np.repeat(sqrtcovlocal[:,np.newaxis,:],nanals,axis=0),np.tile(enspert,(neig,1,1)))
-    neig = vcovlocal_sqrt.shape[1]; nanals2 = neig*nanals
-    pvprime2 = np.empty((nanals2,2,ny,nx),pvprime.dtype)
-    nanal2 = 0
-    for j in range(neig):
-        for nanal in range(nanals):
-            for k in range(2):
-                pvprime2[nanal2,k,...] =\
-                pvprime[nanal,k,...]*vcovlocal_sqrt[k,neig-j-1]
-            nanal2 += 1
+    def modens(enspert,sqrtcovlocal):
+        nanals = enspert.shape[0]
+        neig = sqrtcovlocal.shape[0]
+        return np.multiply(np.repeat(sqrtcovlocal[:,np.newaxis,:,:],nanals,axis=0),np.tile(enspert,(neig,1,1,1)))
 
-    # check modulation works 
-    #crosscov1 = (pvprime[:,0,...]*pvprime[:,1,...]).sum(axis=0)/(nanals-1)
-    #crosscov2 = (pvprime2[:,0,...]*pvprime2[:,1,...]).sum(axis=0)/(nanals-1)
-    #print(vcovlocal_factt,(crosscov2/crosscov1).mean()) # should be the same
-    #raise SystemExit
+    pvprime2 = modens(pvprime,sqrtcovlocal)
 
     fsprd = (pvprime**2).sum(axis=0)/(nanals-1)
     pvens2 = pvprime2 + pvensmean # modulated ensemble (size nanals2=nanals*neig)
