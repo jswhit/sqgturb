@@ -91,14 +91,12 @@ def enkf_update(
 
         def calcwts(hx_orig, hx, Rinv, ominusf):
 
-            nanals = hx_orig.shape[0]
-            nanals2 = hx.shape[0]
+            normfact = np.array(np.sqrt(hx_orig.shape[0]-1),dtype=np.float32)
             # gain-form etkf solution
             # HZ^T = hxens * R**-1/2
             # compute eigenvectors/eigenvalues of HZ^T HZ (C=left SV)
             # (in Bishop paper HZ is nobs, nanals, here is it nanals, nobs)
             # normalize so dot product is covariance
-            normfact = np.array(np.sqrt(nanals-1),dtype=np.float32)
             YbsqrtRinv = hx*np.sqrt(Rinv)/normfact  
             YbRinv = hx*Rinv/normfact               
             pa = np.dot(YbsqrtRinv,YbsqrtRinv.T)
@@ -135,8 +133,6 @@ def enkf_update(
             wts_ensperts = -np.dot(pa, np.dot(YbRinv,hx_orig.T)).T/normfact # use orig ens here
             return wts_ensmean, wts_ensperts
 
-        #print(xprime.min(), xprime.max())
-        #xmeanb = xmean.copy()
         for n in range(covlocal.shape[-1]):
             mask = covlocal[:,n] > 1.0e-10
             Rinv = covlocal[mask, n] / oberrs[mask]
@@ -148,10 +144,5 @@ def enkf_update(
                 # use orig ens on lhs, mod ens on rhs
                 xprime[:,k,n] += np.dot(wts_ensperts,xprime2[:,k,n]) 
             xens[:,:,n] = xmean[:,n]+xprime[:,:,n]
-        #inc = xmeanb-xmean
-        #xprime = xens - xens.mean(axis=0)
-        #print(xprime.min(), xprime.max())
-        #print(inc.min(), inc.max())
-        #raise SystemExit
  
         return xens

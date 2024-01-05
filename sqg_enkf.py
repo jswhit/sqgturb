@@ -284,14 +284,15 @@ for ntime in range(nassim):
                 pvprime2[nanal2,k,...] =\
                 pvprime[nanal,k,...]*vcovlocal_sqrt[k,neig-j-1]
             nanal2 += 1
-    # check modulation works# 
+
+    # check modulation works 
     #crosscov1 = (pvprime[:,0,...]*pvprime[:,1,...]).sum(axis=0)/(nanals-1)
     #crosscov2 = (pvprime2[:,0,...]*pvprime2[:,1,...]).sum(axis=0)/(nanals-1)
     #print(vcovlocal_factt,(crosscov2/crosscov1).mean()) # should be the same
     #raise SystemExit
 
     fsprd = (pvprime**2).sum(axis=0)/(nanals-1)
-    pvens2 = pvprime2 + pvensmean # modulated ensemble (size nanals2)
+    pvens2 = pvprime2 + pvensmean # modulated ensemble (size nanals2=nanals*neig)
 
     # compute forward operator on modulated ensemble.
     # hxens is ensemble in observation space.
