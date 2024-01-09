@@ -1,12 +1,12 @@
 from __future__ import print_function
 import matplotlib
-matplotlib.use('Agg')
+matplotlib.use('qtagg')
 import matplotlib.pyplot as plt
 import numpy as np
 from netCDF4 import Dataset
 import sys, time, os
 from sqgturb import SQG, rfft2, irfft2, cartdist,enkf_update,gaspcohn
-from scipy.linalg import eigh
+from scipy.linalg import eigh, lapack
 
 # EnKF cycling for SQG turbulence model with vertical mean temp obs,
 # ob space horizontal and model space vertical localization.
@@ -103,8 +103,8 @@ print("# hcovlocal=%g diff_efold=%s covinfate=%s nanals=%s" %\
 # if nobs > 0, each ob time nobs ob locations are randomly sampled (without
 # replacement) from the model grid
 # if nobs < 0, fixed network of every Nth grid point used (N = -nobs)
-#nobs = nx*ny//4 # number of obs to assimilate (randomly distributed)
-nobs = -1 # fixed network, every -nobs grid points. nobs=-1 obs at all pts.
+nobs = nx*ny//4 # number of obs to assimilate (randomly distributed)
+#nobs = -1 # fixed network, every -nobs grid points. nobs=-1 obs at all pts.
 
 # nature run
 nc_truth = Dataset(filename_truth)
@@ -138,6 +138,7 @@ x1 = x.reshape(nx*ny); y1 = y.reshape(nx*ny)
 for n in range(nx*ny):
     dist = cartdist(x1[n],y1[n],x1,y1,nc_climo.L,nc_climo.L)
     covlocal_modelspace[n,:] = gaspcohn(dist/hcovlocal_scale)
+percentvar_cutoff = 0.99
 
 # square root of truncated localization matrix
 evals, evecs = eigh(covlocal_modelspace,driver='evd')
@@ -228,6 +229,18 @@ kespec_errmean = None; kespec_sprdmean = None
 
 ncount = 0
 nanalske = min(10,nanals) # ensemble members used for kespec spread
+indx_ens=np.ones(nanals,np.bool_); indx_lev=np.ones(2,np.bool_)
+# modulate ensemble
+def modens(enspert,sqrtcovlocal):
+    nanals = enspert.shape[0]
+    neig = sqrtcovlocal.shape[0]
+    return np.multiply(np.repeat(sqrtcovlocal[:,np.newaxis,:],nanals,axis=0),np.tile(enspert,(neig,1,1)))
+def modens1(enspert,sqrtcovlocal):
+    nanals = enspert.shape[0]
+    neig = sqrtcovlocal.shape[0]
+    return np.multiply(np.repeat(sqrtcovlocal,nanals,axis=0),np.tile(enspert,(neig,1)))
+
+normfact = np.array(nanals-1,dtype=np.float32)
 
 for ntime in range(nassim):
 
@@ -255,53 +268,40 @@ for ntime in range(nassim):
         else:
             mask[0:ny:nskip,0:nx:nskip] = True
         indxob = np.flatnonzero(mask)
+    mask = np.zeros(nx*ny,dtype=np.bool_); mask[indxob]=True
     # mean temp obs
     pvspec_truth = rfft2(pv_truth[ntime+ntstart])
     meanpv_truth = irfft2(models[0].meantemp(pvspec=pvspec_truth))
     pvob = scalefact*meanpv_truth.ravel()[indxob]
     pvob += rsobs.normal(scale=oberrstdev,size=nobs) # add ob errors
     xob = x.ravel()[indxob]; yob = y.ravel()[indxob]
-    # compute covariance localization function for each ob
-    if not fixed or ntime == 0:
-        for nob in range(nobs):
-            dist = cartdist(xob[nob],yob[nob],x,y,nc_climo.L,nc_climo.L)
-            covlocal = gaspcohn(dist/hcovlocal_scale)
-            covlocal_tmp[nob] = covlocal.ravel()
-            dist = cartdist(xob[nob],yob[nob],xob,yob,nc_climo.L,nc_climo.L)
-            if not use_letkf: obcovlocal[nob] = gaspcohn(dist/hcovlocal_scale)
 
     # first-guess spread (need later to compute inflation factor)
     pvensmean = pvens.mean(axis=0)
     pvprime = pvens - pvensmean
-
-    # modulate ensemble
-    def modens(enspert,sqrtcovlocal):
-        nanals = enspert.shape[0]
-        neig = sqrtcovlocal.shape[0]
-        return np.multiply(np.repeat(sqrtcovlocal[:,np.newaxis,:,:],nanals,axis=0),np.tile(enspert,(neig,1,1,1)))
-
-    nanals2 = nanals*neig
-    pvprime2 = modens(pvprime,sqrtcovlocal)
-
     fsprd = (pvprime**2).sum(axis=0)/(nanals-1)
-    pvens2 = pvprime2 + pvensmean # modulated ensemble (size nanals2=nanals*neig)
 
-    # compute forward operator on modulated ensemble.
+    #pvprime2 = modens(pvprime,sqrtcovlocal)
+    #pvens2 = pvprime2 + pvensmean # modulated ensemble (size nanals2=nanals*neig)
+
+    # compute forward operator
     # hxens is ensemble in observation space.
     hxens = np.empty((nanals,nobs),np.float32)
-    hxens2 = np.empty((nanals2,nobs),np.float32)
     meanpvens = np.zeros((nanals,ny,nx),np.float32)
     for nanal in range(nanals):
         pvspec = rfft2(pvens[nanal])
         meanpv = irfft2(models[0].meantemp(pvspec=pvspec))
         meanpvens[nanal] = meanpv
         hxens[nanal,...] = scalefact*meanpv.ravel()[indxob] # mean temp obs
-    for nanal in range(nanals2):
-        pvspec = rfft2(pvens2[nanal])
-        meanpv = irfft2(models[0].meantemp(pvspec=pvspec))
-        hxens2[nanal,...] = scalefact*meanpv.ravel()[indxob] # mean temp obs
+
+    #for nanal in range(nanals2):
+    #    pvspec = rfft2(pvens2[nanal])
+    #    meanpv = irfft2(models[0].meantemp(pvspec=pvspec))
+    #    hxens2[nanal,...] = scalefact*meanpv.ravel()[indxob] # mean temp obs
+
     hxensmean_b = hxens.mean(axis=0)
-    obsprd = ((hxens-hxensmean_b)**2).sum(axis=0)/(nanals-1)
+    hxprime = hxens-hxensmean_b
+    obsprd = ((hxprime)**2).sum(axis=0)/(nanals-1)
     # innov stats for background
     obfits = pvob - hxensmean_b
     obfits_b = (obfits**2).mean()
@@ -309,6 +309,7 @@ for ntime in range(nassim):
     obsprd_b = obsprd.mean()
     pvensmean_b = pvens.mean(axis=0).copy()
     meanpvensmean_b = meanpvens.mean(axis=0)
+    meanpvprime = (meanpvens-meanpvensmean_b).reshape((nanals,nx*ny))
     pverr_b = (scalefact*(pvensmean_b-pv_truth[ntime+ntstart]))**2
     meanpverr_b = (scalefact*(meanpvensmean_b-meanpv_truth))**2
     pvsprd_b = ((scalefact*(pvensmean_b-pvens))**2).sum(axis=0)/(nanals-1)
@@ -327,12 +328,110 @@ for ntime in range(nassim):
     # EnKF update
     # create 1d state vector.
     xens = pvens.reshape(nanals,2,nx*ny)
-    xens2 = pvens2.reshape(nanals2,2,nx*ny)
+    xmean = pvensmean_b.reshape(2,nx*ny)
+    xmean_b = xmean.copy()
+    xprime = xens - xmean
+    xprime_b = xprime.copy()
 
     # update state vector.
     # hxens,pvob are in PV units, xens is not
-    xens =\
-    enkf_update(xens,xens2,hxens,hxens2,pvob,oberrvar,covlocal_tmp,obcovlocal=obcovlocal)
+
+    for n in range(nx*ny):
+        dist = cartdist(x1[n],y1[n],x1,y1,nc_climo.L,nc_climo.L)
+        indx = dist < np.abs(hcovlocal_scale)
+        nmindist = np.argmin(dist[indx])
+        covlocal_local = covlocal_modelspace[np.ix_(indx,indx)]
+        evals, evecs = eigh(covlocal_local,driver='evd')
+        neig = 1
+        for nn in range(1,nx*ny):
+            percentvar = evals[-nn:].sum()/evals.sum()
+            if percentvar > percentvar_cutoff: # perc variance cutoff truncation
+                neig = nn
+                break
+        evecs_norm = (evecs*np.sqrt(evals/percentvar)).T
+        sqrtcovlocal_local = evecs_norm[-neig:,:]
+        xprime_local = xprime_b[np.ix_(indx_ens,indx_lev,indx)]
+        xprime2_local = modens(xprime_local,sqrtcovlocal_local)
+        #print(neig, xprime_local.shape,xprime2_local.shape)
+        distob = cartdist(x1[n],y1[n],xob,yob,nc_climo.L,nc_climo.L)
+        obindx = distob < np.abs(hcovlocal_scale)
+        #ndim_local = np.sum(indx); nobs_local = np.sum(obindx)
+        #print(ndim_local,nobs_local)
+        #print(np.nonzero(indx))
+        #print(indxob[obindx])
+        #print(np.nonzero(np.in1d(np.nonzero(indx)[0],indxob[obindx])))
+        indxob_local = np.in1d(np.nonzero(indx)[0],indxob[obindx])
+        hxensmean_local = hxensmean_b[obindx]
+        obs_local = pvob[obindx]
+        hxprime_local = hxprime[np.ix_(indx_ens,obindx)]
+        #print(meanpvprime.shape)
+        meanpvprime_local = meanpvprime[np.ix_(indx_ens,indx)]
+        meanpvprime2_local = modens1(meanpvprime_local,sqrtcovlocal_local)
+        #print(meanpvprime_local.shape, meanpvprime2_local.shape)
+        indx_ens2=np.ones(nanals*neig,np.bool_)
+        hxprime2_local = scalefact*meanpvprime2_local[np.ix_(indx_ens2,indxob_local)]
+        #meanpvensmean_b = meanpvensmean_b.reshape(nx*ny)
+        #meanpvensmean_b_local1 = meanpvensmean_b[indxob[obindx]]
+        #print(meanpvensmean_b_local1.shape)
+        #print(meanpvensmean_b_local1)
+        #meanpvensmean_local = meanpvensmean_b[indx]
+        #meanpvensmean_b_local2 = meanpvensmean_local[indxob_local]
+        #print(meanpvensmean_b_local2.shape)
+        #print(meanpvensmean_b_local2)
+        #raise SystemExit
+
+        ominusf = obs_local - hxensmean_local
+        Rinv = 1./oberrvar[obindx]
+        # gain-form etkf solution
+        # HZ^T = hxens * R**-1/2
+        # compute eigenvectors/eigenvalues of HZ^T HZ (C=left SV)
+        # (in Bishop paper HZ is nobs, nanals, here is it nanals, nobs)
+        # normalize so dot product is covariance
+        YbsqrtRinv = hxprime2_local*np.sqrt(Rinv)/normfact  
+        YbRinv = hxprime2_local*Rinv/normfact               
+        pa = np.dot(YbsqrtRinv,YbsqrtRinv.T)
+        evals, evecs, info = lapack.dsyevd(pa)
+        gamma_inv = np.zeros_like(evals)
+        for n in range(evals.shape[0]):
+            if evals[n] > np.finfo(evals.dtype).eps:
+                gamma_inv[n] = 1./evals[n]
+            else:
+                evals[n] = 0.
+        # gammapI used in calculation of posterior cov in ensemble space
+        gammapI = evals+1.
+        # create HZ^T R**-1/2
+        # compute factor to multiply with model space ensemble perturbations
+        # to compute analysis increment (for mean update).
+        # This is the factor C (Gamma + I)**-1 C^T (HZ)^ T R**-1/2 (y - HXmean)
+        # in Bishop paper (eqs 10-12).
+        # pa = C (Gamma + I)**-1 C^T (analysis error cov in ensemble space)
+        pa = np.dot(evecs/gammapI[np.newaxis,:],evecs.T)
+        # wts_ensmean = C (Gamma + I)**-1 C^T (HZ)^ T R**-1/2 (y - HXmean)
+        wts_ensmean = np.dot(pa, np.dot(YbRinv,ominusf))/normfact
+        # compute factor to multiply with model space ensemble perturbations
+        # to compute analysis increment (for perturbation update), save in single precision.
+        # This is -C [ (I - (Gamma+I)**-1/2)*Gamma**-1 ] C^T (HZ)^T R**-1/2 HXprime
+        # in Bishop paper (eqn 29).
+        # For DEnKF factor is -0.5*C (Gamma + I)**-1 C^T (HZ)^ T R**-1/2 HXprime
+        # = -0.5 Pa (HZ)^ T R**-1/2 HXprime (Pa already computed)
+        # pa = C [ (I - (Gamma+I)**-1/2)*Gamma**-1 ] C^T
+        # gammapI = sqrt(1.0/gammapI)
+        # ( pa=0.5*pa for denkf)
+        pa=np.dot(evecs*(1.-np.sqrt(1./gammapI[np.newaxis,:]))*gamma_inv[np.newaxis,:],evecs.T)
+        # wts_ensperts = -C [ (I - (Gamma+I)**-1/2)*Gamma**-1 ] C^T (HZ)^T R**-1/2 HXprime
+        # if denkf, wts_ensperts = -0.5 C (Gamma + I)**-1 C^T (HZ)^T R**-1/2 HXprime
+        wts_ensperts = -np.dot(pa, np.dot(YbRinv,hxprime_local.T)).T/normfact # use orig ens here
+
+        for k in range(2):
+            xmean[k,n] += np.dot(wts_ensmean,xprime2_local[:,k,nmindist]) 
+            # use orig ens on lhs, mod ens on rhs
+            xprime[:,k,n] += np.dot(wts_ensperts,xprime2_local[:,k,nmindist]) 
+        raise SystemExit
+
+    xens = xmean + xprime
+    #xens =\
+    #enkf_update(xens,xens2,hxens,hxens2,pvob,oberrvar,covlocal_tmp,obcovlocal=obcovlocal)
+
     # back to 3d state vector
     pvens = xens.reshape((nanals,2,ny,nx))
     t2 = time.time()
