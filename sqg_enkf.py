@@ -281,9 +281,6 @@ for ntime in range(nassim):
     pvprime = pvens - pvensmean
     fsprd = (pvprime**2).sum(axis=0)/(nanals-1)
 
-    #pvprime2 = modens(pvprime,sqrtcovlocal)
-    #pvens2 = pvprime2 + pvensmean # modulated ensemble (size nanals2=nanals*neig)
-
     # compute forward operator
     # hxens is ensemble in observation space.
     hxens = np.empty((nanals,nobs),np.float32)
@@ -341,7 +338,8 @@ for ntime in range(nassim):
         indx = dist < np.abs(hcovlocal_scale)
         nmindist = np.argmin(dist[indx])
         covlocal_local = covlocal_modelspace[np.ix_(indx,indx)]
-        evals, evecs = eigh(covlocal_local,driver='evd')
+        #evals, evecs = eigh(covlocal_local,driver='evd')
+        evals, evecs, info = lapack.dsyevd(covlocal_local)
         neig = 1
         for nn in range(1,nx*ny):
             percentvar = evals[-nn:].sum()/evals.sum()
@@ -426,7 +424,6 @@ for ntime in range(nassim):
             xmean[k,n] += np.dot(wts_ensmean,xprime2_local[:,k,nmindist]) 
             # use orig ens on lhs, mod ens on rhs
             xprime[:,k,n] += np.dot(wts_ensperts,xprime2_local[:,k,nmindist]) 
-        raise SystemExit
 
     xens = xmean + xprime
     #xens =\
