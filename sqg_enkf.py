@@ -124,13 +124,8 @@ else:
 if nobs == nx*ny//2: fixed=True # used fixed network for obs every other grid point
 oberrvar = oberrstdev**2*np.ones(nobs,np.float32)
 pvob = np.empty(nobs,np.float32)
-covlocal = np.empty((ny,nx),np.float32)
-covlocal_tmp = np.empty((nobs,nx*ny),np.float32)
+covlocal = np.empty((nobs,nx*ny),np.float32)
 xens = np.empty((nanals,2,nx*ny),np.float32)
-if not use_letkf:
-    obcovlocal = np.empty((nobs,nobs),np.float32)
-else:
-    obcovlocal = None
 
 # model-space horizontal localization matrix
 x1 = x.reshape(nx*ny); y1 = y.reshape(nx*ny)
@@ -232,15 +227,16 @@ kespec_errmean = None; kespec_sprdmean = None
 ncount = 0
 nanalske = min(10,nanals) # ensemble members used for kespec spread
 indx_ens=np.ones(nanals,np.bool_); indx_lev=np.ones(2,np.bool_)
-# modulate ensemble
+# ensemble modulator
 def modens(enspert,sqrtcovlocal):
     nanals = enspert.shape[0]
     neig = sqrtcovlocal.shape[0]
-    return np.multiply(np.repeat(sqrtcovlocal[:,np.newaxis,:],nanals,axis=0),np.tile(enspert,(neig,1,1)))
-def modens1(enspert,sqrtcovlocal):
-    nanals = enspert.shape[0]
-    neig = sqrtcovlocal.shape[0]
-    return np.multiply(np.repeat(sqrtcovlocal,nanals,axis=0),np.tile(enspert,(neig,1)))
+    if enspert.ndim == 3:
+        return np.multiply(np.repeat(sqrtcovlocal[:,np.newaxis,:],nanals,axis=0),np.tile(enspert,(neig,1,1)))
+    elif enspert.ndim == 2:
+        return np.multiply(np.repeat(sqrtcovlocal,nanals,axis=0),np.tile(enspert,(neig,1)))
+    else:
+        raise ValueError('modens needs 2 or 3d array')
 
 normfact = np.array(np.sqrt(nanals-1),dtype=np.float32)
 
@@ -280,7 +276,6 @@ for ntime in range(nassim):
 
     # compute covariance localization function for each ob
     if not bloc:
-        covlocal = np.empty((nobs,nx*ny),np.float32)
         if not fixed or ntime == 0:
             for nob in range(nobs):
                 dist = cartdist(xob[nob],yob[nob],x,y,nc_climo.L,nc_climo.L)
@@ -301,11 +296,6 @@ for ntime in range(nassim):
         meanpv = irfft2(models[0].meantemp(pvspec=pvspec))
         meanpvens[nanal] = meanpv
         hxens[nanal,...] = scalefact*meanpv.ravel()[indxob] # mean temp obs
-
-    #for nanal in range(nanals2):
-    #    pvspec = rfft2(pvens2[nanal])
-    #    meanpv = irfft2(models[0].meantemp(pvspec=pvspec))
-    #    hxens2[nanal,...] = scalefact*meanpv.ravel()[indxob] # mean temp obs
 
     hxensmean_b = hxens.mean(axis=0)
     hxprime = hxens-hxensmean_b
@@ -336,9 +326,9 @@ for ntime in range(nassim):
     # EnKF update
     # create 1d state vector.
     xens = pvens.reshape(nanals,2,nx*ny)
-    xmean = pvensmean_b.reshape(2,nx*ny)
-    xmean_b = xmean.copy()
+    xmean = xens.mean(axis=0)
     xprime = xens - xmean
+    xmean_b = xmean.copy()
     xprime_b = xprime.copy()
 
     # update state vector.
@@ -379,7 +369,7 @@ for ntime in range(nassim):
         #print(meanpvprime.shape)
         if bloc:
             meanpvprime_local = meanpvprime[np.ix_(indx_ens,indx)]
-            meanpvprime2_local = modens1(meanpvprime_local,sqrtcovlocal_local)
+            meanpvprime2_local = modens(meanpvprime_local,sqrtcovlocal_local)
             #print(meanpvprime_local.shape, meanpvprime2_local.shape)
             indx_ens2=np.ones(nanals*neig,np.bool_)
             hxprime2_local = scalefact*meanpvprime2_local[np.ix_(indx_ens2,indxob_local)]
