@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from netCDF4 import Dataset
 import sys, time, os
-from sqgturb import SQG, rfft2, irfft2, cartdist,enkf_update,gaspcohn
+from sqgturb import SQG, rfft2, irfft2, cartdist, gaspcohn
 from scipy.linalg import eigh, lapack
 
 # EnKF cycling for SQG turbulence model with vertical mean temp obs,
@@ -33,6 +33,7 @@ diff_efold = None # use diffusion from climo file
 profile = False # turn on profiling?
 
 use_letkf = True  # use LGETKF, otherwise use serial EnSRF
+bloc = False
 read_restart = False
 # if savedata not None, netcdf filename will be defined by env var 'exptname'
 # if savedata = 'restart', only last time is saved (so expt can be restarted)
@@ -103,8 +104,8 @@ print("# hcovlocal=%g diff_efold=%s covinfate=%s nanals=%s" %\
 # if nobs > 0, each ob time nobs ob locations are randomly sampled (without
 # replacement) from the model grid
 # if nobs < 0, fixed network of every Nth grid point used (N = -nobs)
-nobs = nx*ny//4 # number of obs to assimilate (randomly distributed)
-#nobs = -1 # fixed network, every -nobs grid points. nobs=-1 obs at all pts.
+#nobs = nx*ny//4 # number of obs to assimilate (randomly distributed)
+nobs = -1 # fixed network, every -nobs grid points. nobs=-1 obs at all pts.
 
 # nature run
 nc_truth = Dataset(filename_truth)
@@ -132,26 +133,27 @@ else:
     obcovlocal = None
 
 # model-space horizontal localization matrix
-n = 0
-covlocal_modelspace = np.empty((nx*ny,nx*ny),np.float32)
 x1 = x.reshape(nx*ny); y1 = y.reshape(nx*ny)
-for n in range(nx*ny):
-    dist = cartdist(x1[n],y1[n],x1,y1,nc_climo.L,nc_climo.L)
-    covlocal_modelspace[n,:] = gaspcohn(dist/hcovlocal_scale)
-percentvar_cutoff = 0.99
+if bloc:
+    n = 0
+    covlocal_modelspace = np.empty((nx*ny,nx*ny),np.float32)
+    for n in range(nx*ny):
+        dist = cartdist(x1[n],y1[n],x1,y1,nc_climo.L,nc_climo.L)
+        covlocal_modelspace[n,:] = gaspcohn(dist/hcovlocal_scale)
+    percentvar_cutoff = 0.99
 
-# square root of truncated localization matrix
-evals, evecs = eigh(covlocal_modelspace,driver='evd')
-neig = 1
-for nn in range(1,nx*ny):
-    percentvar = evals[-nn:].sum()/evals.sum()
-    if percentvar > 0.95: # perc variance cutoff truncation
-        neig = nn
-        break
-print('#neig = ',neig)
-evecs_norm = (evecs*np.sqrt(evals/percentvar)).T
-#sqrtcovlocal = evecs_norm[-neig:,:]
-sqrtcovlocal = evecs_norm[-neig:,:].reshape((neig,ny,nx))
+    # square root of truncated localization matrix
+    evals, evecs = eigh(covlocal_modelspace,driver='evd')
+    neig = 1
+    for nn in range(1,nx*ny):
+        percentvar = evals[-nn:].sum()/evals.sum()
+        if percentvar > 0.95: # perc variance cutoff truncation
+            neig = nn
+            break
+    print('#neig = ',neig)
+    evecs_norm = (evecs*np.sqrt(evals/percentvar)).T
+    #sqrtcovlocal = evecs_norm[-neig:,:]
+    sqrtcovlocal = evecs_norm[-neig:,:].reshape((neig,ny,nx))
 
 obtimes = nc_truth.variables['t'][:]
 if read_restart:
@@ -240,7 +242,7 @@ def modens1(enspert,sqrtcovlocal):
     neig = sqrtcovlocal.shape[0]
     return np.multiply(np.repeat(sqrtcovlocal,nanals,axis=0),np.tile(enspert,(neig,1)))
 
-normfact = np.array(nanals-1,dtype=np.float32)
+normfact = np.array(np.sqrt(nanals-1),dtype=np.float32)
 
 for ntime in range(nassim):
 
@@ -275,6 +277,15 @@ for ntime in range(nassim):
     pvob = scalefact*meanpv_truth.ravel()[indxob]
     pvob += rsobs.normal(scale=oberrstdev,size=nobs) # add ob errors
     xob = x.ravel()[indxob]; yob = y.ravel()[indxob]
+
+    # compute covariance localization function for each ob
+    if not bloc:
+        covlocal = np.empty((nobs,nx*ny),np.float32)
+        if not fixed or ntime == 0:
+            for nob in range(nobs):
+                dist = cartdist(xob[nob],yob[nob],x,y,nc_climo.L,nc_climo.L)
+                covlocal_tmp = gaspcohn(dist/hcovlocal_scale)
+                covlocal[nob] = covlocal_tmp.ravel()
 
     # first-guess spread (need later to compute inflation factor)
     pvensmean = pvens.mean(axis=0)
@@ -336,23 +347,26 @@ for ntime in range(nassim):
     for n in range(nx*ny):
         dist = cartdist(x1[n],y1[n],x1,y1,nc_climo.L,nc_climo.L)
         indx = dist < np.abs(hcovlocal_scale)
-        nmindist = np.argmin(dist[indx])
-        covlocal_local = covlocal_modelspace[np.ix_(indx,indx)]
-        #evals, evecs = eigh(covlocal_local,driver='evd')
-        evals, evecs, info = lapack.dsyevd(covlocal_local)
-        neig = 1
-        for nn in range(1,nx*ny):
-            percentvar = evals[-nn:].sum()/evals.sum()
-            if percentvar > percentvar_cutoff: # perc variance cutoff truncation
-                neig = nn
-                break
-        evecs_norm = (evecs*np.sqrt(evals/percentvar)).T
-        sqrtcovlocal_local = evecs_norm[-neig:,:]
         xprime_local = xprime_b[np.ix_(indx_ens,indx_lev,indx)]
-        xprime2_local = modens(xprime_local,sqrtcovlocal_local)
+        if bloc:
+            nmindist = np.argmin(dist[indx])
+            covlocal_local = covlocal_modelspace[np.ix_(indx,indx)]
+            #evals, evecs = eigh(covlocal_local,driver='evd')
+            evals, evecs, info = lapack.dsyevd(covlocal_local)
+            neig = 1
+            for nn in range(1,nx*ny):
+                percentvar = evals[-nn:].sum()/evals.sum()
+                if percentvar > percentvar_cutoff: # perc variance cutoff truncation
+                    neig = nn
+                    break
+            evecs_norm = (evecs*np.sqrt(evals/percentvar)).T
+            sqrtcovlocal_local = evecs_norm[-neig:,:]
+            xprime2_local = modens(xprime_local,sqrtcovlocal_local)
         #print(neig, xprime_local.shape,xprime2_local.shape)
         distob = cartdist(x1[n],y1[n],xob,yob,nc_climo.L,nc_climo.L)
         obindx = distob < np.abs(hcovlocal_scale)
+        if not bloc:
+            covlocal_local = covlocal[obindx,n]
         #ndim_local = np.sum(indx); nobs_local = np.sum(obindx)
         #print(ndim_local,nobs_local)
         #print(np.nonzero(indx))
@@ -363,11 +377,12 @@ for ntime in range(nassim):
         obs_local = pvob[obindx]
         hxprime_local = hxprime[np.ix_(indx_ens,obindx)]
         #print(meanpvprime.shape)
-        meanpvprime_local = meanpvprime[np.ix_(indx_ens,indx)]
-        meanpvprime2_local = modens1(meanpvprime_local,sqrtcovlocal_local)
-        #print(meanpvprime_local.shape, meanpvprime2_local.shape)
-        indx_ens2=np.ones(nanals*neig,np.bool_)
-        hxprime2_local = scalefact*meanpvprime2_local[np.ix_(indx_ens2,indxob_local)]
+        if bloc:
+            meanpvprime_local = meanpvprime[np.ix_(indx_ens,indx)]
+            meanpvprime2_local = modens1(meanpvprime_local,sqrtcovlocal_local)
+            #print(meanpvprime_local.shape, meanpvprime2_local.shape)
+            indx_ens2=np.ones(nanals*neig,np.bool_)
+            hxprime2_local = scalefact*meanpvprime2_local[np.ix_(indx_ens2,indxob_local)]
         #meanpvensmean_b = meanpvensmean_b.reshape(nx*ny)
         #meanpvensmean_b_local1 = meanpvensmean_b[indxob[obindx]]
         #print(meanpvensmean_b_local1.shape)
@@ -379,22 +394,29 @@ for ntime in range(nassim):
         #raise SystemExit
 
         ominusf = obs_local - hxensmean_local
-        Rinv = 1./oberrvar[obindx]
+        if not bloc:
+            Rinv = covlocal_local/oberrvar[obindx]
+        else:
+            Rinv = 1./oberrvar[obindx]
         # gain-form etkf solution
         # HZ^T = hxens * R**-1/2
         # compute eigenvectors/eigenvalues of HZ^T HZ (C=left SV)
         # (in Bishop paper HZ is nobs, nanals, here is it nanals, nobs)
         # normalize so dot product is covariance
-        YbsqrtRinv = hxprime2_local*np.sqrt(Rinv)/normfact  
-        YbRinv = hxprime2_local*Rinv/normfact               
+        if bloc:
+            YbsqrtRinv = hxprime2_local*np.sqrt(Rinv)/normfact
+            YbRinv = hxprime2_local*Rinv/normfact
+        else:
+            YbsqrtRinv = hxprime_local*np.sqrt(Rinv)/normfact
+            YbRinv = hxprime_local*Rinv/normfact
         pa = np.dot(YbsqrtRinv,YbsqrtRinv.T)
         evals, evecs, info = lapack.dsyevd(pa)
         gamma_inv = np.zeros_like(evals)
-        for n in range(evals.shape[0]):
-            if evals[n] > np.finfo(evals.dtype).eps:
-                gamma_inv[n] = 1./evals[n]
+        for neig in range(evals.shape[0]):
+            if evals[neig] > np.finfo(evals.dtype).eps:
+                gamma_inv[neig] = 1./evals[neig]
             else:
-                evals[n] = 0.
+                evals[neig] = 0.
         # gammapI used in calculation of posterior cov in ensemble space
         gammapI = evals+1.
         # create HZ^T R**-1/2
@@ -420,14 +442,17 @@ for ntime in range(nassim):
         # if denkf, wts_ensperts = -0.5 C (Gamma + I)**-1 C^T (HZ)^T R**-1/2 HXprime
         wts_ensperts = -np.dot(pa, np.dot(YbRinv,hxprime_local.T)).T/normfact # use orig ens here
 
-        for k in range(2):
-            xmean[k,n] += np.dot(wts_ensmean,xprime2_local[:,k,nmindist]) 
-            # use orig ens on lhs, mod ens on rhs
-            xprime[:,k,n] += np.dot(wts_ensperts,xprime2_local[:,k,nmindist]) 
-
-    xens = xmean + xprime
-    #xens =\
-    #enkf_update(xens,xens2,hxens,hxens2,pvob,oberrvar,covlocal_tmp,obcovlocal=obcovlocal)
+        if bloc:
+            for k in range(2):
+                xmean[k,n] += np.dot(wts_ensmean,xprime2_local[:,k,nmindist])
+                # use orig ens on lhs, mod ens on rhs
+                xprime[:,k,n] += np.dot(wts_ensperts,xprime2_local[:,k,nmindist])
+        else:
+            for k in range(2):
+                xmean[k,n] += np.dot(wts_ensmean,xprime_b[:,k,n])
+                # use orig ens on lhs, mod ens on rhs
+                xprime[:,k,n] += np.dot(wts_ensperts,xprime_b[:,k,n])
+        xens[:,:,n] = xmean[:,n]+xprime[:,:,n]
 
     # back to 3d state vector
     pvens = xens.reshape((nanals,2,ny,nx))
