@@ -25,7 +25,10 @@ python sqg_enkf.py hcovlocal_scale covinflate>
 # horizontal covariance localization length scale in meters.
 hcovlocal_scale = float(sys.argv[1])
 covinflate = float(sys.argv[2])
-vcovlocal_fact = float(sys.argv[3])
+if len(sys.argv) > 3:
+    vcovlocal_fact = float(sys.argv[3])
+else:
+    vcovlocal_fact = 1.
 exptname = os.getenv('exptname','test')
 threads = int(os.getenv('OMP_NUM_THREADS','1'))
 
@@ -285,7 +288,7 @@ for ntime in range(nassim):
                 pvprime[nanal,k,...]*vcovlocal_sqrt[k,neig-j-1]
             nanal2 += 1
 
-    # check modulation works 
+    # check modulation works
     #crosscov1 = (pvprime[:,0,...]*pvprime[:,1,...]).sum(axis=0)/(nanals-1)
     #crosscov2 = (pvprime2[:,0,...]*pvprime2[:,1,...]).sum(axis=0)/(nanals-1)
     #print(vcovlocal_factt,(crosscov2/crosscov1).mean()) # should be the same
