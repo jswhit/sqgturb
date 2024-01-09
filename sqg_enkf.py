@@ -33,7 +33,7 @@ diff_efold = None # use diffusion from climo file
 profile = False # turn on profiling?
 
 use_letkf = True  # use LGETKF, otherwise use serial EnSRF
-bloc = False
+bloc = True
 read_restart = False
 # if savedata not None, netcdf filename will be defined by env var 'exptname'
 # if savedata = 'restart', only last time is saved (so expt can be restarted)
@@ -97,7 +97,7 @@ for nanal in range(nanals):
     diff_order=nc_climo.diff_order,diff_efold=diff_efold,threads=threads))
 if read_restart: ncinit.close()
 
-print('# use_letkf=%s' % (use_letkf))
+print('# use_letkf=%s bloc=%s' % (use_letkf,bloc))
 print("# hcovlocal=%g diff_efold=%s covinfate=%s nanals=%s" %\
      (hcovlocal_scale/1000.,diff_efold,covinflate,nanals))
 
@@ -145,7 +145,7 @@ if bloc:
         if percentvar > 0.95: # perc variance cutoff truncation
             neig = nn
             break
-    print('#neig = ',neig)
+    print('# global neig = ',neig)
     evecs_norm = (evecs*np.sqrt(evals/percentvar)).T
     #sqrtcovlocal = evecs_norm[-neig:,:]
     sqrtcovlocal = evecs_norm[-neig:,:].reshape((neig,ny,nx))
@@ -349,6 +349,7 @@ for ntime in range(nassim):
                 if percentvar > percentvar_cutoff: # perc variance cutoff truncation
                     neig = nn
                     break
+            if ntime==0 and n==0: print('# local neig = ',neig)
             evecs_norm = (evecs*np.sqrt(evals/percentvar)).T
             sqrtcovlocal_local = evecs_norm[-neig:,:]
             xprime2_local = modens(xprime_local,sqrtcovlocal_local)
