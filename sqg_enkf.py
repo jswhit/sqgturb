@@ -32,8 +32,7 @@ diff_efold = None # use diffusion from climo file
 
 profile = False # turn on profiling?
 
-use_letkf = True  # use LGETKF, otherwise use serial EnSRF
-bloc = True
+bloc = False
 read_restart = False
 # if savedata not None, netcdf filename will be defined by env var 'exptname'
 # if savedata = 'restart', only last time is saved (so expt can be restarted)
@@ -50,9 +49,9 @@ nanals = 20 # ensemble members
 oberrstdev = 1. # ob error standard deviation in K
 
 # nature run created using sqg_run.py.
-filename_climo = 'sqg_N64_6hrly.nc' # file name for forecast model climo
+filename_climo = 'sqg_N64_6hrly_u25.nc' # file name for forecast model climo
 # perfect model
-filename_truth = 'sqg_N64_6hrly.nc' # file name for nature run to draw obs
+filename_truth = 'sqg_N64_6hrly_u25.nc' # file name for nature run to draw obs
 #filename_truth = 'sqg_N256_N96_12hrly.nc' # file name for nature run to draw obs
 
 print('# filename_modelclimo=%s' % filename_climo)
@@ -97,14 +96,14 @@ for nanal in range(nanals):
     diff_order=nc_climo.diff_order,diff_efold=diff_efold,threads=threads))
 if read_restart: ncinit.close()
 
-print('# use_letkf=%s bloc=%s' % (use_letkf,bloc))
+print('# bloc=%s' % bloc)
 print("# hcovlocal=%g diff_efold=%s covinfate=%s nanals=%s" %\
      (hcovlocal_scale/1000.,diff_efold,covinflate,nanals))
 
 # if nobs > 0, each ob time nobs ob locations are randomly sampled (without
 # replacement) from the model grid
 # if nobs < 0, fixed network of every Nth grid point used (N = -nobs)
-#nobs = nx*ny//4 # number of obs to assimilate (randomly distributed)
+#nobs = nx*ny//2 # number of obs to assimilate (randomly distributed)
 nobs = -1 # fixed network, every -nobs grid points. nobs=-1 obs at all pts.
 
 # nature run
