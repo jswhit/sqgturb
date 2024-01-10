@@ -32,7 +32,7 @@ diff_efold = None # use diffusion from climo file
 
 profile = False # turn on profiling?
 
-bloc = False
+bloc = True
 read_restart = False
 # if savedata not None, netcdf filename will be defined by env var 'exptname'
 # if savedata = 'restart', only last time is saved (so expt can be restarted)
@@ -357,6 +357,7 @@ for ntime in range(nassim):
         obindx = distob < np.abs(hcovlocal_scale)
         if not bloc:
             covlocal_local = covlocal[obindx,n]
+            covlocal_local = np.where(covlocal_local < 0,0,covlocal_local)
         #ndim_local = np.sum(indx); nobs_local = np.sum(obindx)
         #print(ndim_local,nobs_local)
         #print(np.nonzero(indx))
