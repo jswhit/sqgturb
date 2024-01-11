@@ -314,8 +314,9 @@ for ntime in range(nassim):
 
     for n in range(nx*ny):
         # 1) 'squeeze' state vector
-        squeezefact = np.sqrt(covlocal_modelspace[n,:])
-        xprime_squeeze = squeezefact[np.newaxis,np.newaxis,:]*xprime
+        if not rloc:
+            squeezefact = np.sqrt(covlocal_modelspace[n,:])
+            xprime_squeeze = squeezefact[np.newaxis,np.newaxis,:]*xprime
         # 2) perform observation operator on 'squeezed' state vector
         #    for local obs
         distob = cartdist(x1[n],y1[n],xob,yob,nc_climo.L,nc_climo.L)
