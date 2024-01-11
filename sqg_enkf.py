@@ -32,7 +32,7 @@ diff_efold = None # use diffusion from climo file
 
 profile = False # turn on profiling?
 
-rloc=True
+rloc=False
 read_restart = False
 # if savedata not None, netcdf filename will be defined by env var 'exptname'
 # if savedata = 'restart', only last time is saved (so expt can be restarted)
@@ -208,8 +208,9 @@ if savedata is not None:
 kespec_errmean = None; kespec_sprdmean = None
 
 ncount = 0
-nanals2 = min(10,nanals) # ensemble members used for kespec spread
+nanalske = min(10,nanals) # ensemble members used for kespec spread
 normfact = np.array(np.sqrt(nanals-1),dtype=np.float32)
+indx_ens=np.ones(nanals,np.bool_); indx_lev=np.ones(2,np.bool_)
 
 for ntime in range(nassim):
 
@@ -324,14 +325,14 @@ for ntime in range(nassim):
         obindx = distob < np.abs(hcovlocal_scale)
         if rloc:
             covlocal_ob=np.clip(gaspcohn(distob[obindx]/hcovlocal_scale),a_min=1.e-10,a_max=None)
-            #hxprime_local = hxprime_b[:,obindx]
-            x,hxprime_local = hofx(xprime_b, indxob[obindx], models[0],
-                                   scalefact=scalefact)
+            hxprime_local = hxprime_b[:,obindx]
+            #xtmp,hxprime_local = hofx(xprime_b, indxob[obindx], models[0],
+            #                          scalefact=scalefact)
         else:
-            x,hxprime_local = hofx(xprime_squeeze, indxob[obindx], models[0],
-                                   scalefact=scalefact)
-            x,hxprime_local2 = hofx(squeezefact[np.newaxis,np.newaxis,:]*xprime_squeeze,
-                                    indxob[obindx], models[0], scalefact=scalefact)
+            xtmp,hxprime_local = hofx(xprime_squeeze, indxob[obindx], models[0],
+                                      scalefact=scalefact)
+            xtmp,hxprime_local2 = hofx(squeezefact[np.newaxis,np.newaxis,:]*xprime_squeeze,
+                                       indxob[obindx], models[0], scalefact=scalefact)
         # 3) compute GETKF weights, update state at center of local region
         ominusf = (pvob - hxensmean_b)[obindx]
         if rloc:
@@ -442,16 +443,16 @@ for ntime in range(nassim):
             (models[0].ksqlsq*(psispec*np.conjugate(psispec))).real
         else:
             kespec_errmean = kespec_errmean + kespec
-        for nanal in range(nanals2):
+        for nanal in range(nanalske):
             pvsprdspec = scalefact*rfft2(pvens[nanal] - pvfcstmean)
             psispec = models[0].invert(pvsprdspec)
             psispec = psispec/(models[0].N*np.sqrt(2.))
             kespec = (models[0].ksqlsq*(psispec*np.conjugate(psispec))).real
             if kespec_sprdmean is None:
                 kespec_sprdmean =\
-                (models[0].ksqlsq*(psispec*np.conjugate(psispec))).real/nanals2
+                (models[0].ksqlsq*(psispec*np.conjugate(psispec))).real/nanalske
             else:
-                kespec_sprdmean = kespec_sprdmean+kespec/nanals2
+                kespec_sprdmean = kespec_sprdmean+kespec/nanalske
         ncount += 1
 
 if savedata: nc.close()
