@@ -1,6 +1,6 @@
 from __future__ import print_function
 import matplotlib
-matplotlib.use('Agg')
+matplotlib.use('QtAgg')
 import matplotlib.pyplot as plt
 import numpy as np
 from netCDF4 import Dataset
@@ -32,8 +32,7 @@ diff_efold = None # use diffusion from climo file
 
 profile = False # turn on profiling?
 
-use_letkf = True  # use LETKF, otherwise use serial EnSRF
-gainform = False  # if use_letkf=T, use gain-form
+rloc=True
 read_restart = False
 # if savedata not None, netcdf filename will be defined by env var 'exptname'
 # if savedata = 'restart', only last time is saved (so expt can be restarted)
@@ -97,7 +96,6 @@ for nanal in range(nanals):
     diff_order=nc_climo.diff_order,diff_efold=diff_efold,threads=threads))
 if read_restart: ncinit.close()
 
-print('# use_letkf=%s' % (use_letkf))
 print("# hcovlocal=%g diff_efold=%s covinfate=%s nanals=%s" %\
      (hcovlocal_scale/1000.,diff_efold,covinflate,nanals))
 
@@ -124,13 +122,7 @@ else:
 if nobs == nx*ny//2: fixed=True # used fixed network for obs every other grid point
 oberrvar = oberrstdev**2*np.ones(nobs,np.float32)
 pvob = np.empty(nobs,np.float32)
-covlocal = np.empty((ny,nx),np.float32)
-covlocal_tmp = np.empty((nobs,nx*ny),np.float32)
 xens = np.empty((nanals,2,nx*ny),np.float32)
-if not use_letkf:
-    obcovlocal = np.empty((nobs,nobs),np.float32)
-else:
-    obcovlocal = None
 
 # model-space localization matrix
 n = 0
@@ -138,7 +130,8 @@ covlocal_modelspace = np.empty((nx*ny,nx*ny),np.float32)
 x1 = x.reshape(nx*ny); y1 = y.reshape(nx*ny)
 for n in range(nx*ny):
     dist = cartdist(x1[n],y1[n],x1,y1,nc_climo.L,nc_climo.L)
-    covlocal_modelspace[n,:] = gaspcohn(dist/hcovlocal_scale)
+    covlocal_modelspace[n,:] =\
+    np.clip(gaspcohn(dist/hcovlocal_scale),a_min=1.e-10,a_max=None)
 
 obtimes = nc_truth.variables['t'][:]
 if read_restart:
@@ -250,14 +243,6 @@ for ntime in range(nassim):
     pvob = scalefact*meanpv_truth.ravel()[indxob]
     pvob += rsobs.normal(scale=oberrstdev,size=nobs) # add ob errors
     xob = x.ravel()[indxob]; yob = y.ravel()[indxob]
-    # compute covariance localization function for each ob
-    if not fixed or ntime == 0:
-        for nob in range(nobs):
-            dist = cartdist(xob[nob],yob[nob],x,y,nc_climo.L,nc_climo.L)
-            covlocal = gaspcohn(dist/hcovlocal_scale)
-            covlocal_tmp[nob] = covlocal.ravel()
-            dist = cartdist(xob[nob],yob[nob],xob,yob,nc_climo.L,nc_climo.L)
-            if not use_letkf: obcovlocal[nob] = gaspcohn(dist/hcovlocal_scale)
 
     # first-guess spread (need later to compute inflation factor)
     fsprd = ((pvens - pvens.mean(axis=0))**2).sum(axis=0)/(nanals-1)
@@ -329,24 +314,37 @@ for ntime in range(nassim):
 
     for n in range(nx*ny):
         # 1) 'squeeze' state vector
-        squeezefact = covlocal_modelspace[n,:]
+        squeezefact = np.sqrt(covlocal_modelspace[n,:])
         xprime_squeeze = squeezefact[np.newaxis,np.newaxis,:]*xprime
         # 2) perform observation operator on 'squeezed' state vector
         #    for local obs
         distob = cartdist(x1[n],y1[n],xob,yob,nc_climo.L,nc_climo.L)
         obindx = distob < np.abs(hcovlocal_scale)
-        x,hxprime_local = hofx(xprime_squeeze, indxob[obindx], models[0],
-                               scalefact=scalefact)
+        if rloc:
+            covlocal_ob=np.clip(gaspcohn(distob[obindx]/hcovlocal_scale),a_min=1.e-10,a_max=None)
+            x,hxprime_local = hofx(xprime_b, indxob[obindx], models[0],
+                                   scalefact=scalefact)
+        else:
+            x,hxprime_local = hofx(xprime_squeeze, indxob[obindx], models[0],
+                                   scalefact=scalefact)
+            x,hxprime_local2 = hofx(squeezefact[np.newaxis,np.newaxis,:]*xprime_squeeze,
+                                    indxob[obindx], models[0], scalefact=scalefact)
         # 3) compute GETKF weights, update state at center of local region
         ominusf = (pvob - hxensmean_b)[obindx]
-        Rinv = 1./oberrvar[obindx]
+        if rloc:
+            Rinv = covlocal_ob/oberrvar[obindx]
+        else:
+            Rinv = 1./oberrvar[obindx]
         # gain-form etkf solution
         # HZ^T = hxens * R**-1/2
         # compute eigenvectors/eigenvalues of HZ^T HZ (C=left SV)
         # (in Bishop paper HZ is nobs, nanals, here is it nanals, nobs)
         # normalize so dot product is covariance
         YbsqrtRinv = hxprime_local*np.sqrt(Rinv)/normfact
-        YbRinv = hxprime_local*Rinv/normfact
+        if rloc:
+            YbRinv = hxprime_local*Rinv/normfact
+        else:
+            YbRinv = hxprime_local2*Rinv/normfact
         pa = np.dot(YbsqrtRinv,YbsqrtRinv.T)
         evals, evecs, info = lapack.dsyevd(pa)
         gamma_inv = np.zeros_like(evals)
