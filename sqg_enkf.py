@@ -32,7 +32,8 @@ diff_efold = None # use diffusion from climo file
 
 profile = False # turn on profiling?
 
-rloc=False
+rloc=False      # R localization instead of Z localization
+gainform=False  # gain form of LETKF
 read_restart = False
 # if savedata not None, netcdf filename will be defined by env var 'exptname'
 # if savedata = 'restart', only last time is saved (so expt can be restarted)
@@ -131,7 +132,7 @@ x1 = x.reshape(nx*ny); y1 = y.reshape(nx*ny)
 for n in range(nx*ny):
     dist = cartdist(x1[n],y1[n],x1,y1,nc_climo.L,nc_climo.L)
     covlocal_modelspace[n,:] =\
-    np.clip(gaspcohn(dist/hcovlocal_scale),a_min=1.e-10,a_max=None)
+    np.clip(gaspcohn(dist/hcovlocal_scale),a_min=np.finfo(covlocal_modelspace.dtype).eps,a_max=None)
 
 obtimes = nc_truth.variables['t'][:]
 if read_restart:
@@ -325,7 +326,7 @@ for ntime in range(nassim):
         distob = cartdist(x1[n],y1[n],xob,yob,nc_climo.L,nc_climo.L)
         obindx = distob < np.abs(hcovlocal_scale)
         if rloc:
-            covlocal_ob=np.clip(gaspcohn(distob[obindx]/hcovlocal_scale),a_min=1.e-10,a_max=None)
+            covlocal_ob=np.clip(gaspcohn(distob[obindx]/hcovlocal_scale),a_min=np.finfo(covlocal_modelspace.dtype).eps,a_max=None)
             hxprime_local = hxprime_b[:,obindx]
             #xtmp,hxprime_local = hofx(xprime_b, indxob[obindx], models[0],
             #                          scalefact=scalefact)
@@ -334,6 +335,10 @@ for ntime in range(nassim):
                                       scalefact=scalefact)
             xtmp,hxprime_local2 = hofx(xprime_squeeze2, indxob[obindx], models[0],
                                        scalefact=scalefact)
+            #if n==nx*ny//2 + nx//2:
+            #    plt.imshow(xtmp[0].reshape(ny,nx))
+            #    plt.show()
+            #    raise SystemExit
         # 3) compute GETKF weights, update state at center of local region
         ominusf = (pvob - hxensmean_b)[obindx]
         if rloc:
@@ -350,44 +355,55 @@ for ntime in range(nassim):
             YbRinv = hxprime_local*Rinv/normfact
         else:
             YbRinv = hxprime_local2*Rinv/normfact
-        pa = np.dot(YbsqrtRinv,YbsqrtRinv.T)
-        evals, evecs, info = lapack.dsyevd(pa)
-        gamma_inv = np.zeros_like(evals)
-        for neig in range(evals.shape[0]):
-            if evals[neig] > np.finfo(evals.dtype).eps:
-                gamma_inv[neig] = 1./evals[neig]
-            else:
-                evals[neig] = 0.
-        # gammapI used in calculation of posterior cov in ensemble space
-        gammapI = evals+1.
-        # create HZ^T R**-1/2
-        # compute factor to multiply with model space ensemble perturbations
-        # to compute analysis increment (for mean update).
-        # This is the factor C (Gamma + I)**-1 C^T (HZ)^ T R**-1/2 (y - HXmean)
-        # in Bishop paper (eqs 10-12).
-        # pa = C (Gamma + I)**-1 C^T (analysis error cov in ensemble space)
-        pa = np.dot(evecs/gammapI[np.newaxis,:],evecs.T)
-        # wts_ensmean = C (Gamma + I)**-1 C^T (HZ)^ T R**-1/2 (y - HXmean)
-        wts_ensmean = np.dot(pa, np.dot(YbRinv,ominusf))/normfact
-        # compute factor to multiply with model space ensemble perturbations
-        # to compute analysis increment (for perturbation update), save in single precision.
-        # This is -C [ (I - (Gamma+I)**-1/2)*Gamma**-1 ] C^T (HZ)^T R**-1/2 HXprime
-        # in Bishop paper (eqn 29).
-        # For DEnKF factor is -0.5*C (Gamma + I)**-1 C^T (HZ)^ T R**-1/2 HXprime
-        # = -0.5 Pa (HZ)^ T R**-1/2 HXprime (Pa already computed)
-        # pa = C [ (I - (Gamma+I)**-1/2)*Gamma**-1 ] C^T
-        # gammapI = sqrt(1.0/gammapI)
-        # ( pa=0.5*pa for denkf)
-        pa=np.dot(evecs*(1.-np.sqrt(1./gammapI[np.newaxis,:]))*gamma_inv[np.newaxis,:],evecs.T)
-        # wts_ensperts = -C [ (I - (Gamma+I)**-1/2)*Gamma**-1 ] C^T (HZ)^T R**-1/2 HXprime
-        # if denkf, wts_ensperts = -0.5 C (Gamma + I)**-1 C^T (HZ)^T R**-1/2 HXprime
-        wts_ensperts = -np.dot(pa, np.dot(YbRinv,hxprime_local.T)).T/normfact # use orig ens here
 
-        for k in range(2):
-            xmean[k,n] += np.dot(wts_ensmean,xprime_b[:,k,n])
-            # use orig ens on lhs, mod ens on rhs
-            xprime[:,k,n] += np.dot(wts_ensperts,xprime_b[:,k,n])
-        xens[:,:,n] = xmean[:,n]+xprime[:,:,n]
+        if gainform:
+            pa = np.dot(YbsqrtRinv,YbsqrtRinv.T)
+            evals, evecs, info = lapack.dsyevd(pa)
+            gamma_inv = np.zeros_like(evals)
+            for neig in range(evals.shape[0]):
+                if evals[neig] > np.finfo(evals.dtype).eps:
+                    gamma_inv[neig] = 1./evals[neig]
+                else:
+                    evals[neig] = 0.
+            # gammapI used in calculation of posterior cov in ensemble space
+            gammapI = evals+1.
+            # create HZ^T R**-1/2
+            # compute factor to multiply with model space ensemble perturbations
+            # to compute analysis increment (for mean update).
+            # This is the factor C (Gamma + I)**-1 C^T (HZ)^ T R**-1/2 (y - HXmean)
+            # in Bishop paper (eqs 10-12).
+            # pa = C (Gamma + I)**-1 C^T (analysis error cov in ensemble space)
+            pa = np.dot(evecs/gammapI[np.newaxis,:],evecs.T)
+            # wts_ensmean = C (Gamma + I)**-1 C^T (HZ)^ T R**-1/2 (y - HXmean)
+            wts_ensmean = np.dot(pa, np.dot(YbRinv,ominusf))/normfact
+            # compute factor to multiply with model space ensemble perturbations
+            # to compute analysis increment (for perturbation update), save in single precision.
+            # This is -C [ (I - (Gamma+I)**-1/2)*Gamma**-1 ] C^T (HZ)^T R**-1/2 HXprime
+            # in Bishop paper (eqn 29).
+            # For DEnKF factor is -0.5*C (Gamma + I)**-1 C^T (HZ)^ T R**-1/2 HXprime
+            # = -0.5 Pa (HZ)^ T R**-1/2 HXprime (Pa already computed)
+            # pa = C [ (I - (Gamma+I)**-1/2)*Gamma**-1 ] C^T
+            # gammapI = sqrt(1.0/gammapI)
+            # ( pa=0.5*pa for denkf)
+            pa=np.dot(evecs*(1.-np.sqrt(1./gammapI[np.newaxis,:]))*gamma_inv[np.newaxis,:],evecs.T)
+            # wts_ensperts = -C [ (I - (Gamma+I)**-1/2)*Gamma**-1 ] C^T (HZ)^T R**-1/2 HXprime
+            # if denkf, wts_ensperts = -0.5 C (Gamma + I)**-1 C^T (HZ)^T R**-1/2 HXprime
+            wts_ensperts = -np.dot(pa, np.dot(YbRinv,hxprime_local.T)).T/normfact # use orig ens here
+            for k in range(2):
+                xmean[k,n] += np.dot(wts_ensmean,xprime_b[:,k,n])
+                # use orig ens on lhs, mod ens on rhs
+                xprime[:,k,n] += np.dot(wts_ensperts,xprime_b[:,k,n])
+            xens[:,:,n] = xmean[:,n]+xprime[:,:,n]
+        else:
+            pa = np.eye(nanals) + np.dot(YbsqrtRinv, YbsqrtRinv.T)
+            evals, eigs, info = lapack.dsyevd(pa)
+            #evals, eigs, info, isuppz, info = lapack.dsyevr(pa)
+            evals = evals.clip(min=np.finfo(evals.dtype).eps)
+            painv = np.dot(np.dot(eigs, np.diag(np.sqrt(1.0 / evals))), eigs.T)
+            tmp = np.dot(np.dot(np.dot(painv, painv.T), YbRinv), ominusf)/normfact
+            wts = painv + tmp[:, np.newaxis]
+            for k in range(2):
+                xens[:, k, n] = xmean[k, n] + np.dot(wts.T, xprime_b[:, k, n])
 
     # back to 3d state vector
     pvens = xens.reshape((nanals,2,ny,nx))
@@ -414,7 +430,6 @@ for ntime in range(nassim):
      np.sqrt(meanpverr_b.mean()),np.sqrt(meanpvsprd_b.mean()),
      np.sqrt(obfits_b),np.sqrt(obsprd_b+oberrstdev**2),obbias_b,
      inflation_factor.mean(),asprd_over_fsprd))
-    raise SystemExit
 
     # save data.
     if savedata is not None:
