@@ -12,7 +12,7 @@ from scipy.linalg import lapack
 # horizontal but no vertical localization.
 # Relaxation to prior spread inflation.
 # Random or fixed observing network.
-# Options for LETKF or serial EnSRF.
+# LETKF, options for gain form and R/Z localization.
 
 if len(sys.argv) == 1:
    msg="""
@@ -125,7 +125,7 @@ oberrvar = oberrstdev**2*np.ones(nobs,np.float32)
 pvob = np.empty(nobs,np.float32)
 xens = np.empty((nanals,2,nx*ny),np.float32)
 
-# model-space localization matrix
+# model-space localization matrix (only needed for Z localization)
 n = 0
 covlocal_modelspace = np.empty((nx*ny,nx*ny),np.float32)
 x1 = x.reshape(nx*ny); y1 = y.reshape(nx*ny)
@@ -211,7 +211,6 @@ kespec_errmean = None; kespec_sprdmean = None
 ncount = 0
 nanalske = min(10,nanals) # ensemble members used for kespec spread
 normfact = np.array(np.sqrt(nanals-1),dtype=np.float32)
-indx_ens=np.ones(nanals,np.bool_); indx_lev=np.ones(2,np.bool_)
 
 for ntime in range(nassim):
 
@@ -252,6 +251,8 @@ for ntime in range(nassim):
     # compute forward operator.
     # hxens is ensemble in observation space.
     def hofx(x,indxob,model,scalefact=1.0):
+        # given temp at boundaries, return vertical mean
+        # temp at locations specified by indxob.
         nanals = x.shape[0]
         if indxob.dtype == np.bool_:
             nobs = indxob.sum()
@@ -259,7 +260,7 @@ for ntime in range(nassim):
             nobs = len(indxob)
         if x.ndim < 4:
             nxny = x.shape[2]
-            ny = int(np.sqrt(nxny)); nx = ny
+            ny = int(np.sqrt(nxny)); nx = ny # grid is square
             pvens = x.reshape(nanals,2,ny,nx)
         else:
             ny = x.shape[2]; nx = x.shape[3]
@@ -304,8 +305,6 @@ for ntime in range(nassim):
 
     # EnKF update
     # create 1d state vector.
-    # EnKF update
-    # create 1d state vector.
     xens = pvens.reshape(nanals,2,nx*ny)
     xmean = xens.mean(axis=0)
     xprime = xens - xmean
@@ -322,7 +321,7 @@ for ntime in range(nassim):
             xprime_squeeze = np.sqrt(squeezefact[np.newaxis,np.newaxis,:])*xprime
             xprime_squeeze2 = squeezefact[np.newaxis,np.newaxis,:]*xprime
         # 2) perform observation operator on 'squeezed' state vector
-        #    for local obs
+        #    for local obs if rloc=False
         distob = cartdist(x1[n],y1[n],xob,yob,nc_climo.L,nc_climo.L)
         obindx = distob < np.abs(hcovlocal_scale)
         if rloc:
@@ -335,10 +334,6 @@ for ntime in range(nassim):
                                       scalefact=scalefact)
             xtmp,hxprime_local2 = hofx(xprime_squeeze2, indxob[obindx], models[0],
                                        scalefact=scalefact)
-            #if n==nx*ny//2 + nx//2:
-            #    plt.imshow(xtmp[0].reshape(ny,nx))
-            #    plt.show()
-            #    raise SystemExit
         # 3) compute GETKF weights, update state at center of local region
         ominusf = (pvob - hxensmean_b)[obindx]
         if rloc:
@@ -355,7 +350,6 @@ for ntime in range(nassim):
             YbRinv = hxprime_local*Rinv/normfact
         else:
             YbRinv = hxprime_local2*Rinv/normfact
-
         if gainform:
             pa = np.dot(YbsqrtRinv,YbsqrtRinv.T)
             evals, evecs, info = lapack.dsyevd(pa)
