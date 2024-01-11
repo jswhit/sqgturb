@@ -317,8 +317,9 @@ for ntime in range(nassim):
     for n in range(nx*ny):
         # 1) 'squeeze' state vector
         if not rloc:
-            squeezefact = np.sqrt(covlocal_modelspace[n,:])
-            xprime_squeeze = squeezefact[np.newaxis,np.newaxis,:]*xprime
+            squeezefact = covlocal_modelspace[n,:]
+            xprime_squeeze = np.sqrt(squeezefact[np.newaxis,np.newaxis,:])*xprime
+            xprime_squeeze2 = squeezefact[np.newaxis,np.newaxis,:]*xprime
         # 2) perform observation operator on 'squeezed' state vector
         #    for local obs
         distob = cartdist(x1[n],y1[n],xob,yob,nc_climo.L,nc_climo.L)
@@ -331,8 +332,8 @@ for ntime in range(nassim):
         else:
             xtmp,hxprime_local = hofx(xprime_squeeze, indxob[obindx], models[0],
                                       scalefact=scalefact)
-            xtmp,hxprime_local2 = hofx(squeezefact[np.newaxis,np.newaxis,:]*xprime_squeeze,
-                                       indxob[obindx], models[0], scalefact=scalefact)
+            xtmp,hxprime_local2 = hofx(xprime_squeeze2, indxob[obindx], models[0],
+                                       scalefact=scalefact)
         # 3) compute GETKF weights, update state at center of local region
         ominusf = (pvob - hxensmean_b)[obindx]
         if rloc:
@@ -413,6 +414,7 @@ for ntime in range(nassim):
      np.sqrt(meanpverr_b.mean()),np.sqrt(meanpvsprd_b.mean()),
      np.sqrt(obfits_b),np.sqrt(obsprd_b+oberrstdev**2),obbias_b,
      inflation_factor.mean(),asprd_over_fsprd))
+    raise SystemExit
 
     # save data.
     if savedata is not None:
