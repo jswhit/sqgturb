@@ -340,17 +340,17 @@ for ntime in range(nassim):
             Rinv = covlocal_ob/oberrvar[obindx]
         else:
             Rinv = 1./oberrvar[obindx]
-        # gain-form etkf solution
-        # HZ^T = hxens * R**-1/2
-        # compute eigenvectors/eigenvalues of HZ^T HZ (C=left SV)
-        # (in Bishop paper HZ is nobs, nanals, here is it nanals, nobs)
-        # normalize so dot product is covariance
         YbsqrtRinv = hxprime_local*np.sqrt(Rinv)/normfact
         if rloc:
             YbRinv = hxprime_local*Rinv/normfact
         else:
             YbRinv = hxprime_local2*Rinv/normfact
         if gainform:
+            # gain-form etkf solution
+            # HZ^T = hxens * R**-1/2
+            # compute eigenvectors/eigenvalues of HZ^T HZ (C=left SV)
+            # (in Bishop paper HZ is nobs, nanals, here is it nanals, nobs)
+            # normalize so dot product is covariance (divide by sqrt(nanals-1))
             pa = np.dot(YbsqrtRinv,YbsqrtRinv.T)
             evals, evecs, info = lapack.dsyevd(pa)
             gamma_inv = np.zeros_like(evals)
@@ -361,7 +361,6 @@ for ntime in range(nassim):
                     evals[neig] = 0.
             # gammapI used in calculation of posterior cov in ensemble space
             gammapI = evals+1.
-            # create HZ^T R**-1/2
             # compute factor to multiply with model space ensemble perturbations
             # to compute analysis increment (for mean update).
             # This is the factor C (Gamma + I)**-1 C^T (HZ)^ T R**-1/2 (y - HXmean)
@@ -377,15 +376,11 @@ for ntime in range(nassim):
             # For DEnKF factor is -0.5*C (Gamma + I)**-1 C^T (HZ)^ T R**-1/2 HXprime
             # = -0.5 Pa (HZ)^ T R**-1/2 HXprime (Pa already computed)
             # pa = C [ (I - (Gamma+I)**-1/2)*Gamma**-1 ] C^T
-            # gammapI = sqrt(1.0/gammapI)
-            # ( pa=0.5*pa for denkf)
             pa=np.dot(evecs*(1.-np.sqrt(1./gammapI[np.newaxis,:]))*gamma_inv[np.newaxis,:],evecs.T)
             # wts_ensperts = -C [ (I - (Gamma+I)**-1/2)*Gamma**-1 ] C^T (HZ)^T R**-1/2 HXprime
-            # if denkf, wts_ensperts = -0.5 C (Gamma + I)**-1 C^T (HZ)^T R**-1/2 HXprime
             wts_ensperts = -np.dot(pa, np.dot(YbRinv,hxprime_local.T)).T/normfact # use orig ens here
             for k in range(2):
                 xmean[k,n] += np.dot(wts_ensmean,xprime_b[:,k,n])
-                # use orig ens on lhs, mod ens on rhs
                 xprime[:,k,n] += np.dot(wts_ensperts,xprime_b[:,k,n])
             xens[:,:,n] = xmean[:,n]+xprime[:,:,n]
         else:
