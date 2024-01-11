@@ -262,29 +262,27 @@ for ntime in range(nassim):
 
     # compute forward operator.
     # hxens is ensemble in observation space.
-    def hofx(x,indx,model):
+    def hofx(x,indxob,model,scalefact=1.0):
         nanals = x.shape[0]
-        nlevs = x.shape[1]
         if x.ndim > 3:
             nxny = x.shape[2]
             ny = np.sqrt(nxny); nx = ny
             pvens = x.reshape(nanals,ny,nx)
         else:
             ny = x.shape[2]; nx = x.shape[3]
+            nxny = ny*nx
             pvens = x
+        hxens = np.empty((nanals,nobs),np.float32)
+        xens = np.zeros((nanals,nxny),np.float32)
         for nanal in range(nanals):
             pvspec = rfft2(pvens[nanal])
-            meanpv = irfft2(model.meantemp(pvspec=pvspec))
-            hxens[nanal,...] = scalefact*meanpv.ravel()[indxob] # mean temp obs
-            meanpvens[nanal] = meanpv
+            xtmp = irfft2(model.meantemp(pvspec=pvspec))
+            hxens[nanal,:] = scalefact*xtmp.ravel()[indxob] # mean temp obs
+            xens[nanal] = meanpv
+        return xens, hxens
 
-    hxens = np.empty((nanals,nobs),np.float32)
-    meanpvens = np.zeros((nanals,ny,nx),np.float32)
-    for nanal in range(nanals):
-        pvspec = rfft2(pvens[nanal])
-        meanpv = irfft2(models[nanal].meantemp(pvspec=pvspec))
-        meanpvens[nanal] = meanpv
-        hxens[nanal,...] = scalefact*meanpv.ravel()[indxob] # mean temp obs
+    meanpvens, hxens = hofx(pvens,indxob,models[0],scalefact=scalefact)
+    meanpvens = meanpvens.shape(nanals,ny,nx)
     hxensmean_b = hxens.mean(axis=0)
     obsprd = ((hxens-hxensmean_b)**2).sum(axis=0)/(nanals-1)
     # innov stats for background
@@ -330,7 +328,8 @@ for ntime in range(nassim):
         #    for local obs
         distob = cartdist(x1[n],y1[n],xob,yob,nc_climo.L,nc_climo.L)
         obindx = distob < np.abs(hcovlocal_scale)
-        hxprime_local = hofx(xprime_squeeze, obindx)
+        x,hxprime_local = hofx(xprime_squeeze, obindx, models[0],
+                               scalefact=scalefact)
         # 3) compute GETKF weights, update state at center of local region
         ominusf = (pvob - hxensmean_b)[obindx]
         Rinv = 1./oberrvar[obindx]
