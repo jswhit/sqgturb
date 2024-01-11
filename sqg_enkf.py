@@ -59,7 +59,7 @@ print('# filename_truth=%s' % filename_truth)
 
 # fix random seed for reproducibility.
 rsobs = np.random.RandomState(42) # fixed seed for observations
-rsics = np.random.RandomState() # varying seed for initial conditions
+rsics = np.random.RandomState(42) # varying seed for initial conditions
 
 # get model info
 nc_climo = Dataset(filename_climo)
@@ -276,7 +276,8 @@ for ntime in range(nassim):
     meanpvens, hxens = hofx(pvens,indxob,models[0],scalefact=scalefact)
     meanpvens = meanpvens.reshape(nanals,ny,nx)
     hxensmean_b = hxens.mean(axis=0)
-    obsprd = ((hxens-hxensmean_b)**2).sum(axis=0)/(nanals-1)
+    hxprime_b = hxens-hxensmean_b
+    obsprd = (hxprime_b**2).sum(axis=0)/(nanals-1)
     # innov stats for background
     obfits = pvob - hxensmean_b
     obfits_b = (obfits**2).mean()
@@ -323,6 +324,7 @@ for ntime in range(nassim):
         obindx = distob < np.abs(hcovlocal_scale)
         if rloc:
             covlocal_ob=np.clip(gaspcohn(distob[obindx]/hcovlocal_scale),a_min=1.e-10,a_max=None)
+            #hxprime_local = hxprime_b[:,obindx]
             x,hxprime_local = hofx(xprime_b, indxob[obindx], models[0],
                                    scalefact=scalefact)
         else:
