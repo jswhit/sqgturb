@@ -5,7 +5,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from netCDF4 import Dataset
 import sys, time, os
-from sqgturb import SQG, rfft2, irfft2, cartdist,enkf_update,gaspcohn
+from sqgturb import SQG, rfft2, irfft2, cartdist, gaspcohn
+from scipy.linalg import lapack
 
 # EnKF cycling for SQG turbulence model with vertical mean temp obs,
 # horizontal but no vertical localization.
@@ -103,8 +104,8 @@ print("# hcovlocal=%g diff_efold=%s covinfate=%s nanals=%s" %\
 # if nobs > 0, each ob time nobs ob locations are randomly sampled (without
 # replacement) from the model grid
 # if nobs < 0, fixed network of every Nth grid point used (N = -nobs)
-#nobs = nx*ny//4 # number of obs to assimilate (randomly distributed)
-nobs = -1 # fixed network, every -nobs grid points. nobs=-1 obs at all pts.
+nobs = nx*ny//4 # number of obs to assimilate (randomly distributed)
+#nobs = -1 # fixed network, every -nobs grid points. nobs=-1 obs at all pts.
 
 # nature run
 nc_truth = Dataset(filename_truth)
@@ -132,12 +133,12 @@ else:
     obcovlocal = None
 
 # model-space localization matrix
-#n = 0
-#covlocal_modelspace = np.empty((nx*ny,nx*ny),np.float32)
-#x1 = x.reshape(nx*ny); y1 = y.reshape(nx*ny)
-#for n in range(nx*ny):
-#    dist = cartdist(x1[n],y1[n],x1,y1,nc_climo.L,nc_climo.L)
-#    covlocal_modelspace[n,:] = gaspcohn(dist/hcovlocal_scale)
+n = 0
+covlocal_modelspace = np.empty((nx*ny,nx*ny),np.float32)
+x1 = x.reshape(nx*ny); y1 = y.reshape(nx*ny)
+for n in range(nx*ny):
+    dist = cartdist(x1[n],y1[n],x1,y1,nc_climo.L,nc_climo.L)
+    covlocal_modelspace[n,:] = gaspcohn(dist/hcovlocal_scale)
 
 obtimes = nc_truth.variables['t'][:]
 if read_restart:
@@ -215,6 +216,7 @@ kespec_errmean = None; kespec_sprdmean = None
 
 ncount = 0
 nanals2 = min(10,nanals) # ensemble members used for kespec spread
+normfact = np.array(np.sqrt(nanals-1),dtype=np.float32)
 
 for ntime in range(nassim):
 
@@ -264,10 +266,14 @@ for ntime in range(nassim):
     # hxens is ensemble in observation space.
     def hofx(x,indxob,model,scalefact=1.0):
         nanals = x.shape[0]
-        if x.ndim > 3:
+        if indxob.dtype == np.bool_:
+            nobs = indxob.sum()
+        else:
+            nobs = len(indxob)
+        if x.ndim < 4:
             nxny = x.shape[2]
-            ny = np.sqrt(nxny); nx = ny
-            pvens = x.reshape(nanals,ny,nx)
+            ny = int(np.sqrt(nxny)); nx = ny
+            pvens = x.reshape(nanals,2,ny,nx)
         else:
             ny = x.shape[2]; nx = x.shape[3]
             nxny = ny*nx
@@ -277,12 +283,13 @@ for ntime in range(nassim):
         for nanal in range(nanals):
             pvspec = rfft2(pvens[nanal])
             xtmp = irfft2(model.meantemp(pvspec=pvspec))
-            hxens[nanal,:] = scalefact*xtmp.ravel()[indxob] # mean temp obs
-            xens[nanal] = meanpv
+            xtmp = xtmp.reshape(nxny)
+            hxens[nanal,:] = scalefact*xtmp[indxob] # mean temp obs
+            xens[nanal] = xtmp
         return xens, hxens
 
     meanpvens, hxens = hofx(pvens,indxob,models[0],scalefact=scalefact)
-    meanpvens = meanpvens.shape(nanals,ny,nx)
+    meanpvens = meanpvens.reshape(nanals,ny,nx)
     hxensmean_b = hxens.mean(axis=0)
     obsprd = ((hxens-hxensmean_b)**2).sum(axis=0)/(nanals-1)
     # innov stats for background
@@ -328,7 +335,7 @@ for ntime in range(nassim):
         #    for local obs
         distob = cartdist(x1[n],y1[n],xob,yob,nc_climo.L,nc_climo.L)
         obindx = distob < np.abs(hcovlocal_scale)
-        x,hxprime_local = hofx(xprime_squeeze, obindx, models[0],
+        x,hxprime_local = hofx(xprime_squeeze, indxob[obindx], models[0],
                                scalefact=scalefact)
         # 3) compute GETKF weights, update state at center of local region
         ominusf = (pvob - hxensmean_b)[obindx]
