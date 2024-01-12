@@ -352,7 +352,7 @@ for ntime in range(nassim):
             # (in Bishop paper HZ is nobs, nanals, here is it nanals, nobs)
             # normalize so dot product is covariance (divide by sqrt(nanals-1))
             a = np.dot(YbsqrtRinv,YbsqrtRinv.T)
-            evals, evecs, info = lapack.dsyevd(pa1)
+            evals, evecs, info = lapack.dsyevd(a)
             gamma_inv = np.zeros_like(evals)
             for neig in range(evals.shape[0]):
                 if evals[neig] > np.finfo(evals.dtype).eps:
