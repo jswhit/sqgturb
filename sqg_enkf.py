@@ -32,7 +32,7 @@ diff_efold = None # use diffusion from climo file
 
 profile = False # turn on profiling?
 
-rloc=False     # R localization instead of Z localization
+rloc=True      # R localization instead of Z localization
 gainform=True  # gain form of LETKF
 read_restart = False
 # if savedata not None, netcdf filename will be defined by env var 'exptname'
@@ -205,6 +205,35 @@ if savedata is not None:
    zvar[0] = 0; zvar[1] = models[0].H
    ensvar[:] = np.arange(1,nanals+1)
 
+# forward operator.
+# hxens is ensemble in observation space.
+def hofx(x,indxob,model):
+    # given temp at boundaries, return vertical mean
+    # temp at locations specified by indxob.
+    nanals = x.shape[0]
+    scalefact = model.f*model.theta0/model.g
+    if indxob.dtype == np.bool_:
+        nobs = indxob.sum()
+    else:
+        nobs = len(indxob)
+    if x.ndim < 4:
+        nxny = x.shape[2]
+        ny = int(np.sqrt(nxny)); nx = ny # grid is square
+        pvens = x.reshape(nanals,2,ny,nx)
+    else:
+        ny = x.shape[2]; nx = x.shape[3]
+        nxny = ny*nx
+        pvens = x
+    hxens = np.empty((nanals,nobs),np.float32)
+    xens = np.zeros((nanals,nxny),np.float32)
+    for nanal in range(nanals):
+        pvspec = rfft2(pvens[nanal])
+        xtmp = irfft2(model.meantemp(pvspec=pvspec))
+        xtmp = xtmp.reshape(nxny)
+        hxens[nanal,:] = scalefact*xtmp[indxob] # mean temp obs
+        xens[nanal] = xtmp
+    return xens.squeeze(), hxens.squeeze() # remove singleton dims
+
 # initialize kinetic energy error/spread spectra
 kespec_errmean = None; kespec_sprdmean = None
 
@@ -212,6 +241,7 @@ ncount = 0
 nanalske = min(10,nanals) # ensemble members used for kespec spread
 normfact = np.array(np.sqrt(nanals-1),dtype=np.float32)
 
+# loop over assimilation times.
 for ntime in range(nassim):
 
     # check model clock
@@ -238,46 +268,20 @@ for ntime in range(nassim):
         else:
             mask[0:ny:nskip,0:nx:nskip] = True
         indxob = np.flatnonzero(mask)
+
     # mean temp obs
+    #meanpv_truth,pvob = hofx(pv_truth[ntime+ntstart].reshape((1,2,ny,nx)),indxob,models[0])
+    #pvob += rsobs.normal(scale=oberrstdev,size=nobs) # add ob errors
     pvspec_truth = rfft2(pv_truth[ntime+ntstart])
     meanpv_truth = irfft2(models[0].meantemp(pvspec=pvspec_truth))
-    pvob = scalefact*meanpv_truth.ravel()[indxob]
-    pvob += rsobs.normal(scale=oberrstdev,size=nobs) # add ob errors
+    meanpv_truth = meanpv_truth.reshape(nx*ny)
+    pvob = scalefact*meanpv_truth[indxob]
     xob = x.ravel()[indxob]; yob = y.ravel()[indxob]
 
     # first-guess spread (need later to compute inflation factor)
     fsprd = ((pvens - pvens.mean(axis=0))**2).sum(axis=0)/(nanals-1)
 
-    # compute forward operator.
-    # hxens is ensemble in observation space.
-    def hofx(x,indxob,model,scalefact=1.0):
-        # given temp at boundaries, return vertical mean
-        # temp at locations specified by indxob.
-        nanals = x.shape[0]
-        if indxob.dtype == np.bool_:
-            nobs = indxob.sum()
-        else:
-            nobs = len(indxob)
-        if x.ndim < 4:
-            nxny = x.shape[2]
-            ny = int(np.sqrt(nxny)); nx = ny # grid is square
-            pvens = x.reshape(nanals,2,ny,nx)
-        else:
-            ny = x.shape[2]; nx = x.shape[3]
-            nxny = ny*nx
-            pvens = x
-        hxens = np.empty((nanals,nobs),np.float32)
-        xens = np.zeros((nanals,nxny),np.float32)
-        for nanal in range(nanals):
-            pvspec = rfft2(pvens[nanal])
-            xtmp = irfft2(model.meantemp(pvspec=pvspec))
-            xtmp = xtmp.reshape(nxny)
-            hxens[nanal,:] = scalefact*xtmp[indxob] # mean temp obs
-            xens[nanal] = xtmp
-        return xens, hxens
-
-    meanpvens, hxens = hofx(pvens,indxob,models[0],scalefact=scalefact)
-    meanpvens = meanpvens.reshape(nanals,ny,nx)
+    meanpvens, hxens = hofx(pvens,indxob,models[0])
     hxensmean_b = hxens.mean(axis=0)
     hxprime_b = hxens-hxensmean_b
     obsprd = (hxprime_b**2).sum(axis=0)/(nanals-1)
@@ -314,6 +318,7 @@ for ntime in range(nassim):
     # update state vector.
     # hxens,pvob are in PV units, xens is not
 
+    # loop over model grid points, perform update in each local region.
     for n in range(nx*ny):
         # 1) 'squeeze' state vector
         if not rloc:
@@ -327,13 +332,10 @@ for ntime in range(nassim):
         if rloc:
             covlocal_ob=np.clip(gaspcohn(distob[obindx]/hcovlocal_scale),a_min=np.finfo(covlocal_modelspace.dtype).eps,a_max=None)
             hxprime_local = hxprime_b[:,obindx]
-            #xtmp,hxprime_local = hofx(xprime_b, indxob[obindx], models[0],
-            #                          scalefact=scalefact)
+            #xtmp,hxprime_local = hofx(xprime_b, indxob[obindx], models[0])
         else:
-            xtmp,hxprime_local = hofx(xprime_squeeze, indxob[obindx], models[0],
-                                      scalefact=scalefact)
-            xtmp,hxprime_local2 = hofx(xprime_squeeze2, indxob[obindx], models[0],
-                                       scalefact=scalefact)
+            xtmp,hxprime_local = hofx(xprime_squeeze, indxob[obindx], models[0])
+            xtmp,hxprime_local2 = hofx(xprime_squeeze2, indxob[obindx], models[0])
         # 3) compute GETKF weights, update state at center of local region
         ominusf = (pvob - hxensmean_b)[obindx]
         if rloc:
@@ -348,7 +350,7 @@ for ntime in range(nassim):
         if gainform:
             # gain-form etkf solution
             # HZ^T = hxens * R**-1/2
-            # compute eigenvectors/eigenvalues of HZ^T HZ (C=left SV)
+            # compute eigenvectors/eigenvalues of A = HZ^T HZ (C=left SV)
             # (in Bishop paper HZ is nobs, nanals, here is it nanals, nobs)
             # normalize so dot product is covariance (divide by sqrt(nanals-1))
             a = np.dot(YbsqrtRinv,YbsqrtRinv.T)
@@ -376,7 +378,7 @@ for ntime in range(nassim):
             # pa = C [ (I - (Gamma+I)**-1/2)*Gamma**-1 ] C^T
             pa=np.dot(evecs*(1.-np.sqrt(1./gammapI[np.newaxis,:]))*gamma_inv[np.newaxis,:],evecs.T)
             # wts_ensperts = -C [ (I - (Gamma+I)**-1/2)*Gamma**-1 ] C^T (HZ)^T R**-1/2 HXprime
-            wts_ensperts = -np.dot(pa, a).T/normfact
+            wts_ensperts = -np.dot(pa, a).T
             wts = wts_ensmean + wts_ensperts
             for k in range(2):
                 xens[:,k,n] += np.dot(wts,xprime_b[:,k,n])

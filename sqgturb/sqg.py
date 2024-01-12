@@ -33,6 +33,8 @@ class SQG:
         tdiab=10.0 * 86400,
         diff_order=8,
         diff_efold=None,
+        theta0=300,
+        g=9.8,
         symmetric=True,
         dt=None,
         dealias=True,
@@ -69,6 +71,8 @@ class SQG:
         self.H = np.array(H, dtype)  # height of upper boundary
         self.U = np.array(U, dtype)  # basic state velocity at z = H
         self.L = np.array(L, dtype)  # size of square domain.
+        self.theta0 = np.array(theta0, dtype) # mean temp
+        self.g = np.array(g, dtype) # gravity
         self.dt = np.array(dt, dtype)  # time step (seconds)
         self.dealias = dealias  # if True, dealiasing applied using 2/3 rule.
         if r < 1.0e-10:
