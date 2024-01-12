@@ -16,15 +16,20 @@ from scipy.linalg import lapack
 
 if len(sys.argv) == 1:
    msg="""
-python sqg_enkf.py hcovlocal_scale covinflate>
+python sqg_enkf.py hcovlocal_scale covinflate rloc gainform>
    hcovlocal_scale = horizontal localization scale in km
    covinflate: RTPS covinflate inflation parameter
+   rloc:  if 1 use R localization, if 0 use Z localization
+   gainform: if 1 use gain form LETKF
    """
    raise SystemExit(msg)
 
 # horizontal covariance localization length scale in meters.
 hcovlocal_scale = float(sys.argv[1])
 covinflate = float(sys.argv[2])
+rloc = bool(int(sys.argv[3])) # R localization instead of Z localization
+gainform = bool(int(sys.argv[4])) # gain form of LETKF
+
 exptname = os.getenv('exptname','test')
 threads = int(os.getenv('OMP_NUM_THREADS','1'))
 
@@ -32,8 +37,6 @@ diff_efold = None # use diffusion from climo file
 
 profile = False # turn on profiling?
 
-rloc=True      # R localization instead of Z localization
-gainform=False # gain form of LETKF
 read_restart = False
 # if savedata not None, netcdf filename will be defined by env var 'exptname'
 # if savedata = 'restart', only last time is saved (so expt can be restarted)
