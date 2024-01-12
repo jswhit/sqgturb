@@ -351,8 +351,8 @@ for ntime in range(nassim):
             # compute eigenvectors/eigenvalues of HZ^T HZ (C=left SV)
             # (in Bishop paper HZ is nobs, nanals, here is it nanals, nobs)
             # normalize so dot product is covariance (divide by sqrt(nanals-1))
-            pa = np.dot(YbsqrtRinv,YbsqrtRinv.T)
-            evals, evecs, info = lapack.dsyevd(pa)
+            a = np.dot(YbsqrtRinv,YbsqrtRinv.T)
+            evals, evecs, info = lapack.dsyevd(pa1)
             gamma_inv = np.zeros_like(evals)
             for neig in range(evals.shape[0]):
                 if evals[neig] > np.finfo(evals.dtype).eps:
@@ -373,14 +373,11 @@ for ntime in range(nassim):
             # to compute analysis increment (for perturbation update), save in single precision.
             # This is -C [ (I - (Gamma+I)**-1/2)*Gamma**-1 ] C^T (HZ)^T R**-1/2 HXprime
             # in Bishop paper (eqn 29).
-            # For DEnKF factor is -0.5*C (Gamma + I)**-1 C^T (HZ)^ T R**-1/2 HXprime
-            # = -0.5 Pa (HZ)^ T R**-1/2 HXprime (Pa already computed)
             # pa = C [ (I - (Gamma+I)**-1/2)*Gamma**-1 ] C^T
             pa=np.dot(evecs*(1.-np.sqrt(1./gammapI[np.newaxis,:]))*gamma_inv[np.newaxis,:],evecs.T)
             # wts_ensperts = -C [ (I - (Gamma+I)**-1/2)*Gamma**-1 ] C^T (HZ)^T R**-1/2 HXprime
-            wts_ensperts = -np.dot(pa, np.dot(YbRinv,hxprime_local.T)).T/normfact
-            #wts_ensperts = -np.dot(pa, np.dot(YbRinv,hxprime_b[:,obindx].T)).T/normfact
-            wts = wts_ensmean+wts_ensperts
+            wts_ensperts = -np.dot(pa, a).T/normfact
+            wts = wts_ensmean + wts_ensperts
             for k in range(2):
                 xens[:,k,n] += np.dot(wts,xprime_b[:,k,n])
         else:
