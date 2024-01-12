@@ -71,6 +71,7 @@ class SQG:
         self.H = np.array(H, dtype)  # height of upper boundary
         self.U = np.array(U, dtype)  # basic state velocity at z = H
         self.L = np.array(L, dtype)  # size of square domain.
+        # theta0,g only used to convert pv to temp units (K).
         self.theta0 = np.array(theta0, dtype) # mean temp
         self.g = np.array(g, dtype) # gravity
         self.dt = np.array(dt, dtype)  # time step (seconds)
