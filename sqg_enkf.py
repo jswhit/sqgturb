@@ -32,8 +32,8 @@ diff_efold = None # use diffusion from climo file
 
 profile = False # turn on profiling?
 
-rloc=False      # R localization instead of Z localization
-gainform=False  # gain form of LETKF
+rloc=False     # R localization instead of Z localization
+gainform=True  # gain form of LETKF
 read_restart = False
 # if savedata not None, netcdf filename will be defined by env var 'exptname'
 # if savedata = 'restart', only last time is saved (so expt can be restarted)
@@ -378,11 +378,11 @@ for ntime in range(nassim):
             # pa = C [ (I - (Gamma+I)**-1/2)*Gamma**-1 ] C^T
             pa=np.dot(evecs*(1.-np.sqrt(1./gammapI[np.newaxis,:]))*gamma_inv[np.newaxis,:],evecs.T)
             # wts_ensperts = -C [ (I - (Gamma+I)**-1/2)*Gamma**-1 ] C^T (HZ)^T R**-1/2 HXprime
-            wts_ensperts = -np.dot(pa, np.dot(YbRinv,hxprime_local.T)).T/normfact # use orig ens here
+            wts_ensperts = -np.dot(pa, np.dot(YbRinv,hxprime_local.T)).T/normfact
+            #wts_ensperts = -np.dot(pa, np.dot(YbRinv,hxprime_b[:,obindx].T)).T/normfact
+            wts = wts_ensmean+wts_ensperts
             for k in range(2):
-                xmean[k,n] += np.dot(wts_ensmean,xprime_b[:,k,n])
-                xprime[:,k,n] += np.dot(wts_ensperts,xprime_b[:,k,n])
-            xens[:,:,n] = xmean[:,n]+xprime[:,:,n]
+                xens[:,k,n] += np.dot(wts,xprime_b[:,k,n])
         else:
             pa = np.eye(nanals) + np.dot(YbsqrtRinv, YbsqrtRinv.T)
             evals, eigs, info = lapack.dsyevd(pa)
