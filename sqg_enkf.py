@@ -272,10 +272,6 @@ for ntime in range(nassim):
     # mean temp obs
     meanpv_truth,pvob = hofx(pv_truth[ntime+ntstart].reshape((1,2,ny,nx)),indxob,models[0])
     pvob += rsobs.normal(scale=oberrstdev,size=nobs) # add ob errors
-    #pvspec_truth = rfft2(pv_truth[ntime+ntstart])
-    #meanpv_truth = irfft2(models[0].meantemp(pvspec=pvspec_truth))
-    #meanpv_truth = meanpv_truth.reshape(nx*ny)
-    #pvob = scalefact*meanpv_truth[indxob]
     xob = x1[indxob]; yob = y1[indxob]
 
     # first-guess spread (need later to compute inflation factor)
