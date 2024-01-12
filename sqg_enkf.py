@@ -321,33 +321,28 @@ for ntime in range(nassim):
 
     # loop over model grid points, perform update in each local region.
     for n in range(nx*ny):
-        # 1) 'squeeze' state vector
-        if not rloc:
-            squeezefact = covlocal_modelspace[:,n]
-            xprime_squeeze = np.sqrt(squeezefact[np.newaxis,np.newaxis,:])*xprime
-            xprime_squeeze2 = squeezefact[np.newaxis,np.newaxis,:]*xprime
-        # 2) perform observation operator on 'squeezed' state vector
-        #    for local obs if rloc=False
         distob = cartdist(x1[n],y1[n],xob,yob,nc_climo.L,nc_climo.L)
         obindx = distob < np.abs(hcovlocal_scale)
+        ominusf = (pvob - hxensmean_b)[obindx]
         if rloc:
+            # R localization
             covlocal_ob=np.clip(gaspcohn(distob[obindx]/hcovlocal_scale),a_min=mincovlocal,a_max=None)
             hxprime_local = hxprime_b[:,obindx]
             #xtmp,hxprime_local = hofx(xprime_b, indxob[obindx], models[0])
-        else:
-            xtmp,hxprime_local = hofx(xprime_squeeze, indxob[obindx], models[0])
-            xtmp,hxprime_local2 = hofx(xprime_squeeze2, indxob[obindx], models[0])
-        # 3) compute GETKF weights, update state at center of local region
-        ominusf = (pvob - hxensmean_b)[obindx]
-        if rloc:
             Rinv = covlocal_ob/oberrvar[obindx]
-        else:
-            Rinv = 1./oberrvar[obindx]
-        YbsqrtRinv = hxprime_local*np.sqrt(Rinv)/normfact
-        if rloc:
             YbRinv = hxprime_local*Rinv/normfact
         else:
+            # Z localization
+            # perform observation operator on 'squeezed' state vector
+            squeezefact = covlocal_modelspace[:,n]
+            xprime_squeeze = np.sqrt(squeezefact[np.newaxis,np.newaxis,:])*xprime
+            xprime_squeeze2 = squeezefact[np.newaxis,np.newaxis,:]*xprime
+            xtmp,hxprime_local = hofx(xprime_squeeze, indxob[obindx], models[0])
+            xtmp,hxprime_local2 = hofx(xprime_squeeze2, indxob[obindx], models[0])
+            Rinv = 1./oberrvar[obindx]
             YbRinv = hxprime_local2*Rinv/normfact
+        YbsqrtRinv = hxprime_local*np.sqrt(Rinv)/normfact
+        # update state at center of local region
         if gainform:
             # gain-form etkf solution
             # HZ^T = hxens * R**-1/2
@@ -380,6 +375,7 @@ for ntime in range(nassim):
             for k in range(2):
                 xens[:,k,n] += np.dot(wts,xprime_b[:,k,n])
         else:
+            # 'regular' LETKF
             pa = np.eye(nanals) + np.dot(YbsqrtRinv, YbsqrtRinv.T)
             evals, eigs, info = lapack.dsyevd(pa)
             #evals, eigs, info, isuppz, info = lapack.dsyevr(pa)
