@@ -1,0 +1,15 @@
+#!/bin/sh
+##SBATCH -q debug
+#SBATCH -t 08:00:00
+#SBATCH -A gsienkf
+#SBATCH -N 1  
+#SBATCH --ntasks-per-node=40
+#SBATCH -p orion
+#SBATCH -J sqg_rloc64_6hrly_rtps0p4_<corrl>
+#SBATCH -e sqg_rloc64_6hrly_rtps0p4_<corrl>.err
+#SBATCH -o sqg_rloc64_6hrly_rtps0p4_<corrl>.out
+#source ~/bin/condapy
+export OMP_NUM_THREADS=40
+export PYTHONUNBUFFERED=1
+export exptname="rloc64_6hrly_rtps0p4_<corrl>"
+python sqg_enkf.py <corrl>.e3 0.4 1 0
