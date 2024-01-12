@@ -1,5 +1,5 @@
 import matplotlib
-matplotlib.use('qtagg')
+matplotlib.use('agg')
 from sqgturb import SQG, rfft2, irfft2
 import numpy as np
 import matplotlib.pyplot as plt
@@ -80,13 +80,13 @@ model = SQG(pv,nsq=nsq,f=f,U=U,H=H,r=r,tdiab=tdiab,dt=dt,
 #  initialize figure.
 outputinterval = 6.*3600. # interval between frames in seconds
 tmin = 100.*86400. # time to start saving data (in days)
-tmax = 300.*86400. # time to stop (in days)
+tmax = 600.*86400. # time to stop (in days)
 nsteps = int(tmax/outputinterval) # number of time steps to animate
 # set number of timesteps to integrate for each call to model.advance
 model.timesteps = int(outputinterval/model.dt)
 savedata = 'sqg_N%s_6hrly.nc' % N # save data plotted in a netcdf file.
 #savedata = None # don't save data
-plot = True # animate data as model is running?
+plot = False # animate data as model is running?
 
 if savedata is not None:
     from netCDF4 import Dataset
