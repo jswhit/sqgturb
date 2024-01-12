@@ -1,6 +1,6 @@
 from __future__ import print_function
 import matplotlib
-matplotlib.use('QtAgg')
+matplotlib.use('agg')
 import matplotlib.pyplot as plt
 import numpy as np
 from netCDF4 import Dataset
@@ -17,7 +17,7 @@ from scipy.linalg import lapack
 if len(sys.argv) == 1:
    msg="""
 python sqg_enkf.py hcovlocal_scale covinflate rloc gainform>
-   hcovlocal_scale = horizontal localization scale in km
+   hcovlocal_scale: horizontal localization scale in km
    covinflate: RTPS covinflate inflation parameter
    rloc:  if 1 use R localization, if 0 use Z localization
    gainform: if 1 use gain form LETKF
@@ -45,7 +45,7 @@ read_restart = False
 savedata = None
 #nassim = 101
 #nassim_spinup = 1
-nassim = 200 # assimilation times to run
+nassim = 400 # assimilation times to run
 nassim_spinup = 100
 
 nanals = 20 # ensemble members
@@ -106,7 +106,7 @@ print("# hcovlocal=%g diff_efold=%s covinfate=%s nanals=%s" %\
 # if nobs > 0, each ob time nobs ob locations are randomly sampled (without
 # replacement) from the model grid
 # if nobs < 0, fixed network of every Nth grid point used (N = -nobs)
-nobs = nx*ny//4 # number of obs to assimilate (randomly distributed)
+nobs = nx*ny//2 # number of obs to assimilate (randomly distributed)
 #nobs = -1 # fixed network, every -nobs grid points. nobs=-1 obs at all pts.
 
 # nature run
@@ -132,10 +132,11 @@ xens = np.empty((nanals,2,nx*ny),np.float32)
 n = 0
 covlocal_modelspace = np.empty((nx*ny,nx*ny),np.float32)
 x1 = x.reshape(nx*ny); y1 = y.reshape(nx*ny)
+mincovlocal = np.finfo(np.float32).eps
 for n in range(nx*ny):
     dist = cartdist(x1[n],y1[n],x1,y1,nc_climo.L,nc_climo.L)
-    covlocal_modelspace[n,:] =\
-    np.clip(gaspcohn(dist/hcovlocal_scale),a_min=np.finfo(covlocal_modelspace.dtype).eps,a_max=None)
+    covlocal_modelspace[n,:] = \
+    np.clip(gaspcohn(dist/hcovlocal_scale),a_min=mincovlocal,a_max=None)
 
 obtimes = nc_truth.variables['t'][:]
 if read_restart:
@@ -322,7 +323,7 @@ for ntime in range(nassim):
     for n in range(nx*ny):
         # 1) 'squeeze' state vector
         if not rloc:
-            squeezefact = covlocal_modelspace[n,:]
+            squeezefact = covlocal_modelspace[:,n]
             xprime_squeeze = np.sqrt(squeezefact[np.newaxis,np.newaxis,:])*xprime
             xprime_squeeze2 = squeezefact[np.newaxis,np.newaxis,:]*xprime
         # 2) perform observation operator on 'squeezed' state vector
@@ -330,7 +331,7 @@ for ntime in range(nassim):
         distob = cartdist(x1[n],y1[n],xob,yob,nc_climo.L,nc_climo.L)
         obindx = distob < np.abs(hcovlocal_scale)
         if rloc:
-            covlocal_ob=np.clip(gaspcohn(distob[obindx]/hcovlocal_scale),a_min=np.finfo(covlocal_modelspace.dtype).eps,a_max=None)
+            covlocal_ob=np.clip(gaspcohn(distob[obindx]/hcovlocal_scale),a_min=mincovlocal,a_max=None)
             hxprime_local = hxprime_b[:,obindx]
             #xtmp,hxprime_local = hofx(xprime_b, indxob[obindx], models[0])
         else:
@@ -355,12 +356,8 @@ for ntime in range(nassim):
             # normalize so dot product is covariance (divide by sqrt(nanals-1))
             a = np.dot(YbsqrtRinv,YbsqrtRinv.T)
             evals, evecs, info = lapack.dsyevd(a)
-            gamma_inv = np.zeros_like(evals)
-            for neig in range(evals.shape[0]):
-                if evals[neig] > np.finfo(evals.dtype).eps:
-                    gamma_inv[neig] = 1./evals[neig]
-                else:
-                    evals[neig] = 0.
+            evals = evals.clip(min=np.finfo(evals.dtype).eps)
+            gamma_inv = 1./evals
             # gammapI used in calculation of posterior cov in ensemble space
             gammapI = evals+1.
             # compute factor to multiply with model space ensemble perturbations
