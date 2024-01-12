@@ -143,6 +143,7 @@ else:
     ntstart = 0
 assim_interval = obtimes[1]-obtimes[0]
 assim_timesteps = int(np.round(assim_interval/models[0].dt))
+print('# rloc=%s gainform=%s' % (rloc,gainform))
 print('# assim interval = %s secs (%s time steps)' % (assim_interval,assim_timesteps))
 print('# ntime,pverr_a,pvsprd_a,pverr_b,pvsprd_b,meanpverr_b,meanpvsprd_b,obfits_b,osprd_b+R,obbias_b,inflation,tr(P^a)/tr(P^b)')
 
