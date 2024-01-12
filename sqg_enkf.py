@@ -33,7 +33,7 @@ diff_efold = None # use diffusion from climo file
 profile = False # turn on profiling?
 
 rloc=True      # R localization instead of Z localization
-gainform=True  # gain form of LETKF
+gainform=False # gain form of LETKF
 read_restart = False
 # if savedata not None, netcdf filename will be defined by env var 'exptname'
 # if savedata = 'restart', only last time is saved (so expt can be restarted)
@@ -270,13 +270,13 @@ for ntime in range(nassim):
         indxob = np.flatnonzero(mask)
 
     # mean temp obs
-    #meanpv_truth,pvob = hofx(pv_truth[ntime+ntstart].reshape((1,2,ny,nx)),indxob,models[0])
-    #pvob += rsobs.normal(scale=oberrstdev,size=nobs) # add ob errors
-    pvspec_truth = rfft2(pv_truth[ntime+ntstart])
-    meanpv_truth = irfft2(models[0].meantemp(pvspec=pvspec_truth))
-    meanpv_truth = meanpv_truth.reshape(nx*ny)
-    pvob = scalefact*meanpv_truth[indxob]
-    xob = x.ravel()[indxob]; yob = y.ravel()[indxob]
+    meanpv_truth,pvob = hofx(pv_truth[ntime+ntstart].reshape((1,2,ny,nx)),indxob,models[0])
+    pvob += rsobs.normal(scale=oberrstdev,size=nobs) # add ob errors
+    #pvspec_truth = rfft2(pv_truth[ntime+ntstart])
+    #meanpv_truth = irfft2(models[0].meantemp(pvspec=pvspec_truth))
+    #meanpv_truth = meanpv_truth.reshape(nx*ny)
+    #pvob = scalefact*meanpv_truth[indxob]
+    xob = x1[indxob]; yob = y1[indxob]
 
     # first-guess spread (need later to compute inflation factor)
     fsprd = ((pvens - pvens.mean(axis=0))**2).sum(axis=0)/(nanals-1)
