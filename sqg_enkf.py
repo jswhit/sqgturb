@@ -45,7 +45,7 @@ read_restart = False
 savedata = None
 #nassim = 101
 #nassim_spinup = 1
-nassim = 400 # assimilation times to run
+nassim = 500 # assimilation times to run
 nassim_spinup = 100
 
 nanals = 20 # ensemble members
@@ -334,6 +334,7 @@ for ntime in range(nassim):
         else:
             # Z localization
             # perform observation operator on 'squeezed' state vector
+            # (same as R localization for identity H)
             squeezefact = covlocal_modelspace[:,n]
             xprime_squeeze = np.sqrt(squeezefact[np.newaxis,np.newaxis,:])*xprime
             xprime_squeeze2 = squeezefact[np.newaxis,np.newaxis,:]*xprime
