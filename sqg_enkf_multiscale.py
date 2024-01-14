@@ -8,16 +8,16 @@ import sys, time, os
 from sqgturb import SQG, rfft2, irfft2, cartdist, gaspcohn
 from scipy.linalg import lapack
 
-# EnKF cycling for SQG turbulence model with vertical mean temp obs,
-# horizontal but no vertical localization.
+# LETKF cycling for SQG turbulence model with vertical mean temp obs,
+# Multi-scale horizontal (Z localization)  but no vertical localization.
 # Relaxation to prior spread inflation.
 # Random or fixed observing network.
-# LETKF, options for gain form and R/Z localization.
 
 if len(sys.argv) == 1:
    msg="""
-python sqg_enkf.py hcovlocal_scale covinflate 
-   hcovlocal_scale: horizontal localization scale in km
+python sqg_enkf.py hcovlocal_scales band_cutoffs covinflate 
+   hcovlocal_scales: horizontal localization scales in km (specified as list, in double quotes, e.g. "[2000.e6,1000.e6]"
+   band_cutoffs:  wavelength cutoffs for filter bands (dimension one less than hcovlocal_scales)
    covinflate: RTPS covinflate inflation parameter
    """
    raise SystemExit(msg)
