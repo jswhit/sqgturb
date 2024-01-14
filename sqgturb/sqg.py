@@ -121,9 +121,9 @@ class SQG:
         # spectral stuff
         k = (N * np.fft.fftfreq(N))[0 : (N // 2) + 1]
         l = N * np.fft.fftfreq(N)
-        k, l = np.meshgrid(k, l)
-        k = k.astype(dtype)
-        l = l.astype(dtype)
+        kk, ll = np.meshgrid(k, l)
+        k = kk.astype(dtype)
+        l = ll.astype(dtype)
         # dimensionalize wavenumbers.
         k = 2.0 * pi * k / self.L
         l = 2.0 * pi * l / self.L
@@ -133,6 +133,7 @@ class SQG:
         self.ksqlsq = ksqlsq
         self.ik = (1.0j * k).astype(np.complex64)
         self.il = (1.0j * l).astype(np.complex64)
+        self.wavenums = np.sqrt(kk**2+ll**2)
         if dealias:  # arrays needed for dealiasing nonlinear Jacobian
             k_pad = ((3 * N // 2) * np.fft.fftfreq(3 * N // 2))[0 : (3 * N // 4) + 1]
             l_pad = (3 * N // 2) * np.fft.fftfreq(3 * N // 2)
