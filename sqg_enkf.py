@@ -63,7 +63,7 @@ print('# filename_truth=%s' % filename_truth)
 
 # fix random seed for reproducibility.
 rsobs = np.random.RandomState(42) # fixed seed for observations
-rsics = np.random.RandomState(42) # varying seed for initial conditions
+rsics = np.random.RandomState() # varying seed for initial conditions
 
 # get model info
 nc_climo = Dataset(filename_climo)
@@ -100,7 +100,7 @@ for nanal in range(nanals):
     diff_order=nc_climo.diff_order,diff_efold=diff_efold,threads=threads))
 if read_restart: ncinit.close()
 
-print("# hcovlocal=%g diff_efold=%s covinfate=%s nanals=%s" %\
+print("# hcovlocal=%g diff_efold=%s covinflate=%s nanals=%s" %\
      (hcovlocal_scale/1000.,diff_efold,covinflate,nanals))
 
 # if nobs > 0, each ob time nobs ob locations are randomly sampled (without
