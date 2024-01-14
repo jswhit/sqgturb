@@ -247,7 +247,7 @@ kespec_errmean = None; kespec_sprdmean = None
 
 ncount = 0
 nanalske = min(10,nanals) # ensemble members used for kespec spread
-normfact = np.array(np.sqrt(nanals-1),dtype=np.float32)
+normfact = np.array(np.sqrt(nlscales*nanals-1),dtype=np.float32)
 
 # loop over assimilation times.
 for ntime in range(nassim):
@@ -344,6 +344,8 @@ for ntime in range(nassim):
     # hxens,pvob are in PV units, xens is not
 
     # loop over model grid points, perform update in each local region.
+    xprime_squeeze=np.empty((nanals*nlscales,2,nx*ny),xprime.dtype)
+    xprime_squeeze2=np.empty((nanals*nlscales,2,nx*ny),xprime.dtype)
     for n in range(nx*ny):
         distob = cartdist(x1[n],y1[n],xob,yob,nc_climo.L,nc_climo.L)
         obindx = distob < np.abs(hcovlocal_scales[0])
@@ -351,8 +353,6 @@ for ntime in range(nassim):
         # Z localization
         # perform observation operator on 'squeezed' state vector
         # (same as R localization for identity H)
-        xprime_squeeze=np.empty((nanals*nlscales,2,nx*ny),xprime.dtype)
-        xprime_squeeze2=np.empty((nanals*nlscales,2,nx*ny),xprime.dtype)
         for nlscale in range(nlscales):
             squeezefact = covlocal_modelspace[nlscale,:,n]
             nanal1=nlscale*nanals; nanal2=(nlscale+1)*nanals
