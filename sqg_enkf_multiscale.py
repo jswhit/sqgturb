@@ -6,7 +6,7 @@ import numpy as np
 from netCDF4 import Dataset
 import sys, time, os
 from sqgturb import SQG, rfft2, irfft2, cartdist, gaspcohn
-from scipy.linalg import lapack
+from scipy.linalg import lapack, inv
 
 # LETKF cycling for SQG turbulence model with vertical mean temp obs,
 # Multi-scale horizontal (Z localization)  but no vertical localization.
@@ -363,13 +363,21 @@ for ntime in range(nassim):
         Rinv = 1./oberrvar[obindx]
         YbRinv = hxprime_local2*Rinv/normfact
         YbsqrtRinv = hxprime_local*np.sqrt(Rinv)/normfact
+
         # LETKF update
         pa = np.eye(nlscales*nanals) + np.dot(YbsqrtRinv, YbsqrtRinv.T)
-        evals, eigs, info = lapack.dsyevd(pa)
-        evals = evals.clip(min=np.finfo(evals.dtype).eps)
-        painv = np.dot(np.dot(eigs, np.diag(np.sqrt(1.0 / evals))), eigs.T)
-        tmp = np.dot(np.dot(np.dot(painv, painv.T), YbRinv), ominusf)/normfact
-        wts = painv + tmp[:, np.newaxis]
+
+        # Using eigenanalysis
+        #evals, eigs, info = lapack.dsyevd(pa)
+        #evals = evals.clip(min=np.finfo(evals.dtype).eps)
+        #pasqrtinv = np.dot(np.dot(eigs, np.diag(np.sqrt(1.0 / evals))), eigs.T)
+
+        # Using cholesky decomp
+        pasqrt, info = lapack.dpotrf(pa,overwrite_a=0)
+        pasqrtinv = inv(np.triu(pasqrt))
+
+        tmp = np.dot(np.dot(np.dot(pasqrtinv, pasqrtinv.T), YbRinv), ominusf)/normfact
+        wts = pasqrtinv + tmp[:, np.newaxis]
         for k in range(2):
             xens[:, k, n] = xmean[k, n] + np.dot(wts.T, xprime_b[:, k, n])
 
