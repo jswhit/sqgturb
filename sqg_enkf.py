@@ -380,13 +380,13 @@ for ntime in range(nassim):
             pa = np.eye(nanals) + np.dot(YbsqrtRinv, YbsqrtRinv.T)
 
             # Using eigenanalysis
-            #evals, eigs, info = lapack.dsyevd(pa)
-            #evals = evals.clip(min=np.finfo(evals.dtype).eps)
-            #pasqrtinv = np.dot(np.dot(eigs, np.diag(np.sqrt(1.0 / evals))), eigs.T)
+            evals, eigs, info = lapack.dsyevd(pa)
+            evals = evals.clip(min=1.+np.finfo(evals.dtype).eps)
+            pasqrtinv = np.dot(np.dot(eigs, np.diag(np.sqrt(1.0 / evals))), eigs.T)
 
             # Using cholesky decomp
-            pasqrt, info = lapack.dpotrf(pa,overwrite_a=0)
-            pasqrtinv = inv(np.triu(pasqrt))
+            #pasqrt, info = lapack.dpotrf(pa,overwrite_a=0)
+            #pasqrtinv = inv(np.triu(pasqrt))
 
             tmp = np.dot(np.dot(np.dot(pasqrtinv, pasqrtinv.T), YbRinv), ominusf)/normfact
             wts = pasqrtinv + tmp[:, np.newaxis]
