@@ -94,19 +94,15 @@ def enkf_update(
             normfact = np.array(np.sqrt(hx_orig.shape[0]-1),dtype=np.float32)
             # gain-form etkf solution
             # HZ^T = hxens * R**-1/2
-            # compute eigenvectors/eigenvalues of HZ^T HZ (C=left SV)
+            # compute eigenvectors/eigenvalues of A = HZ^T HZ (C=left SV)
             # (in Bishop paper HZ is nobs, nanals, here is it nanals, nobs)
             # normalize so dot product is covariance
             YbsqrtRinv = hx*np.sqrt(Rinv)/normfact
             YbRinv = hx*Rinv/normfact
-            pa = np.dot(YbsqrtRinv,YbsqrtRinv.T)
-            evals, evecs, info = lapack.dsyevd(pa)
-            gamma_inv = np.zeros_like(evals)
-            for n in range(evals.shape[0]):
-                if evals[n] > np.finfo(evals.dtype).eps:
-                    gamma_inv[n] = 1./evals[n]
-                else:
-                    evals[n] = 0.
+            a = np.dot(YbsqrtRinv,YbsqrtRinv.T)
+            evals, evecs, info = lapack.dsyevd(a)
+            evals = evals.clip(min=np.finfo(evals.dtype).eps)
+            gamma_inv = 1./evals
             # gammapI used in calculation of posterior cov in ensemble space
             gammapI = evals+1.
             # create HZ^T R**-1/2
@@ -122,14 +118,8 @@ def enkf_update(
             # to compute analysis increment (for perturbation update), save in single precision.
             # This is -C [ (I - (Gamma+I)**-1/2)*Gamma**-1 ] C^T (HZ)^T R**-1/2 HXprime
             # in Bishop paper (eqn 29).
-            # For DEnKF factor is -0.5*C (Gamma + I)**-1 C^T (HZ)^ T R**-1/2 HXprime
-            # = -0.5 Pa (HZ)^ T R**-1/2 HXprime (Pa already computed)
-            # pa = C [ (I - (Gamma+I)**-1/2)*Gamma**-1 ] C^T
-            # gammapI = sqrt(1.0/gammapI)
-            # ( pa=0.5*pa for denkf)
             pa=np.dot(evecs*(1.-np.sqrt(1./gammapI[np.newaxis,:]))*gamma_inv[np.newaxis,:],evecs.T)
             # wts_ensperts = -C [ (I - (Gamma+I)**-1/2)*Gamma**-1 ] C^T (HZ)^T R**-1/2 HXprime
-            # if denkf, wts_ensperts = -0.5 C (Gamma + I)**-1 C^T (HZ)^T R**-1/2 HXprime
             wts_ensperts = -np.dot(pa, np.dot(YbRinv,hx_orig.T)).T/normfact # use orig ens here
             return wts_ensmean, wts_ensperts
 

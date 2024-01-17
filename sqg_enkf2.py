@@ -108,6 +108,7 @@ print("# hcovlocal=%g vcovlocal=%g diff_efold=%s covinfate=%s nanals=%s" %\
 # replacement) from the model grid
 # if nobs < 0, fixed network of every Nth grid point used (N = -nobs)
 nobs = nx*ny//4 # number of obs to assimilate (randomly distributed)
+#nobs = nx*ny//2 # fixed network, every other grid point, alternating e/w and n/s
 #nobs = -1 # fixed network, every -nobs grid points. nobs=-1 obs at all pts.
 
 # nature run
