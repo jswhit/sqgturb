@@ -31,14 +31,14 @@ covinflate = float(sys.argv[3])
 if nband_cutoffs != nlscales-1:
     raise SystemExit('band_cutoffs should be one less than hcovlocal_scales')
 
-exptname = os.getenv('exptname','test')
+exptname = os.getenv('exptname','sqg_enkf')
 threads = int(os.getenv('OMP_NUM_THREADS','1'))
 
 diff_efold = None # use diffusion from climo file
 
 profile = False # turn on profiling?
 
-read_restart = False
+read_restart = True
 # if savedata not None, netcdf filename will be defined by env var 'exptname'
 # if savedata = 'restart', only last time is saved (so expt can be restarted)
 #savedata = True
@@ -146,7 +146,7 @@ obtimes = nc_truth.variables['t'][:]
 if read_restart:
     timeslist = obtimes.tolist()
     ntstart = timeslist.index(tstart)
-    print('# restarting from %s.nc ntstart = %s' % (exptname,ntstart))
+    print('# restarting from %s_restart.nc ntstart = %s' % (exptname,ntstart))
 else:
     ntstart = 0
 assim_interval = obtimes[1]-obtimes[0]
