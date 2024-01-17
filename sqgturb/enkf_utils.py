@@ -97,8 +97,8 @@ def enkf_update(
             # compute eigenvectors/eigenvalues of HZ^T HZ (C=left SV)
             # (in Bishop paper HZ is nobs, nanals, here is it nanals, nobs)
             # normalize so dot product is covariance
-            YbsqrtRinv = hx*np.sqrt(Rinv)/normfact  
-            YbRinv = hx*Rinv/normfact               
+            YbsqrtRinv = hx*np.sqrt(Rinv)/normfact
+            YbRinv = hx*Rinv/normfact
             pa = np.dot(YbsqrtRinv,YbsqrtRinv.T)
             evals, evecs, info = lapack.dsyevd(pa)
             gamma_inv = np.zeros_like(evals)
@@ -140,9 +140,9 @@ def enkf_update(
             wts_ensmean,wts_ensperts = calcwts(hxprime[:, mask], hxprime2[:, mask], Rinv, ominusf)
             # increments constructed from weighted modulated ensemble member prior perts.
             for k in range(2):
-                xmean[k,n] += np.dot(wts_ensmean,xprime2[:,k,n]) 
+                xmean[k,n] += np.dot(wts_ensmean,xprime2[:,k,n])
                 # use orig ens on lhs, mod ens on rhs
-                xprime[:,k,n] += np.dot(wts_ensperts,xprime2[:,k,n]) 
+                xprime[:,k,n] += np.dot(wts_ensperts,xprime2[:,k,n])
             xens[:,:,n] = xmean[:,n]+xprime[:,:,n]
- 
+
         return xens
