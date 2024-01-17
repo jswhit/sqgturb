@@ -62,15 +62,15 @@ global_enkf = False # global EnSRF solve
 read_restart = False
 # if savedata not None, netcdf filename will be defined by env var 'exptname'
 # if savedata = 'restart', only last time is saved (so expt can be restarted)
-#savedata = True 
+#savedata = True
 #savedata = 'restart'
 savedata = None
-#nassim = 101 
+#nassim = 101
 #nassim_spinup = 1
 nassim = 200 # assimilation times to run
 nassim_spinup = 100
 
-direct_insertion = False 
+direct_insertion = False
 if direct_insertion: print('# direct insertion!')
 
 nanals = 20 # ensemble members
@@ -78,9 +78,9 @@ nanals = 20 # ensemble members
 oberrstdev = 1. # ob error standard deviation in K
 
 # nature run created using sqg_run.py.
-filename_climo = 'sqg_N96_12hrly.nc' # file name for forecast model climo
+filename_climo = 'sqg_N64_6hrly.nc' # file name for forecast model climo
 # perfect model
-filename_truth = 'sqg_N96_12hrly.nc' # file name for nature run to draw obs
+filename_truth = 'sqg_N64_6hrly.nc' # file name for nature run to draw obs
 #filename_truth = 'sqg_N256_N96_12hrly.nc' # file name for nature run to draw obs
 
 print('# filename_modelclimo=%s' % filename_climo)
@@ -88,7 +88,7 @@ print('# filename_truth=%s' % filename_truth)
 
 # fix random seed for reproducibility.
 rsobs = np.random.RandomState(42) # fixed seed for observations
-rsics = np.random.RandomState() # varying seed for initial conditions
+rsics = np.random.RandomState(42) # varying seed for initial conditions
 
 # get model info
 nc_climo = Dataset(filename_climo)
@@ -138,8 +138,8 @@ print("# hcovlocal=%g vcovlocal=%s diff_efold=%s covinf1=%s covinf2=%s nanals=%s
 # if nobs > 0, each ob time nobs ob locations are randomly sampled (without
 # replacement) from the model grid
 # if nobs < 0, fixed network of every Nth grid point used (N = -nobs)
-#nobs = nx*ny//16 # number of obs to assimilate (randomly distributed)
-nobs = -1 # fixed network, every -nobs grid points. nobs=-1 obs at all pts.
+nobs = nx*ny//4 # number of obs to assimilate (randomly distributed)
+#nobs = -1 # fixed network, every -nobs grid points. nobs=-1 obs at all pts.
 
 # nature run
 nc_truth = Dataset(filename_truth)
@@ -156,19 +156,19 @@ else:
     fixed = False
     print('# random network nobs = %s' % nobs)
 if nobs == nx*ny//2: fixed=True # used fixed network for obs every other grid point
-oberrvar = oberrstdev**2*np.ones(nobs,np.float)
-pvob = np.empty((2,nobs),np.float)
-covlocal = np.empty((ny,nx),np.float)
-covlocal_tmp = np.empty((nobs,nx*ny),np.float)
-xens = np.empty((nanals,2,nx*ny),np.float)
+oberrvar = oberrstdev**2*np.ones(nobs,np.float32)
+pvob = np.empty((2,nobs),np.float32)
+covlocal = np.empty((ny,nx),np.float32)
+covlocal_tmp = np.empty((nobs,nx*ny),np.float32)
+xens = np.empty((nanals,2,nx*ny),np.float32)
 if not use_letkf:
-    obcovlocal = np.empty((nobs,nobs),np.float)
+    obcovlocal = np.empty((nobs,nobs),np.float32)
 else:
     obcovlocal = None
 
 if global_enkf: # model-space localization matrix
     n = 0
-    covlocal_modelspace = np.empty((nx*ny,nx*ny),np.float)
+    covlocal_modelspace = np.empty((nx*ny,nx*ny),np.float32)
     x1 = x.reshape(nx*ny); y1 = y.reshape(nx*ny)
     for n in range(nx*ny):
         dist = cartdist(x1[n],y1[n],x1,y1,nc_climo.L,nc_climo.L)
@@ -298,7 +298,7 @@ for ntime in range(nassim):
 
     # compute forward operator.
     # hxens is ensemble in observation space.
-    hxens = np.empty((nanals,2,nobs),np.float)
+    hxens = np.empty((nanals,2,nobs),np.float32)
     for nanal in range(nanals):
         for k in range(2):
             hxens[nanal,k,...] = scalefact*pvens[nanal,k,...].ravel()[indxob] # surface pv obs
@@ -336,7 +336,7 @@ for ntime in range(nassim):
         pv_truth[ntime+ntstart].reshape(2,nx*ny) + \
         rsobs.normal(scale=oberrstdev,size=(2,nx*ny))/scalefact
     else:
-        # hxens,pvob are in PV units, xens is not 
+        # hxens,pvob are in PV units, xens is not
         if global_enkf and not use_letkf:
             xens = bulk_ensrf(xens,indxob,pvob,oberrvar,covlocal_modelspace,vcovlocal_fact,scalefact)
         else:
@@ -442,8 +442,8 @@ if ncount:
     k,l = np.meshgrid(k,l)
     ktot = np.sqrt(k**2+l**2)
     ktotmax = (N//2)+1
-    kespec_err = np.zeros(ktotmax,np.float)
-    kespec_sprd = np.zeros(ktotmax,np.float)
+    kespec_err = np.zeros(ktotmax,np.float32)
+    kespec_sprd = np.zeros(ktotmax,np.float32)
     for i in range(kespec_errmean.shape[2]):
         for j in range(kespec_errmean.shape[1]):
             totwavenum = ktot[j,i]
@@ -452,10 +452,10 @@ if ncount:
                 kespec_errmean[:,j,i].mean(axis=0)
                 kespec_sprd[int(totwavenum)] = kespec_sprd[int(totwavenum)] +\
                 kespec_sprdmean[:,j,i].mean(axis=0)
-    
+
     print('# mean error/spread',kespec_errmean.sum(), kespec_sprdmean.sum())
     plt.figure()
-    wavenums = np.arange(ktotmax,dtype=np.float)
+    wavenums = np.arange(ktotmax,dtype=np.float32)
     for n in range(1,ktotmax):
         print('# ',wavenums[n],kespec_err[n],kespec_sprd[n])
     plt.loglog(wavenums[1:-1],kespec_err[1:-1],color='r')
