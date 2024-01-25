@@ -321,12 +321,12 @@ for ntime in range(nassim):
         obindx = distob < np.abs(hcovlocal_scale)
         obs_local = pvob[obindx]
         hxmean_local = hxensmean_b[obindx]
+        squeezefact = covlocal_modelspace[:,n]
         if rloc:
             # R localization
             #xtmp,hxprime_local = hofx(xprime, indxob[obindx], models[0])
             hxprime_local = hxprime_b[:,obindx]
-            covlocal_ob=np.clip(gaspcohn(distob[obindx]/hcovlocal_scale),a_min=mincovlocal,a_max=None)
-            oberr_local = oberrvar[obindx]/covlocal_ob
+            oberr_local = oberrvar[obindx]/squeezefact[indxob[obindx]]
             nobs_local = obindx.sum()
             # loop over obs in local region
             for nob, ob, oberr in zip(np.arange(nobs_local), obs_local, oberr_local):
@@ -352,7 +352,6 @@ for ntime in range(nassim):
             # Z localization
             # perform observation operator on 'squeezed' state vector
             # (same as R localization for identity H)
-            squeezefact = covlocal_modelspace[:,n]
             #xprime_squeeze = np.sqrt(squeezefact[np.newaxis,np.newaxis,:])*xprime
             #xtmp,hxprime_localsqueeze = hofx(xprime_squeeze, indxob[obindx], models[0])
             #xtmp,hxprime_local = hofx(xprime, indxob[obindx], models[0])
