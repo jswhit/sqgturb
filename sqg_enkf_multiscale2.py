@@ -339,12 +339,14 @@ for ntime in range(nassim):
     xprime = xens - xmean
     xmean_b = xmean.copy()
     xprime_b = xprime.copy()
+    xtmp,hxprime_b = hofx(xprime_b, indxob, models[0])
 
     # update state vector.
     # hxens,pvob are in PV units, xens is not
 
     # loop over model grid points, perform update in each local region.
     xprime_squeeze=np.empty((nanals*nlscales,2,nx*ny),xprime.dtype)
+    hxprime_localsqueeze = np.empty(nanals*nlscales, xprime.dtype)
     for n in range(nx*ny):
         distob = cartdist(x1[n],y1[n],xob,yob,nc_climo.L,nc_climo.L)
         obindx = distob < np.abs(hcovlocal_scales[0])
@@ -353,18 +355,25 @@ for ntime in range(nassim):
         # Z localization
         # perform observation operator on 'squeezed' state vector
         # (same as R localization for identity H)
-        for nlscale in range(nlscales):
-            squeezefact = covlocal_modelspace[nlscale,:,n]
-            nanal1=nlscale*nanals; nanal2=(nlscale+1)*nanals
-            xprime_squeeze[nanal1:nanal2] = np.sqrt(squeezefact[np.newaxis,np.newaxis,:])*xprime[nanal1:nanal2]
-        xtmp,hxprime_localsqueeze = hofx(xprime_squeeze, indxob[obindx], models[0])
-        xtmp,hxprime_local = hofx(xprime, indxob[obindx], models[0])
+        #for nlscale in range(nlscales):
+        #    squeezefact = covlocal_modelspace[nlscale,:,n]
+        #    nanal1=nlscale*nanals; nanal2=(nlscale+1)*nanals
+        #    xprime_squeeze[nanal1:nanal2] = np.sqrt(squeezefact[np.newaxis,np.newaxis,:])*xprime[nanal1:nanal2]
+        #xtmp,hxprime_localsqueeze = hofx(xprime_squeeze, indxob[obindx], models[0])
+        #xtmp,hxprime_local = hofx(xprime, indxob[obindx], models[0])
+        hxprime_local = hxprime_b[:,obindx]
         oberr_local = oberrvar[obindx]
         nobs_local = obindx.sum()
         # loop over obs in local region
         for nob, ob, oberr in zip(np.arange(nobs_local), obs_local, oberr_local):
+            # squeeze ob space
+            for nlscale in range(nlscales):
+                squeezefact = covlocal_modelspace[nlscale,:,n]
+                nanal1=nlscale*nanals; nanal2=(nlscale+1)*nanals
+                hxprime_localsqueeze[nanal1:nanal2] = np.sqrt(squeezefact[indxob[obindx]][nob])*hxprime_local[nanal1:nanal2,nob]
             # step 1: update observed variable for ob being assimilated
-            varob = (hxprime_localsqueeze[:,nob]**2).sum(axis=0)/(nanals-1)
+            #varob = (hxprime_localsqueeze[:,nob]**2).sum(axis=0)/(nanals-1)
+            varob = (hxprime_localsqueeze[:]**2).sum(axis=0)/(nanals-1)
             gainob = varob/(varob+oberr)
             hxmean_a = (1.-gainob)*hxmean_local[nob] + gainob*ob # linear interp
             hxprime_a = np.sqrt(1.-gainob)*hxprime_local[:,nob] # rescaling
@@ -377,15 +386,15 @@ for ntime in range(nassim):
                 pbht = (xprime[:, k, n].T * hxprime_local[:,nob]).sum(axis=0) / (nanals-1)
                 xens[:, k, n] += (pbht/hpbht)*obincrement
             # ob space (only really need to update obs not yet assimilated)
-            pbht = (hxprime_local.T * hxprime_local[:,nob]).sum(axis=1) / (nanals-1)
+            pbht = (hxprime_local[:,nob:].T * hxprime_local[:,nob]).sum(axis=1) / (nanals-1)
             hxincrement = (pbht[np.newaxis,:]/hpbht)*obincrement[:,np.newaxis]
             hxmeanincrement = hxincrement.mean(axis=0)
-            hxmean_local += hxmeanincrement
-            hxprime_local += hxincrement - hxmeanincrement[np.newaxis,:]
-            # 'squeezed' ob space
-            pbht = (hxprime_localsqueeze.T * hxprime_local[:,nob]).sum(axis=1) / (nanals-1)
-            hxincrement = (pbht[np.newaxis,:]/hpbht)*obincrement[:,np.newaxis]
-            hxprime_localsqueeze += hxincrement - hxincrement.mean(axis=0)
+            hxmean_local[nob:] += hxmeanincrement
+            hxprime_local[:,nob:] += hxincrement - hxmeanincrement[np.newaxis,:]
+            # update 'squeezed' ob space
+            #pbht = (hxprime_localsqueeze.T * hxprime_local[:,nob]).sum(axis=1) / (nanals-1)
+            #hxincrement = (pbht[np.newaxis,:]/hpbht)*obincrement[:,np.newaxis]
+            #hxprime_localsqueeze += hxincrement - hxincrement.mean(axis=0)
 
 
     # back to 3d state vector
