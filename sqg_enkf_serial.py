@@ -8,30 +8,28 @@ import sys, time, os
 from sqgturb import SQG, rfft2, irfft2, cartdist, gaspcohn
 from scipy.linalg import lapack, inv
 
-# LETKF cycling for SQG turbulence model with vertical mean temp obs,
-# Multi-scale horizontal (Z localization)  but no vertical localization.
+# EnKF cycling for SQG turbulence model with vertical mean temp obs,
+# horizontal but no vertical localization.
 # Relaxation to prior spread inflation.
 # Random or fixed observing network.
+# LETKF, options for gain form and R/Z localization.
 
 if len(sys.argv) == 1:
    msg="""
-python sqg_enkf.py hcovlocal_scales band_cutoffs covinflate 
-   hcovlocal_scales: horizontal localization scales in km (specified as list, in double quotes, e.g. "[2000.e6,1000.e6]"
-   band_cutoffs:  wavelength cutoffs for filter bands (dimension one less than hcovlocal_scales)
+python sqg_enkf.py hcovlocal_scale covinflate rloc gainform>
+   hcovlocal_scale: horizontal localization scale in km
    covinflate: RTPS covinflate inflation parameter
+   rloc:  if 1 use R localization, if 0 use Z localization
+   gainform: if 1 use gain form LETKF
    """
    raise SystemExit(msg)
 
 # horizontal covariance localization length scale in meters.
-hcovlocal_scales = eval(sys.argv[1])
-nlscales = len(hcovlocal_scales)
-band_cutoffs = eval(sys.argv[2])
-nband_cutoffs = len(band_cutoffs)
-covinflate = float(sys.argv[3])
-if nband_cutoffs != nlscales-1:
-    raise SystemExit('band_cutoffs should be one less than hcovlocal_scales')
+hcovlocal_scale = float(sys.argv[1])
+covinflate = float(sys.argv[2])
+rloc = bool(int(sys.argv[3])) # R localization instead of Z localization
 
-exptname = os.getenv('exptname','sqg_enkf')
+exptname = os.getenv('exptname',"sqg_enkf")
 threads = int(os.getenv('OMP_NUM_THREADS','1'))
 
 diff_efold = None # use diffusion from climo file
@@ -101,10 +99,8 @@ for nanal in range(nanals):
     diff_order=nc_climo.diff_order,diff_efold=diff_efold,threads=threads))
 if read_restart: ncinit.close()
 
-hcovlocal_scales_km = [lscale/1000. for lscale in hcovlocal_scales]
-print("# hcovlocal=%s diff_efold=%s covinflate=%s nanals=%s" %\
-     (repr(hcovlocal_scales_km),diff_efold,covinflate,nanals))
-print('# band_cutoffs=%s' % repr(band_cutoffs))
+print("# hcovlocal=%g diff_efold=%s covinflate=%s nanals=%s" %\
+     (hcovlocal_scale/1000.,diff_efold,covinflate,nanals))
 
 # if nobs > 0, each ob time nobs ob locations are randomly sampled (without
 # replacement) from the model grid
@@ -133,14 +129,13 @@ xens = np.empty((nanals,2,nx*ny),np.float32)
 
 # model-space localization matrix (only needed for Z localization)
 n = 0
-covlocal_modelspace = np.empty((nlscales,nx*ny,nx*ny),np.float32)
+covlocal_modelspace = np.empty((nx*ny,nx*ny),np.float32)
 x1 = x.reshape(nx*ny); y1 = y.reshape(nx*ny)
 mincovlocal = np.finfo(np.float32).eps
-for nscale in range(nlscales):
-   for n in range(nx*ny):
-       dist = cartdist(x1[n],y1[n],x1,y1,nc_climo.L,nc_climo.L)
-       covlocal_modelspace[nscale,n,:] = \
-       np.clip(gaspcohn(dist/hcovlocal_scales[nscale]),a_min=mincovlocal,a_max=None)
+for n in range(nx*ny):
+    dist = cartdist(x1[n],y1[n],x1,y1,nc_climo.L,nc_climo.L)
+    covlocal_modelspace[n,:] = \
+    np.clip(gaspcohn(dist/hcovlocal_scale),a_min=mincovlocal,a_max=None)
 
 obtimes = nc_truth.variables['t'][:]
 if read_restart:
@@ -151,6 +146,7 @@ else:
     ntstart = 0
 assim_interval = obtimes[1]-obtimes[0]
 assim_timesteps = int(np.round(assim_interval/models[0].dt))
+print('# rloc=%s' % rloc)
 print('# assim interval = %s secs (%s time steps)' % (assim_interval,assim_timesteps))
 print('# ntime,pverr_a,pvsprd_a,pverr_b,pvsprd_b,meanpverr_b,meanpvsprd_b,obfits_b,osprd_b+R,obbias_b,inflation,tr(P^a)/tr(P^b)')
 
@@ -168,7 +164,7 @@ if savedata is not None:
    nc.L = models[0].L
    nc.H = models[0].H
    nc.nanals = nanals
-   nc.hcovlocal_scales = hcovlocal_scales
+   nc.hcovlocal_scale = hcovlocal_scale
    nc.oberrstdev = oberrstdev
    nc.g = nc_climo.g; nc.theta0 = nc_climo.theta0
    nc.nsq = models[0].nsq
@@ -247,7 +243,7 @@ kespec_errmean = None; kespec_sprdmean = None
 
 ncount = 0
 nanalske = min(10,nanals) # ensemble members used for kespec spread
-normfact = np.array(np.sqrt(nlscales*nanals-1),dtype=np.float32)
+normfact = np.array(np.sqrt(nanals-1),dtype=np.float32)
 
 # loop over assimilation times.
 for ntime in range(nassim):
@@ -295,32 +291,11 @@ for ntime in range(nassim):
     obbias_b = obfits.mean()
     obsprd_b = obsprd.mean()
     pvensmean_b = pvens.mean(axis=0).copy()
-    pvpert = pvens-pvensmean_b
     meanpvensmean_b = meanpvens.mean(axis=0)
     pverr_b = (scalefact*(pvensmean_b-pv_truth[ntime+ntstart]))**2
     meanpverr_b = (scalefact*(meanpvensmean_b-meanpv_truth))**2
     pvsprd_b = ((scalefact*(pvensmean_b-pvens))**2).sum(axis=0)/(nanals-1)
     meanpvsprd_b = ((scalefact*(meanpvensmean_b-meanpvens))**2).sum(axis=0)/(nanals-1)
-
-    # filter backgrounds into different scale bands
-    if nlscales == 1:
-        pvens_filtered_lst=[pvpert]
-    else:
-        pvens_filtered_lst=[]
-        pvfilt_save = np.zeros_like(pvpert)
-        pvspec = rfft2(pvpert)
-        for n,cutoff in enumerate(band_cutoffs):
-            pvfiltspec = np.where(models[0].wavenums[np.newaxis,np.newaxis,...] < cutoff, pvspec, 0.+0.j)
-            pvfilt = irfft2(pvfiltspec)
-            pvens_filtered_lst.append(pvfilt-pvfilt_save)
-            pvfilt_save=pvfilt
-        pvsum = np.zeros_like(pvens)
-        for n in range(nband_cutoffs):
-            pvsum += pvens_filtered_lst[n]
-        pvens_filtered_lst.append(pvpert-pvsum)
-    # concatenate along ensemble dimension (nanals*nlscales)
-    pvens_filtered = np.vstack(pvens_filtered_lst)
-    pvens = pvensmean_b + pvens_filtered
 
     if savedata is not None:
         if savedata == 'restart' and ntime != nassim-1:
@@ -334,70 +309,87 @@ for ntime in range(nassim):
 
     # EnKF update
     # create 1d state vector.
-    xens = pvens.reshape(nlscales*nanals,2,nx*ny)
+    xens = pvens.reshape(nanals,2,nx*ny)
     xmean = xens.mean(axis=0)
     xprime = xens - xmean
     xmean_b = xmean.copy()
     xprime_b = xprime.copy()
 
-    # update state vector.
-    # hxens,pvob are in PV units, xens is not
-
-    # loop over model grid points, perform update in each local region.
-    xprime_squeeze=np.empty((nanals*nlscales,2,nx*ny),xprime.dtype)
+    # loop over model grid points, perform serial update in each local region.
     for n in range(nx*ny):
         distob = cartdist(x1[n],y1[n],xob,yob,nc_climo.L,nc_climo.L)
-        obindx = distob < np.abs(hcovlocal_scales[0])
+        obindx = distob < np.abs(hcovlocal_scale)
         obs_local = pvob[obindx]
         hxmean_local = hxensmean_b[obindx]
-        # Z localization
-        # perform observation operator on 'squeezed' state vector
-        # (same as R localization for identity H)
-        for nlscale in range(nlscales):
-            squeezefact = covlocal_modelspace[nlscale,:,n]
-            nanal1=nlscale*nanals; nanal2=(nlscale+1)*nanals
-            xprime_squeeze[nanal1:nanal2] = np.sqrt(squeezefact[np.newaxis,np.newaxis,:])*xprime[nanal1:nanal2]
-        xtmp,hxprime_localsqueeze = hofx(xprime_squeeze, indxob[obindx], models[0])
-        xtmp,hxprime_local = hofx(xprime, indxob[obindx], models[0])
-        oberr_local = oberrvar[obindx]
-        nobs_local = obindx.sum()
-        # loop over obs in local region
-        for nob, ob, oberr in zip(np.arange(nobs_local), obs_local, oberr_local):
-            # step 1: update observed variable for ob being assimilated
-            varob = (hxprime_localsqueeze[:,nob]**2).sum(axis=0)/(nanals-1)
-            gainob = varob/(varob+oberr)
-            hxmean_a = (1.-gainob)*hxmean_local[nob] + gainob*ob # linear interp
-            hxprime_a = np.sqrt(1.-gainob)*hxprime_local[:,nob] # rescaling
-            # step 2: update model priors in state and ob space 
-            # (linear regression of model priors on observation priors)
-            obincrement = (hxmean_a + hxprime_a) - (hxmean_local[nob] + hxprime_local[:,nob])
-            # state space
-            hpbht = (hxprime_local[:,nob]**2).sum(axis=0) / (nanals-1)
-            for k in range(2):
-                pbht = (xprime[:, k, n].T * hxprime_local[:,nob]).sum(axis=0) / (nanals-1)
-                xens[:, k, n] += (pbht/hpbht)*obincrement
-            # ob space (only really need to update obs not yet assimilated)
-            pbht = (hxprime_local.T * hxprime_local[:,nob]).sum(axis=1) / (nanals-1)
-            hxincrement = (pbht[np.newaxis,:]/hpbht)*obincrement[:,np.newaxis]
-            hxmeanincrement = hxincrement.mean(axis=0)
-            hxmean_local += hxmeanincrement
-            hxprime_local += hxincrement - hxmeanincrement[np.newaxis,:]
-            # 'squeezed' ob space
-            pbht = (hxprime_localsqueeze.T * hxprime_local[:,nob]).sum(axis=1) / (nanals-1)
-            hxincrement = (pbht[np.newaxis,:]/hpbht)*obincrement[:,np.newaxis]
-            hxprime_localsqueeze += hxincrement - hxincrement.mean(axis=0)
-
+        if rloc:
+            # R localization
+            xtmp,hxprime_local = hofx(xprime, indxob[obindx], models[0])
+            covlocal_ob=np.clip(gaspcohn(distob[obindx]/hcovlocal_scale),a_min=mincovlocal,a_max=None)
+            oberr_local = oberrvar[obindx]/covlocal_ob
+            nobs_local = obindx.sum()
+            # loop over obs in local region
+            for nob, ob, oberr in zip(np.arange(nobs_local), obs_local, oberr_local):
+                # step 1: update observed variable for ob being assimilated
+                varob = (hxprime_local[:,nob]**2).sum(axis=0)/(nanals-1)
+                gainob = varob/(varob+oberr)
+                hxmean_a = (1.-gainob)*hxmean_local[nob] + gainob*ob # linear interp
+                hxprime_a = np.sqrt(1.-gainob)*hxprime_local[:,nob] # rescaling
+                # step 2: update model priors in state and ob space 
+                # (linear regression of model priors on observation priors)
+                obincrement = (hxmean_a + hxprime_a) - (hxmean_local[nob] + hxprime_local[:,nob])
+                # state space
+                for k in range(2):
+                    pbht = (xprime[:, k, n].T * hxprime_local[:,nob]).sum(axis=0) / (nanals-1)
+                    xens[:, k, n] += (pbht/varob)*obincrement
+                # ob space (only really need to update obs not yet assimilated)
+                pbht = (hxprime_local.T * hxprime_local[:,nob]).sum(axis=1) / (nanals-1)
+                hxincrement = (pbht[np.newaxis,:]/varob)*obincrement[:,np.newaxis]
+                hxmeanincrement = hxincrement.mean(axis=0)
+                hxmean_local += hxmeanincrement
+                hxprime_local += hxincrement - hxmeanincrement[np.newaxis,:]
+        else:
+            # Z localization
+            # perform observation operator on 'squeezed' state vector
+            # (same as R localization for identity H)
+            squeezefact = covlocal_modelspace[:,n]
+            xprime_squeeze = np.sqrt(squeezefact[np.newaxis,np.newaxis,:])*xprime
+            xtmp,hxprime_localsqueeze = hofx(xprime_squeeze, indxob[obindx], models[0])
+            xtmp,hxprime_local = hofx(xprime, indxob[obindx], models[0])
+            oberr_local = oberrvar[obindx]
+            nobs_local = obindx.sum()
+            # loop over obs in local region
+            for nob, ob, oberr in zip(np.arange(nobs_local), obs_local, oberr_local):
+                # step 1: update observed variable for ob being assimilated
+                varob = (hxprime_localsqueeze[:,nob]**2).sum(axis=0)/(nanals-1)
+                gainob = varob/(varob+oberr)
+                hxmean_a = (1.-gainob)*hxmean_local[nob] + gainob*ob # linear interp
+                hxprime_a = np.sqrt(1.-gainob)*hxprime_local[:,nob] # rescaling
+                # step 2: update model priors in state and ob space 
+                # (linear regression of model priors on observation priors)
+                obincrement = (hxmean_a + hxprime_a) - (hxmean_local[nob] + hxprime_local[:,nob])
+                # state space
+                hpbht = (hxprime_local[:,nob]**2).sum(axis=0) / (nanals-1)
+                for k in range(2):
+                    pbht = (xprime[:, k, n].T * hxprime_local[:,nob]).sum(axis=0) / (nanals-1)
+                    xens[:, k, n] += (pbht/hpbht)*obincrement
+                # ob space (only really need to update obs not yet assimilated)
+                pbht = (hxprime_local.T * hxprime_local[:,nob]).sum(axis=1) / (nanals-1)
+                hxincrement = (pbht[np.newaxis,:]/hpbht)*obincrement[:,np.newaxis]
+                hxmeanincrement = hxincrement.mean(axis=0)
+                hxmean_local += hxmeanincrement
+                hxprime_local += hxincrement - hxmeanincrement[np.newaxis,:]
+                # 'squeezed' ob space
+                pbht = (hxprime_localsqueeze.T * hxprime_local[:,nob]).sum(axis=1) / (nanals-1)
+                hxincrement = (pbht[np.newaxis,:]/hpbht)*obincrement[:,np.newaxis]
+                hxprime_localsqueeze += hxincrement - hxincrement.mean(axis=0)
 
     # back to 3d state vector
-    pvens = xens.reshape((nlscales*nanals,2,ny,nx))
-    pvensmean_a = pvens.mean(axis=0)
-    pvens_filtered = pvens - pvensmean_a
-    pvens_filtered = pvens_filtered.reshape(nlscales,nanals,2,ny,nx)
-    pvens = pvens_filtered.sum(axis=0) + pvensmean_a
+    pvens = xens.reshape((nanals,2,ny,nx))
     t2 = time.time()
     if profile: print('cpu time for EnKF update',t2-t1)
 
     # posterior multiplicative inflation.
+    pvensmean_a = pvens.mean(axis=0)
     pvprime = pvens-pvensmean_a
     asprd = (pvprime**2).sum(axis=0)/(nanals-1)
     asprd_over_fsprd = asprd.mean()/fsprd.mean()
