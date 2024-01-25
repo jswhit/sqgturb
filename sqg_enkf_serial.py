@@ -384,9 +384,9 @@ for ntime in range(nassim):
                 hxmean_local[nob:] += hxmeanincrement
                 hxprime_local[:,nob:] += hxincrement - hxmeanincrement[np.newaxis,:]
                 # 'squeezed' ob space
-                #pbht = (hxprime_localsqueeze.T * hxprime_local[:,nob]).sum(axis=1) / (nanals-1)
+                #pbht = (hxprime_localsqueeze[:,nob:].T * hxprime_local[:,nob]).sum(axis=1) / (nanals-1)
                 #hxincrement = (pbht[np.newaxis,:]/hpbht)*obincrement[:,np.newaxis]
-                #hxprime_localsqueeze += hxincrement - hxincrement.mean(axis=0)
+                #hxprime_localsqueeze[:,nob:] += hxincrement - hxincrement.mean(axis=0)
 
     # back to 3d state vector
     pvens = xens.reshape((nanals,2,ny,nx))

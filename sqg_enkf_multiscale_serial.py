@@ -339,6 +339,8 @@ for ntime in range(nassim):
     xprime = xens - xmean
     xmean_b = xmean.copy()
     xprime_b = xprime.copy()
+
+    # compute ob space perturbations with filtered state vector
     xtmp,hxprime_b = hofx(xprime_b, indxob, models[0])
 
     # update state vector.
@@ -361,6 +363,7 @@ for ntime in range(nassim):
         #    xprime_squeeze[nanal1:nanal2] = np.sqrt(squeezefact[np.newaxis,np.newaxis,:])*xprime[nanal1:nanal2]
         #xtmp,hxprime_localsqueeze = hofx(xprime_squeeze, indxob[obindx], models[0])
         #xtmp,hxprime_local = hofx(xprime, indxob[obindx], models[0])
+        # or else, just 'squeeze' in ob space (faster, not identical if H not I)
         hxprime_local = hxprime_b[:,obindx]
         oberr_local = oberrvar[obindx]
         nobs_local = obindx.sum()
@@ -370,7 +373,8 @@ for ntime in range(nassim):
             for nlscale in range(nlscales):
                 squeezefact = covlocal_modelspace[nlscale,:,n]
                 nanal1=nlscale*nanals; nanal2=(nlscale+1)*nanals
-                hxprime_localsqueeze[nanal1:nanal2] = np.sqrt(squeezefact[indxob[obindx]][nob])*hxprime_local[nanal1:nanal2,nob]
+                hxprime_localsqueeze[nanal1:nanal2] = \
+                np.sqrt(squeezefact[indxob[obindx]][nob])*hxprime_local[nanal1:nanal2,nob]
             # step 1: update observed variable for ob being assimilated
             #varob = (hxprime_localsqueeze[:,nob]**2).sum(axis=0)/(nanals-1)
             varob = (hxprime_localsqueeze[:]**2).sum(axis=0)/(nanals-1)
