@@ -42,11 +42,11 @@ read_restart = True
 # if savedata not None, netcdf filename will be defined by env var 'exptname'
 # if savedata = 'restart', only last time is saved (so expt can be restarted)
 #savedata = True
-#savedata = 'restart'
-savedata = None
+savedata = 'restart'
+#savedata = None
 #nassim = 101
 #nassim_spinup = 1
-nassim = 500 # assimilation times to run
+nassim = 200 # assimilation times to run
 nassim_spinup = 100
 
 nanals = 20 # ensemble members
@@ -54,9 +54,9 @@ nanals = 20 # ensemble members
 oberrstdev = 1. # ob error standard deviation in K
 
 # nature run created using sqg_run.py.
-filename_climo = 'sqg_N64_6hrly.nc' # file name for forecast model climo
+filename_climo = 'sqgu17p5_N64_6hrly.nc' # file name for forecast model climo
 # perfect model
-filename_truth = 'sqg_N64_6hrly.nc' # file name for nature run to draw obs
+filename_truth = 'sqgu17p5_N64_6hrly.nc' # file name for nature run to draw obs
 #filename_truth = 'sqg_N256_N96_12hrly.nc' # file name for nature run to draw obs
 
 print('# filename_modelclimo=%s' % filename_climo)
@@ -109,7 +109,7 @@ print('# band_cutoffs=%s' % repr(band_cutoffs))
 # if nobs > 0, each ob time nobs ob locations are randomly sampled (without
 # replacement) from the model grid
 # if nobs < 0, fixed network of every Nth grid point used (N = -nobs)
-nobs = nx*ny//2 # number of obs to assimilate (randomly distributed)
+nobs = nx*ny//4 # number of obs to assimilate (randomly distributed)
 #nobs = -1 # fixed network, every -nobs grid points. nobs=-1 obs at all pts.
 
 # nature run
@@ -248,6 +248,7 @@ kespec_errmean = None; kespec_sprdmean = None
 ncount = 0
 nanalske = min(10,nanals) # ensemble members used for kespec spread
 normfact = np.array(np.sqrt(nlscales*nanals-1),dtype=np.float32)
+squeezewts = np.empty(nlscales,np.float32)
 
 # loop over assimilation times.
 for ntime in range(nassim):
@@ -373,10 +374,14 @@ for ntime in range(nassim):
         # loop over obs in local region
         for nob, ob, oberr in zip(np.arange(nobs_local), obs_local, oberr_local):
             # squeeze ob space
+            squeezewts_norm = 0.
             for nlscale in range(nlscales):
                 nanal1=nlscale*nanals; nanal2=(nlscale+1)*nanals
                 obsqueezefact = squeezefact[nlscale,indxob[obindx]][nob]
+                squeezewts[nlscale] = obsqueezefact
+                squeezewts_norm += squeezewts[nlscale]**2
                 hxprime_localsqueeze[nanal1:nanal2] = obsqueezefact*hxprime_local[nanal1:nanal2,nob]
+            squeezewts = squeezewts/np.sqrt(squeezewts_norm)
             # step 1: update observed variable for ob being assimilated
             #varob = (hxprime_localsqueeze[:,nob]**2).sum(axis=0)/(nanals-1)
             varob = (hxprime_localsqueeze[:]**2).sum(axis=0)/(nanals-1)
@@ -387,12 +392,14 @@ for ntime in range(nassim):
             # (linear regression of model priors on observation priors)
             obincrement = (hxmean_a + hxprime_a) - (hxmean_local[nob] + hxprime_local[:,nob])
             # state space
-            hpbht = (hxprime_local[:,nob]**2).sum(axis=0) / (nanals-1)
+            xprime_weighted = (squeezewts*(xprime[:,:,n].reshape(nlscales,nanals,2))).sum(axis=0)
+            hxprime_weighted = (squeezewts[:,np.newaxis,np.newaxis]*(hxprime_local.reshape(nlscales,nanals,nobs_local))).sum(axis=0) 
+            hpbht = (hxprime_weighted[:,nob]**2).sum(axis=0) / (nanals-1)
             for k in range(2):
-                pbht = (xprime[:, k, n].T * hxprime_local[:,nob]).sum(axis=0) / (nanals-1)
+                pbht = (xprime_weighted[:, k].T * hxprime_weighted[:,nob]).sum(axis=0) / (nanals-1)
                 xens[:, k, n] += (pbht/hpbht)*obincrement
             # ob space (only really need to update obs not yet assimilated)
-            pbht = (hxprime_local[:,nob:].T * hxprime_local[:,nob]).sum(axis=1) / (nanals-1)
+            pbht = (hxprime_weighted[:,nob:].T * hxprime_weighted[:,nob]).sum(axis=1) / (nanals-1)
             hxincrement = (pbht[np.newaxis,:]/hpbht)*obincrement[:,np.newaxis]
             hxmeanincrement = hxincrement.mean(axis=0)
             hxmean_local[nob:] += hxmeanincrement
