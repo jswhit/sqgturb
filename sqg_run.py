@@ -23,13 +23,13 @@ import os
 #dt = 600
 #diff_efold = 86400./3.
 
-#N = 96
-#dt = 900
-#diff_efold = 86400./3.
+N = 96
+dt = 900
+diff_efold = 86400./3.
 
 N = 64
-dt = 1200
-diff_efold = 86400.
+dt = 900    
+diff_efold = 86400./2.
 
 norder = 8 # order of hyperdiffusion
 dealias = True # dealiased with 2/3 rule?
@@ -44,7 +44,7 @@ dek = 0 # applied only at surface if symmetric=False
 nsq = 1.e-4; f=1.e-4; g = 9.8; theta0 = 300
 H = 10.e3 # lid height
 r = dek*nsq/f
-U = 30 # jet speed
+U = 17.5 # jet speed
 Lr = np.sqrt(nsq)*H/f # Rossby radius
 L = 20.*Lr
 # thermal relaxation time scale
@@ -84,7 +84,7 @@ tmax = 300.*86400. # time to stop (in days)
 nsteps = int(tmax/outputinterval) # number of time steps to animate
 # set number of timesteps to integrate for each call to model.advance
 model.timesteps = int(outputinterval/model.dt)
-savedata = 'sqg_N%s_6hrly.nc' % N # save data plotted in a netcdf file.
+savedata = 'sqgu17p5_N%s_6hrly.nc' % N # save data plotted in a netcdf file.
 #savedata = None # don't save data
 plot = True # animate data as model is running?
 
@@ -124,38 +124,38 @@ if savedata is not None:
     yvar[:] = np.arange(0,model.L,model.L/N)
     zvar[0] = 0; zvar[1] = model.H
 
-levplot = -1; nout = 0 # levplot < 0 is vertical mean PV
+levplot = 1; nout = 0 # levplot < 0 is vertical mean PV
 if plot:
-    fig = plt.figure(figsize=(8,8))
-    fig.subplots_adjust(left=0, bottom=0.0, top=1., right=1.)
+    fig = plt.figure(figsize=(14,8))
+    fig.subplots_adjust(left=0.05, bottom=0.05, top=0.95, right=0.95)
     vmin = scalefact*model.pvbar[levplot].min()
     vmax = scalefact*model.pvbar[levplot].max()
     if levplot < 0:
         vmin=0.8*vmin; vmax=0.8*vmax
     def initfig():
-        global im
-        ax = fig.add_subplot(111)
-        ax.axis('off')
-        if levplot < 0:
-            pvspec_mean = model.meantemp()
-            pv = irfft2(pvspec_mean)  # mean pv
-        else:
-            pv = irfft2(model.pvspec[levplot])  # spectral to grid
-        im = ax.imshow(scalefact*pv,cmap=plt.cm.jet,interpolation='nearest',origin='lower',vmin=vmin,vmax=vmax)
-        return im,
+        global im1,im2
+        ax1 = fig.add_subplot(121)
+        ax1.axis('off')
+        pv = irfft2(model.pvspec[levplot])  # spectral to grid
+        im1 = ax1.imshow(scalefact*pv,cmap=plt.cm.jet,interpolation='nearest',origin='lower',vmin=vmin,vmax=vmax)
+        ax2 = fig.add_subplot(122)
+        ax2.axis('off')
+        pvspec_mean = model.meantemp()
+        pv = irfft2(pvspec_mean)  # mean pv
+        im2 = ax2.imshow(scalefact*pv,cmap=plt.cm.jet,interpolation='nearest',origin='lower',vmin=vmin,vmax=vmax)
+        return im1,im2,
     def updatefig(*args):
         global nout
         model.advance()
         t = model.t
-        if levplot < 0:
-            pvspec_mean = model.meantemp()
-            pv = irfft2(pvspec_mean)  # mean pv
-        else:
-            pv = irfft2(model.pvspec[levplot])
+        pv = irfft2(model.pvspec[levplot])
         hr = t/3600.
         spd = np.sqrt(model.u[levplot]**2+model.v[levplot]**2)
         print(hr,spd.max(),scalefact*pv.min(),scalefact*pv.max())
-        im.set_data(scalefact*pv)
+        im1.set_data(scalefact*pv)
+        pvspec_mean = model.meantemp()
+        pv = irfft2(pvspec_mean)  # mean pv
+        im2.set_data(scalefact*pv)
         if savedata is not None and t >= tmin:
             print('saving data at t = t = %g hours' % hr)
             pvvar[nout,:,:,:] = irfft2(model.pvspec)
@@ -163,7 +163,7 @@ if plot:
             nc.sync()
             if t >= tmax: nc.close()
             nout = nout + 1
-        return im,
+        return im1,im2,
 
     # interval=0 means draw as fast as possible
     ani = animation.FuncAnimation(fig, updatefig, frames=nsteps, repeat=False,\
