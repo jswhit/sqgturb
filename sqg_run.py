@@ -25,7 +25,7 @@ import os
 
 N = 96
 dt = 900
-diff_efold = 86400./3.
+diff_efold = 86400./2.
 
 N = 64
 dt = 900    
