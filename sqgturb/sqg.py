@@ -33,6 +33,8 @@ class SQG:
         tdiab=10.0 * 86400,
         diff_order=8,
         diff_efold=None,
+        theta0=300,
+        g=9.8,
         symmetric=True,
         dt=None,
         dealias=True,
@@ -69,6 +71,9 @@ class SQG:
         self.H = np.array(H, dtype)  # height of upper boundary
         self.U = np.array(U, dtype)  # basic state velocity at z = H
         self.L = np.array(L, dtype)  # size of square domain.
+        # theta0,g only used to convert pv to temp units (K).
+        self.theta0 = np.array(theta0, dtype) # mean temp
+        self.g = np.array(g, dtype) # gravity
         self.dt = np.array(dt, dtype)  # time step (seconds)
         self.dealias = dealias  # if True, dealiasing applied using 2/3 rule.
         if r < 1.0e-10:
@@ -116,9 +121,9 @@ class SQG:
         # spectral stuff
         k = (N * np.fft.fftfreq(N))[0 : (N // 2) + 1]
         l = N * np.fft.fftfreq(N)
-        k, l = np.meshgrid(k, l)
-        k = k.astype(dtype)
-        l = l.astype(dtype)
+        kk, ll = np.meshgrid(k, l)
+        k = kk.astype(dtype)
+        l = ll.astype(dtype)
         # dimensionalize wavenumbers.
         k = 2.0 * pi * k / self.L
         l = 2.0 * pi * l / self.L
@@ -128,6 +133,7 @@ class SQG:
         self.ksqlsq = ksqlsq
         self.ik = (1.0j * k).astype(np.complex64)
         self.il = (1.0j * l).astype(np.complex64)
+        self.wavenums = np.sqrt(kk**2+ll**2)
         if dealias:  # arrays needed for dealiasing nonlinear Jacobian
             k_pad = ((3 * N // 2) * np.fft.fftfreq(3 * N // 2))[0 : (3 * N // 4) + 1]
             l_pad = (3 * N // 2) * np.fft.fftfreq(3 * N // 2)
