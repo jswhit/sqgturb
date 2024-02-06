@@ -8,7 +8,7 @@ import sys, time, os
 from sqgturb import SQG, rfft2, irfft2, cartdist,enkf_update,gaspcohn
 from scipy.linalg import eigh
 
-# EnKF cycling for SQG turbulence model with boundary temp obs,
+# EnKF cycling for SQG turbulence model with vertical mean temp obs,
 # ob space horizontal and model space vertical localization.
 # Relaxation to prior spread inflation.
 # Random or fixed observing network.
@@ -53,9 +53,9 @@ nanals = 20 # ensemble members
 oberrstdev = 1. # ob error standard deviation in K
 
 # nature run created using sqg_run.py.
-filename_climo = 'sqg_N64_6hrly.nc' # file name for forecast model climo
+filename_climo = 'sqgu17p5_N64_6hrly.nc' # file name for forecast model climo
 # perfect model
-filename_truth = 'sqg_N64_6hrly.nc' # file name for nature run to draw obs
+filename_truth = 'sqgu17p5_N64_6hrly.nc' # file name for nature run to draw obs
 #filename_truth = 'sqg_N256_N96_12hrly.nc' # file name for nature run to draw obs
 
 print('# filename_modelclimo=%s' % filename_climo)
@@ -63,7 +63,7 @@ print('# filename_truth=%s' % filename_truth)
 
 # fix random seed for reproducibility.
 rsobs = np.random.RandomState(42) # fixed seed for observations
-rsics = np.random.RandomState() # varying seed for initial conditions
+rsics = np.random.RandomState(24) # varying seed for initial conditions
 
 # get model info
 nc_climo = Dataset(filename_climo)
@@ -125,12 +125,10 @@ else:
     fixed = False
     print('# random network nobs = %s' % nobs)
 if nobs == nx*ny//2: fixed=True # used fixed network for obs every other grid point
-  
-oberrvar = oberrstdev**2*np.ones((2*nobs),np.float32)
-pvob = np.empty((2,nobs),np.float32)
+oberrvar = oberrstdev**2*np.ones(nobs,np.float32)
+pvob = np.empty(nobs,np.float32)
 covlocal = np.empty((ny,nx),np.float32)
-covlocal_tmp = np.empty((2*nobs,nx*ny),np.float32)
-
+covlocal_tmp = np.empty((nobs,nx*ny),np.float32)
 xens = np.empty((nanals,2,nx*ny),np.float32)
 if not use_letkf:
     obcovlocal = np.empty((nobs,nobs),np.float32)
@@ -153,7 +151,6 @@ else:
 #    dist = cartdist(x1[n],y1[n],x1,y1,nc_climo.L,nc_climo.L)
 #    covlocal_modelspace[n,:] = gaspcohn(dist/hcovlocal_scale)
 
-
 obtimes = nc_truth.variables['t'][:]
 if read_restart:
     timeslist = obtimes.tolist()
@@ -164,7 +161,7 @@ else:
 assim_interval = obtimes[1]-obtimes[0]
 assim_timesteps = int(np.round(assim_interval/models[0].dt))
 print('# assim interval = %s secs (%s time steps)' % (assim_interval,assim_timesteps))
-print('# ntime,pverr_a,pvsprd_a,pverr_b,pvsprd_b,obfits_b,osprd_b+R,obbias_b,inflation,tr(P^a)/tr(P^b)')
+print('# ntime,pverr_a,pvsprd_a,pverr_b,pvsprd_b,meanpverr_b,meanpvsprd_b,obfits_b,osprd_b+R,obbias_b,inflation,tr(P^a)/tr(P^b)')
 
 # initialize model clock
 for nanal in range(nanals):
@@ -206,7 +203,7 @@ if savedata is not None:
    pv_a.units = 'K'
    pv_b.units = 'K'
    inf = nc.createVariable('inflation',np.float32,('t','z','y','x'),zlib=True)
-   pv_obs = nc.createVariable('obs',np.float32,('t','z','obs'))
+   pv_obs = nc.createVariable('obs',np.float32,('t','obs'))
    x_obs = nc.createVariable('x_obs',np.float32,('t','obs'))
    y_obs = nc.createVariable('y_obs',np.float32,('t','obs'))
    # eady pv scaled by g/(f*theta0) so du/dz = d(pv)/dy
@@ -257,11 +254,11 @@ for ntime in range(nassim):
         else:
             mask[0:ny:nskip,0:nx:nskip] = True
         indxob = np.flatnonzero(mask)
-    # boundary temp obs
-    for k in range(2):
-        # surface temp obs
-        pvob[k] = scalefact*pv_truth[ntime+ntstart,k,:,:].ravel()[indxob]
-        pvob[k] += rsobs.normal(scale=oberrstdev,size=nobs) # add ob errors
+    # mean temp obs
+    pvspec_truth = rfft2(pv_truth[ntime+ntstart])
+    meanpv_truth = irfft2(models[0].meantemp(pvspec=pvspec_truth))
+    pvob = scalefact*meanpv_truth.ravel()[indxob]
+    pvob += rsobs.normal(scale=oberrstdev,size=nobs) # add ob errors
     xob = x.ravel()[indxob]; yob = y.ravel()[indxob]
     # compute covariance localization function for each ob
     if not fixed or ntime == 0:
@@ -271,7 +268,6 @@ for ntime in range(nassim):
             covlocal_tmp[nob] = covlocal.ravel()
             dist = cartdist(xob[nob],yob[nob],xob,yob,nc_climo.L,nc_climo.L)
             if not use_letkf: obcovlocal[nob] = gaspcohn(dist/hcovlocal_scale)
-        covlocal_tmp[nobs:2*nobs] = covlocal_tmp[0:nobs]
 
     # first-guess spread (need later to compute inflation factor)
     pvensmean = pvens.mean(axis=0)
@@ -303,15 +299,18 @@ for ntime in range(nassim):
 
     # compute forward operator on modulated ensemble.
     # hxens is ensemble in observation space.
-    hxens = np.empty((nanals,2,nobs),np.float32)
-    hxens2 = np.empty((nanals2,2,nobs),np.float32)
-
+    hxens = np.empty((nanals,nobs),np.float32)
+    hxens2 = np.empty((nanals2,nobs),np.float32)
+    meanpvens = np.zeros((nanals,ny,nx),np.float32)
     for nanal in range(nanals):
-        for k in range(2):
-            hxens[nanal,k,...] = scalefact*pvens[nanal,k,...].ravel()[indxob] # surface pv obs
+        pvspec = rfft2(pvens[nanal])
+        meanpv = irfft2(models[0].meantemp(pvspec=pvspec))
+        meanpvens[nanal] = meanpv
+        hxens[nanal,...] = scalefact*meanpv.ravel()[indxob] # mean temp obs
     for nanal in range(nanals2):
-        for k in range(2):
-            hxens2[nanal,k,...] = scalefact*pvens2[nanal,k,...].ravel()[indxob] # surface pv obs
+        pvspec = rfft2(pvens2[nanal])
+        meanpv = irfft2(models[0].meantemp(pvspec=pvspec))
+        hxens2[nanal,...] = scalefact*meanpv.ravel()[indxob] # mean temp obs
     hxensmean_b = hxens.mean(axis=0)
     obsprd = ((hxens-hxensmean_b)**2).sum(axis=0)/(nanals-1)
     # innov stats for background
@@ -320,8 +319,11 @@ for ntime in range(nassim):
     obbias_b = obfits.mean()
     obsprd_b = obsprd.mean()
     pvensmean_b = pvens.mean(axis=0).copy()
+    meanpvensmean_b = meanpvens.mean(axis=0)
     pverr_b = (scalefact*(pvensmean_b-pv_truth[ntime+ntstart]))**2
+    meanpverr_b = (scalefact*(meanpvensmean_b-meanpv_truth))**2
     pvsprd_b = ((scalefact*(pvensmean_b-pvens))**2).sum(axis=0)/(nanals-1)
+    meanpvsprd_b = ((scalefact*(meanpvensmean_b-meanpvens))**2).sum(axis=0)/(nanals-1)
 
     if savedata is not None:
         if savedata == 'restart' and ntime != nassim-1:
@@ -339,12 +341,9 @@ for ntime in range(nassim):
     xens2 = pvens2.reshape(nanals2,2,nx*ny)
 
     # update state vector.
-
     # hxens,pvob are in PV units, xens is not
     xens =\
-    enkf_update(xens,xens2,hxens.reshape(nanals,2*nobs),hxens2.reshape(nanals2,2*nobs),\
-    pvob.reshape(2*nobs),oberrvar,covlocal_tmp,obcovlocal=obcovlocal)
-
+    enkf_update(xens,xens2,hxens,hxens2,pvob,oberrvar,covlocal_tmp,obcovlocal=obcovlocal)
     # back to 3d state vector
     pvens = xens.reshape((nanals,2,ny,nx))
     t2 = time.time()
@@ -364,9 +363,10 @@ for ntime in range(nassim):
     # print out analysis error, spread and innov stats for background
     pverr_a = (scalefact*(pvensmean_a-pv_truth[ntime+ntstart]))**2
     pvsprd_a = ((scalefact*(pvensmean_a-pvens))**2).sum(axis=0)/(nanals-1)
-    print("%s %g %g %g %g %g %g %g %g %g" %\
+    print("%s %g %g %g %g %g %g %g %g %g %g %g" %\
     (ntime+ntstart,np.sqrt(pverr_a.mean()),np.sqrt(pvsprd_a.mean()),\
      np.sqrt(pverr_b.mean()),np.sqrt(pvsprd_b.mean()),\
+     np.sqrt(meanpverr_b.mean()),np.sqrt(meanpvsprd_b.mean()),
      np.sqrt(obfits_b),np.sqrt(obsprd_b+oberrstdev**2),obbias_b,
      inflation_factor.mean(),asprd_over_fsprd))
 
