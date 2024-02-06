@@ -133,7 +133,7 @@ covlocal_tmp = np.empty((2*nobs,nx*ny),np.float32)
 
 xens = np.empty((nanals,2,nx*ny),np.float32)
 if not use_letkf:
-    obcovlocal = np.empty((nobs,nobs),np.float32)
+    obcovlocal = np.empty((2*nobs,2*nobs),np.float32)
 else:
     obcovlocal = None
 
@@ -152,7 +152,6 @@ else:
 #for n in range(nx*ny):
 #    dist = cartdist(x1[n],y1[n],x1,y1,nc_climo.L,nc_climo.L)
 #    covlocal_modelspace[n,:] = gaspcohn(dist/hcovlocal_scale)
-
 
 obtimes = nc_truth.variables['t'][:]
 if read_restart:
@@ -270,7 +269,10 @@ for ntime in range(nassim):
             covlocal = gaspcohn(dist/hcovlocal_scale)
             covlocal_tmp[nob] = covlocal.ravel()
             dist = cartdist(xob[nob],yob[nob],xob,yob,nc_climo.L,nc_climo.L)
-            if not use_letkf: obcovlocal[nob] = gaspcohn(dist/hcovlocal_scale)
+            if not use_letkf: obcovlocal[nob,0:nobs] = gaspcohn(dist/hcovlocal_scale)
+        obcovlocal[nobs:2*nobs,0:nobs] = obcovlocal[0:nobs,0:nobs]
+        obcovlocal[nobs:2*nobs,nobs:2*nobs] = obcovlocal[0:nobs,0:nobs]
+        obcovlocal[0:nobs,nobs:2*nobs] = obcovlocal[0:nobs,0:nobs]
         covlocal_tmp[nobs:2*nobs] = covlocal_tmp[0:nobs]
 
     # first-guess spread (need later to compute inflation factor)
