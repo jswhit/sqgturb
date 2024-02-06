@@ -107,8 +107,8 @@ print("# hcovlocal=%g vcovlocal=%g diff_efold=%s covinfate=%s nanals=%s" %\
 # if nobs > 0, each ob time nobs ob locations are randomly sampled (without
 # replacement) from the model grid
 # if nobs < 0, fixed network of every Nth grid point used (N = -nobs)
-nobs = nx*ny//4 # number of obs to assimilate (randomly distributed)
-#nobs = -1 # fixed network, every -nobs grid points. nobs=-1 obs at all pts.
+#nobs = nx*ny//4 # number of obs to assimilate (randomly distributed)
+nobs = -1 # fixed network, every -nobs grid points. nobs=-1 obs at all pts.
 
 # nature run
 nc_truth = Dataset(filename_truth)
@@ -125,7 +125,7 @@ else:
     fixed = False
     print('# random network nobs = %s' % nobs)
 if nobs == nx*ny//2: fixed=True # used fixed network for obs every other grid point
-  
+
 oberrvar = oberrstdev**2*np.ones((2*nobs),np.float32)
 pvob = np.empty((2,nobs),np.float32)
 covlocal = np.empty((ny,nx),np.float32)
@@ -295,7 +295,7 @@ for ntime in range(nassim):
     # check modulation works
     #crosscov1 = (pvprime[:,0,...]*pvprime[:,1,...]).sum(axis=0)/(nanals-1)
     #crosscov2 = (pvprime2[:,0,...]*pvprime2[:,1,...]).sum(axis=0)/(nanals-1)
-    #print(vcovlocal_factt,(crosscov2/crosscov1).mean()) # should be the same
+    #print(vcovlocal_fact,(crosscov2/crosscov1).mean()) # should be the same
     #raise SystemExit
 
     fsprd = (pvprime**2).sum(axis=0)/(nanals-1)

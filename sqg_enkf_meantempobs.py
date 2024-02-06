@@ -291,7 +291,7 @@ for ntime in range(nassim):
     # check modulation works
     #crosscov1 = (pvprime[:,0,...]*pvprime[:,1,...]).sum(axis=0)/(nanals-1)
     #crosscov2 = (pvprime2[:,0,...]*pvprime2[:,1,...]).sum(axis=0)/(nanals-1)
-    #print(vcovlocal_factt,(crosscov2/crosscov1).mean()) # should be the same
+    #print(vcovlocal_fact,(crosscov2/crosscov1).mean()) # should be the same
     #raise SystemExit
 
     fsprd = (pvprime**2).sum(axis=0)/(nanals-1)
