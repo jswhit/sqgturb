@@ -53,9 +53,9 @@ nanals = 20 # ensemble members
 oberrstdev = 1. # ob error standard deviation in K
 
 # nature run created using sqg_run.py.
-filename_climo = 'sqgu17p5_N64_6hrly.nc' # file name for forecast model climo
+filename_climo = 'sqg_N64_6hrly.nc' # file name for forecast model climo
 # perfect model
-filename_truth = 'sqgu17p5_N64_6hrly.nc' # file name for nature run to draw obs
+filename_truth = 'sqg_N64_6hrly.nc' # file name for nature run to draw obs
 #filename_truth = 'sqg_N256_N96_12hrly.nc' # file name for nature run to draw obs
 
 print('# filename_modelclimo=%s' % filename_climo)
