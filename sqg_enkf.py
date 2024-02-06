@@ -270,9 +270,10 @@ for ntime in range(nassim):
             covlocal_tmp[nob] = covlocal.ravel()
             dist = cartdist(xob[nob],yob[nob],xob,yob,nc_climo.L,nc_climo.L)
             if not use_letkf: obcovlocal[nob,0:nobs] = gaspcohn(dist/hcovlocal_scale)
-        obcovlocal[nobs:2*nobs,0:nobs] = obcovlocal[0:nobs,0:nobs]
-        obcovlocal[nobs:2*nobs,nobs:2*nobs] = obcovlocal[0:nobs,0:nobs]
-        obcovlocal[0:nobs,nobs:2*nobs] = obcovlocal[0:nobs,0:nobs]
+        if not use_letkf:
+            obcovlocal[nobs:2*nobs,0:nobs] = obcovlocal[0:nobs,0:nobs]
+            obcovlocal[nobs:2*nobs,nobs:2*nobs] = obcovlocal[0:nobs,0:nobs]
+            obcovlocal[0:nobs,nobs:2*nobs] = obcovlocal[0:nobs,0:nobs]
         covlocal_tmp[nobs:2*nobs] = covlocal_tmp[0:nobs]
 
     # first-guess spread (need later to compute inflation factor)
