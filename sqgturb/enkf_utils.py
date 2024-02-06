@@ -66,6 +66,7 @@ def enkf_update(
             # state space update
             # only update points closer than localization radius to ob
             mask = covlocal[nob, :] > 1.0e-10
+
             for k in range(2):
                 pbht = (xprime2[:, k, mask].T * hxens2).sum(axis=1) / float(
                     nanals - 1

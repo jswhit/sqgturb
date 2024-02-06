@@ -53,9 +53,9 @@ nanals = 20 # ensemble members
 oberrstdev = 1. # ob error standard deviation in K
 
 # nature run created using sqg_run.py.
-filename_climo = 'sqgu17p5_N64_6hrly.nc' # file name for forecast model climo
+filename_climo = 'sqg_N64_6hrly.nc' # file name for forecast model climo
 # perfect model
-filename_truth = 'sqgu17p5_N64_6hrly.nc' # file name for nature run to draw obs
+filename_truth = 'sqg_N64_6hrly.nc' # file name for nature run to draw obs
 #filename_truth = 'sqg_N256_N96_12hrly.nc' # file name for nature run to draw obs
 
 print('# filename_modelclimo=%s' % filename_climo)
@@ -63,7 +63,7 @@ print('# filename_truth=%s' % filename_truth)
 
 # fix random seed for reproducibility.
 rsobs = np.random.RandomState(42) # fixed seed for observations
-rsics = np.random.RandomState(24) # varying seed for initial conditions
+rsics = np.random.RandomState() # varying seed for initial conditions
 
 # get model info
 nc_climo = Dataset(filename_climo)
@@ -108,7 +108,6 @@ print("# hcovlocal=%g vcovlocal=%g diff_efold=%s covinfate=%s nanals=%s" %\
 # replacement) from the model grid
 # if nobs < 0, fixed network of every Nth grid point used (N = -nobs)
 nobs = nx*ny//4 # number of obs to assimilate (randomly distributed)
-#nobs = nx*ny//2 # fixed network, every other grid point, alternating e/w and n/s
 #nobs = -1 # fixed network, every -nobs grid points. nobs=-1 obs at all pts.
 
 # nature run
@@ -126,10 +125,12 @@ else:
     fixed = False
     print('# random network nobs = %s' % nobs)
 if nobs == nx*ny//2: fixed=True # used fixed network for obs every other grid point
+  
 oberrvar = oberrstdev**2*np.ones((2*nobs),np.float32)
 pvob = np.empty((2,nobs),np.float32)
 covlocal = np.empty((ny,nx),np.float32)
 covlocal_tmp = np.empty((2*nobs,nx*ny),np.float32)
+
 xens = np.empty((nanals,2,nx*ny),np.float32)
 if not use_letkf:
     obcovlocal = np.empty((nobs,nobs),np.float32)
@@ -151,6 +152,7 @@ else:
 #for n in range(nx*ny):
 #    dist = cartdist(x1[n],y1[n],x1,y1,nc_climo.L,nc_climo.L)
 #    covlocal_modelspace[n,:] = gaspcohn(dist/hcovlocal_scale)
+
 
 obtimes = nc_truth.variables['t'][:]
 if read_restart:
@@ -303,6 +305,7 @@ for ntime in range(nassim):
     # hxens is ensemble in observation space.
     hxens = np.empty((nanals,2,nobs),np.float32)
     hxens2 = np.empty((nanals2,2,nobs),np.float32)
+
     for nanal in range(nanals):
         for k in range(2):
             hxens[nanal,k,...] = scalefact*pvens[nanal,k,...].ravel()[indxob] # surface pv obs
@@ -336,10 +339,12 @@ for ntime in range(nassim):
     xens2 = pvens2.reshape(nanals2,2,nx*ny)
 
     # update state vector.
+
     # hxens,pvob are in PV units, xens is not
     xens =\
     enkf_update(xens,xens2,hxens.reshape(nanals,2*nobs),hxens2.reshape(nanals2,2*nobs),\
     pvob.reshape(2*nobs),oberrvar,covlocal_tmp,obcovlocal=obcovlocal)
+
     # back to 3d state vector
     pvens = xens.reshape((nanals,2,ny,nx))
     t2 = time.time()
