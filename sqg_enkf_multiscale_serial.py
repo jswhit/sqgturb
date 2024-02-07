@@ -84,7 +84,7 @@ if not read_restart:
 else:
     ncinit = Dataset('%s_restart.nc' % exptname, mode='r', format='NETCDF4_CLASSIC')
     ncinit.set_auto_mask(False)
-    pvens[:] = ncinit.variables['pv_b'][-1,...]/scalefact
+    pvens[:] = ncinit.variables['pv_b'][-1,0:nanals,...]/scalefact
     tstart = ncinit.variables['t'][-1]
     #for nanal in range(nanals):
     #    print(nanal, pvens[nanal].min(), pvens[nanal].max())
@@ -392,7 +392,7 @@ for ntime in range(nassim):
             # (linear regression of model priors on observation priors)
             obincrement = (hxmean_a + hxprime_a) - (hxmean_local[nob] + hxprime_local[:,nob])
             # state space
-            xprime_weighted = (squeezewts*(xprime[:,:,n].reshape(nlscales,nanals,2))).sum(axis=0)
+            xprime_weighted = (squeezewts[:,np.newaxis,np.newaxis]*(xprime[:,:,n].reshape(nlscales,nanals,2))).sum(axis=0)
             hxprime_weighted = (squeezewts[:,np.newaxis,np.newaxis]*(hxprime_local.reshape(nlscales,nanals,nobs_local))).sum(axis=0) 
             hpbht = (hxprime_weighted[:,nob]**2).sum(axis=0) / (nanals-1)
             for k in range(2):
