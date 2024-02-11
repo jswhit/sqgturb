@@ -37,7 +37,7 @@ def gaspcohn(r):
 
 
 def enkf_update(
-    xens, xens2, hxens, hxens2, obs, oberrs, covlocal, obcovlocal=None, gainform=False
+    xens, xens2, hxens, hxens2, obs, oberrs, covlocal, obcovlocal=None, serial=False 
 ):
     """serial potter method or LETKF (if obcovlocal is None)"""
 
@@ -88,7 +88,7 @@ def enkf_update(
 
         return xmean + xprime
 
-    else:  # LGETKF update
+    else:  # local volume update
 
         def calcwts(hx_orig, hx, Rinv, ominusf):
 
@@ -126,14 +126,66 @@ def enkf_update(
 
         for n in range(covlocal.shape[-1]):
             mask = covlocal[:,n] > 1.0e-10
-            Rinv = covlocal[mask, n] / oberrs[mask]
-            ominusf = (obs-hxmean)[mask]
-            wts_ensmean,wts_ensperts = calcwts(hxprime[:, mask], hxprime2[:, mask], Rinv, ominusf)
-            # increments constructed from weighted modulated ensemble member prior perts.
-            for k in range(2):
-                xmean[k,n] += np.dot(wts_ensmean,xprime2[:,k,n])
-                # use orig ens on lhs, mod ens on rhs
-                xprime[:,k,n] += np.dot(wts_ensperts,xprime2[:,k,n])
+            if serial: # serial update in local volume
+                # loop over obs in local region
+                nobs_local = mask.sum()
+                oberr_local = oberrs[mask]/covlocal[mask,n]
+                obs_local = obs[mask]
+                hxmean_local = hxmean[mask]
+                hxprime_local = hxprime[:,mask]
+                hxprime2_local = hxprime2[:,mask]
+                for nob, ob, oberr in zip(np.arange(nobs_local), obs_local, oberr_local):
+                    # step 1: update observed variable for ob being assimilated
+                    varob = (hxprime2_local[:,nob]**2).sum(axis=0)/(nanals-1)
+                    gainob = varob/(varob+oberr)
+                    hxmean_a = (1.-gainob)*hxmean_local[nob] + gainob*ob # linear interp
+                    hxprime_a = np.sqrt(1.-gainob)*hxprime_local[:,nob] # rescaling
+                    hxprime2_a = np.sqrt(1.-gainob)*hxprime2_local[:,nob] 
+                    # step 2: update model priors in state and ob space 
+                    # (linear regression of model priors on observation priors)
+                    obinc_mean = hxmean_a - hxmean_local[nob]
+                    obinc_prime = hxprime_a - hxprime_local[:,nob]
+                    obinc_prime2 = hxprime2_a - hxprime2_local[:,nob]
+                    # state space
+                    for k in range(2):
+                        pbht = (xprime2[:, k, n] * hxprime2_local[:,nob]).sum(axis=0) / (nanals-1)
+                        xmean[k, n] +=  (pbht/varob)*obinc_mean
+                        xprime[:, k, n] += (pbht/varob)*obinc_prime
+                        xprime2[:, k, n] += (pbht/varob)*obinc_prime2
+                    # ob space (only really need to update obs not yet assimilated)
+                    pbht = (hxprime2_local[:,nob:] * hxprime2_local[:,nob][:,np.newaxis]).sum(axis=0) / (nanals-1)
+                    hxmean_local[nob:] += (pbht/varob)*obinc_mean
+                    hxprime_local[:,nob:] += (pbht[np.newaxis,:]/varob)*obinc_prime[:,np.newaxis]
+                    hxprime2_local[:,nob:] += (pbht[np.newaxis,:]/varob)*obinc_prime2[:,np.newaxis]
+                    #ominusf = ob - hxmean_local[nob]
+                    #hpbht = (hxprime2_local[:,nob] ** 2).sum(axis=0) / (nanals - 1)
+                    #gainfact = (
+                    #    (hpbht + oberr)
+                    #    / hpbht
+                    #    * (1.0 - np.sqrt(oberr / (hpbht + oberr)))
+                    #)
+                    ## state space update
+                    #for k in range(2):
+                    #    pbht = (xprime2[:, k, n] * hxprime2_local[:,nob]).sum(axis=0) / (nanals - 1)
+                    #    kfgain = pbht / (hpbht + oberr)
+                    #    xmean[k, n] += kfgain*ominusf
+                    #    xprime[:, k, n] -= gainfact * kfgain * hxprime_local[:,nob]
+                    #    xprime2[:, k, n] -= gainfact * kfgain * hxprime2_local[:,nob]
+                    ## only update obs within localization radius
+                    #pbht = (hxprime2_local[:, nob:]*hxprime2_local[:,nob][:,np.newaxis]).sum(axis=0) / (nanals-1)
+                    #kfgain = pbht / (hpbht + oberr)
+                    #hxmean_local[nob:] += kfgain * ominusf
+                    #hxprime_local[:, nob:]  -= gainfact * kfgain * hxprime_local[:,nob][:,np.newaxis]
+                    #hxprime2_local[:, nob:]  -= gainfact * kfgain * hxprime2_local[:,nob][:,np.newaxis]
+            else: # LGETKF update
+                Rinv = covlocal[mask, n] / oberrs[mask]
+                ominusf = (obs-hxmean)[mask]
+                wts_ensmean,wts_ensperts = calcwts(hxprime[:, mask], hxprime2[:, mask], Rinv, ominusf)
+                # increments constructed from weighted modulated ensemble member prior perts.
+                for k in range(2):
+                    xmean[k,n] += np.dot(wts_ensmean,xprime2[:,k,n])
+                    # use orig ens on lhs, mod ens on rhs
+                    xprime[:,k,n] += np.dot(wts_ensperts,xprime2[:,k,n])
             xens[:,:,n] = xmean[:,n]+xprime[:,:,n]
 
         return xens

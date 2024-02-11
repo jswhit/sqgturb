@@ -36,7 +36,8 @@ diff_efold = None # use diffusion from climo file
 
 profile = False # turn on profiling?
 
-use_letkf = True  # use LGETKF, otherwise use serial EnSRF
+local_volume = True  # use local volume solver (serial or LGETKF), otherwise use serial EnSRF
+local_volume_serial = False # if local_volume=T, use serial solver instead of LGETKF
 read_restart = False
 # if savedata not None, netcdf filename will be defined by env var 'exptname'
 # if savedata = 'restart', only last time is saved (so expt can be restarted)
@@ -53,9 +54,9 @@ nanals = 20 # ensemble members
 oberrstdev = 1. # ob error standard deviation in K
 
 # nature run created using sqg_run.py.
-filename_climo = 'sqg_N64_6hrly.nc' # file name for forecast model climo
+filename_climo = 'sqgu20_N64_6hrly.nc' # file name for forecast model climo
 # perfect model
-filename_truth = 'sqg_N64_6hrly.nc' # file name for nature run to draw obs
+filename_truth = 'sqgu20_N64_6hrly.nc' # file name for nature run to draw obs
 #filename_truth = 'sqg_N256_N96_12hrly.nc' # file name for nature run to draw obs
 
 print('# filename_modelclimo=%s' % filename_climo)
@@ -63,7 +64,7 @@ print('# filename_truth=%s' % filename_truth)
 
 # fix random seed for reproducibility.
 rsobs = np.random.RandomState(42) # fixed seed for observations
-rsics = np.random.RandomState() # varying seed for initial conditions
+rsics = np.random.RandomState(24) # varying seed for initial conditions
 
 # get model info
 nc_climo = Dataset(filename_climo)
@@ -100,40 +101,28 @@ for nanal in range(nanals):
     diff_order=nc_climo.diff_order,diff_efold=diff_efold,threads=threads))
 if read_restart: ncinit.close()
 
-print('# use_letkf=%s' % (use_letkf))
+print('# local_volume=%s' % (local_volume))
 print("# hcovlocal=%g vcovlocal=%g diff_efold=%s covinfate=%s nanals=%s" %\
      (hcovlocal_scale/1000.,vcovlocal_fact,diff_efold,covinflate,nanals))
 
-# if nobs > 0, each ob time nobs ob locations are randomly sampled (without
+# each ob time nobs ob locations are randomly sampled (without
 # replacement) from the model grid
-# if nobs < 0, fixed network of every Nth grid point used (N = -nobs)
-#nobs = nx*ny//4 # number of obs to assimilate (randomly distributed)
-nobs = -1 # fixed network, every -nobs grid points. nobs=-1 obs at all pts.
+nobs = 2*nx*ny//8 # number of obs to assimilate (randomly distributed)
 
 # nature run
 nc_truth = Dataset(filename_truth)
 pv_truth = nc_truth.variables['pv']
 # set up arrays for obs and localization function
-if nobs < 0:
-    nskip = -nobs
-    if (nx*ny)%nobs != 0:
-        raise ValueError('nx*ny must be divisible by nobs')
-    nobs = (nx*ny)//nskip**2
-    print('# fixed network nobs = %s' % nobs)
-    fixed = True
-else:
-    fixed = False
-    print('# random network nobs = %s' % nobs)
-if nobs == nx*ny//2: fixed=True # used fixed network for obs every other grid point
+print('# random network nobs = %s' % nobs)
 
-oberrvar = oberrstdev**2*np.ones((2*nobs),np.float32)
-pvob = np.empty((2,nobs),np.float32)
+oberrvar = oberrstdev**2*np.ones(nobs,np.float32)
+pvob = np.empty(nobs,np.float32)
 covlocal = np.empty((ny,nx),np.float32)
-covlocal_tmp = np.empty((2*nobs,nx*ny),np.float32)
+covlocal_tmp = np.empty((nobs,nx*ny),np.float32)
 
 xens = np.empty((nanals,2,nx*ny),np.float32)
-if not use_letkf:
-    obcovlocal = np.empty((2*nobs,2*nobs),np.float32)
+if not local_volume:
+    obcovlocal = np.empty((nobs,nobs),np.float32)
 else:
     obcovlocal = None
 
@@ -144,14 +133,6 @@ else:
     vloc = np.array([(1,vcovlocal_fact),(vcovlocal_fact,1)],np.float32)
     evals, evecs = eigh(vloc)
     vcovlocal_sqrt = np.dot(evecs, np.diag(np.sqrt(evals)))
-
-# model-space horizontal localization matrix
-#n = 0
-#covlocal_modelspace = np.empty((nx*ny,nx*ny),np.float32)
-#x1 = x.reshape(nx*ny); y1 = y.reshape(nx*ny)
-#for n in range(nx*ny):
-#    dist = cartdist(x1[n],y1[n],x1,y1,nc_climo.L,nc_climo.L)
-#    covlocal_modelspace[n,:] = gaspcohn(dist/hcovlocal_scale)
 
 obtimes = nc_truth.variables['t'][:]
 if read_restart:
@@ -238,43 +219,18 @@ for ntime in range(nassim):
         (models[0].t, obtimes[ntime+ntstart]))
 
     t1 = time.time()
-    if not fixed:
-        # randomly choose points from model grid
-        if nobs == nx*ny:
-            indxob = np.arange(nx*ny)
-        else:
-            indxob = np.sort(rsobs.choice(nx*ny,nobs,replace=False))
-    else:
-        mask = np.zeros((ny,nx),np.bool_)
-        # if every other grid point observed, shift every other time step
-        # so every grid point is observed in 2 cycles.
-        if nobs == nx*ny//2:
-            if ntime%2:
-                mask[0:ny,1:nx:2] = True
-            else:
-                mask[0:ny,0:nx:2] = True
-        else:
-            mask[0:ny:nskip,0:nx:nskip] = True
-        indxob = np.flatnonzero(mask)
-    # boundary temp obs
-    for k in range(2):
-        # surface temp obs
-        pvob[k] = scalefact*pv_truth[ntime+ntstart,k,:,:].ravel()[indxob]
-        pvob[k] += rsobs.normal(scale=oberrstdev,size=nobs) # add ob errors
-    xob = x.ravel()[indxob]; yob = y.ravel()[indxob]
+    indxob = np.sort(rsobs.choice(2*nx*ny,nobs,replace=False))
+    pvob = scalefact*pv_truth[ntime+ntstart,...].reshape(2*nx*ny)[indxob]
+    pvob += rsobs.normal(scale=oberrstdev,size=nobs) # add ob errors
+    xob = np.concatenate((x.ravel(),x.ravel()))[indxob]
+    yob = np.concatenate((y.ravel(),y.ravel()))[indxob]
     # compute covariance localization function for each ob
-    if not fixed or ntime == 0:
-        for nob in range(nobs):
-            dist = cartdist(xob[nob],yob[nob],x,y,nc_climo.L,nc_climo.L)
-            covlocal = gaspcohn(dist/hcovlocal_scale)
-            covlocal_tmp[nob] = covlocal.ravel()
-            dist = cartdist(xob[nob],yob[nob],xob,yob,nc_climo.L,nc_climo.L)
-            if not use_letkf: obcovlocal[nob,0:nobs] = gaspcohn(dist/hcovlocal_scale)
-        if not use_letkf:
-            obcovlocal[nobs:2*nobs,0:nobs] = obcovlocal[0:nobs,0:nobs]
-            obcovlocal[nobs:2*nobs,nobs:2*nobs] = obcovlocal[0:nobs,0:nobs]
-            obcovlocal[0:nobs,nobs:2*nobs] = obcovlocal[0:nobs,0:nobs]
-        covlocal_tmp[nobs:2*nobs] = covlocal_tmp[0:nobs]
+    for nob in range(nobs):
+        dist = cartdist(xob[nob],yob[nob],x,y,nc_climo.L,nc_climo.L)
+        covlocal = gaspcohn(dist/hcovlocal_scale)
+        covlocal_tmp[nob] = covlocal.ravel()
+        dist = cartdist(xob[nob],yob[nob],xob,yob,nc_climo.L,nc_climo.L)
+        if not local_volume: obcovlocal[nob,:] = gaspcohn(dist/hcovlocal_scale)
 
     # first-guess spread (need later to compute inflation factor)
     pvensmean = pvens.mean(axis=0)
@@ -306,15 +262,13 @@ for ntime in range(nassim):
 
     # compute forward operator on modulated ensemble.
     # hxens is ensemble in observation space.
-    hxens = np.empty((nanals,2,nobs),np.float32)
-    hxens2 = np.empty((nanals2,2,nobs),np.float32)
+    hxens = np.empty((nanals,nobs),np.float32)
+    hxens2 = np.empty((nanals2,nobs),np.float32)
 
     for nanal in range(nanals):
-        for k in range(2):
-            hxens[nanal,k,...] = scalefact*pvens[nanal,k,...].ravel()[indxob] # surface pv obs
+        hxens[nanal] = scalefact*pvens[nanal,...].reshape(2*nx*ny)[indxob] # surface pv obs
     for nanal in range(nanals2):
-        for k in range(2):
-            hxens2[nanal,k,...] = scalefact*pvens2[nanal,k,...].ravel()[indxob] # surface pv obs
+        hxens2[nanal] = scalefact*pvens2[nanal,...].reshape(2*nx*ny)[indxob] # surface pv obs
     hxensmean_b = hxens.mean(axis=0)
     obsprd = ((hxens-hxensmean_b)**2).sum(axis=0)/(nanals-1)
     # innov stats for background
@@ -344,9 +298,7 @@ for ntime in range(nassim):
     # update state vector.
 
     # hxens,pvob are in PV units, xens is not
-    xens =\
-    enkf_update(xens,xens2,hxens.reshape(nanals,2*nobs),hxens2.reshape(nanals2,2*nobs),\
-    pvob.reshape(2*nobs),oberrvar,covlocal_tmp,obcovlocal=obcovlocal)
+    xens = enkf_update(xens,xens2,hxens,hxens2,pvob,oberrvar,covlocal_tmp,obcovlocal=obcovlocal,serial=local_volume_serial)
 
     # back to 3d state vector
     pvens = xens.reshape((nanals,2,ny,nx))
