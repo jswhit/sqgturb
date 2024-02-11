@@ -42,11 +42,11 @@ read_restart = False
 # if savedata not None, netcdf filename will be defined by env var 'exptname'
 # if savedata = 'restart', only last time is saved (so expt can be restarted)
 #savedata = True
-savedata = 'restart'
-#savedata = None
-nassim = 101
+#savedata = 'restart'
+savedata = None
+#nassim = 101
 #nassim_spinup = 1
-#nassim = 200 # assimilation times to run
+nassim = 200 # assimilation times to run
 nassim_spinup = 100
 
 nanals = 20 # ensemble members
@@ -106,39 +106,27 @@ print("# hcovlocal=%s diff_efold=%s covinflate=%s nanals=%s" %\
      (repr(hcovlocal_scales_km),diff_efold,covinflate,nanals))
 print('# band_cutoffs=%s' % repr(band_cutoffs))
 
-# if nobs > 0, each ob time nobs ob locations are randomly sampled (without
+# each ob time nobs ob locations are randomly sampled (without
 # replacement) from the model grid
-# if nobs < 0, fixed network of every Nth grid point used (N = -nobs)
 nobs = nx*ny//4 # number of obs to assimilate (randomly distributed)
-#nobs = -1 # fixed network, every -nobs grid points. nobs=-1 obs at all pts.
 
 # nature run
 nc_truth = Dataset(filename_truth)
 pv_truth = nc_truth.variables['pv']
-# set up arrays for obs and localization function
-if nobs < 0:
-    nskip = -nobs
-    if (nx*ny)%nobs != 0:
-        raise ValueError('nx*ny must be divisible by nobs')
-    nobs = (nx*ny)//nskip**2
-    print('# fixed network nobs = %s' % nobs)
-    fixed = True
-else:
-    fixed = False
-    print('# random network nobs = %s' % nobs)
-if nobs == nx*ny//2: fixed=True # used fixed network for obs every other grid point
 oberrvar = oberrstdev**2*np.ones(nobs,np.float32)
-pvob = np.empty((2,nobs),np.float32)
+pvob = np.empty(nobs,np.float32)
 xens = np.empty((nanals,2,nx*ny),np.float32)
 
 # model-space localization matrix (only needed for Z localization)
 n = 0
-covlocal_modelspace = np.empty((nlscales,nx*ny,nx*ny),np.float32)
+covlocal_modelspace = np.empty((nlscales,2*nx*ny,nx*ny),np.float32)
 x1 = x.reshape(nx*ny); y1 = y.reshape(nx*ny)
+x2 = np.concatenate((x.reshape(nx*ny),x.reshape(nx*ny)))
+y2 = np.concatenate((y.reshape(nx*ny),y.reshape(nx*ny)))
 mincovlocal = np.finfo(np.float32).eps
 for nscale in range(nlscales):
-   for n in range(nx*ny):
-       dist = cartdist(x1[n],y1[n],x1,y1,nc_climo.L,nc_climo.L)
+   for n in range(2*nx*ny):
+       dist = cartdist(x2[n],y2[n],x1,y1,nc_climo.L,nc_climo.L)
        covlocal_modelspace[nscale,n,:] = \
        np.clip(gaspcohn(dist/hcovlocal_scales[nscale]),a_min=mincovlocal,a_max=None)
 
@@ -213,31 +201,6 @@ if savedata is not None:
    zvar[0] = 0; zvar[1] = models[0].H
    ensvar[:] = np.arange(1,nanals+1)
 
-# forward operator.
-# hxens is ensemble in observation space.
-def hofx(x,indxob,model):
-    # given temp at boundaries, compute forward operator
-    # (specified by indxob)
-    nanals = x.shape[0]
-    scalefact = model.f*model.theta0/model.g
-    if indxob.dtype == np.bool_:
-        nobs = indxob.sum()
-    else:
-        nobs = len(indxob)
-    if x.ndim < 4:
-        nxny = x.shape[2]
-        ny = int(np.sqrt(nxny)); nx = ny # grid is square
-        pvens = x.reshape(nanals,2,ny,nx)
-    else:
-        ny = x.shape[2]; nx = x.shape[3]
-        nxny = ny*nx
-        pvens = x
-    hxens = np.empty((nanals,2,nobs),np.float32)
-    for nanal in range(nanals):
-        for k in range(2):
-            hxens[nanal,k,...] = scalefact*pvens[nanal,k,...].ravel()[indxob] # surface pv obs
-    return hxens.squeeze()
-
 # initialize kinetic energy error/spread spectra
 kespec_errmean = None; kespec_sprdmean = None
 
@@ -255,34 +218,18 @@ for ntime in range(nassim):
         (models[0].t, obtimes[ntime+ntstart]))
 
     t1 = time.time()
-    if not fixed:
-        # randomly choose points from model grid
-        if nobs == nx*ny:
-            indxob = np.arange(nx*ny)
-        else:
-            indxob = np.sort(rsobs.choice(nx*ny,nobs,replace=False))
-    else:
-        mask = np.zeros((ny,nx),np.bool_)
-        # if every other grid point observed, shift every other time step
-        # so every grid point is observed in 2 cycles.
-        if nobs == nx*ny//2:
-            if ntime%2:
-                mask[0:ny,1:nx:2] = True
-            else:
-                mask[0:ny,0:nx:2] = True
-        else:
-            mask[0:ny:nskip,0:nx:nskip] = True
-        indxob = np.flatnonzero(mask)
 
-    # mean temp obs
-    pvob = hofx(pv_truth[ntime+ntstart].reshape((1,2,ny,nx)),indxob,models[0])
+    indxob = np.sort(rsobs.choice(2*nx*ny,nobs,replace=False))
+    pvob = scalefact*pv_truth[ntime+ntstart,...].reshape(2*nx*ny)[indxob]
     pvob += rsobs.normal(scale=oberrstdev,size=nobs) # add ob errors
-    xob = x1[indxob]; yob = y1[indxob]
+    xob = x2[indxob]; yob = y2[indxob]
 
     # first-guess spread (need later to compute inflation factor)
     fsprd = ((pvens - pvens.mean(axis=0))**2).sum(axis=0)/(nanals-1)
 
-    hxens = hofx(pvens,indxob,models[0])
+    hxens = np.empty((nanals,nobs),np.float32)
+    for nanal in range(nanals):
+        hxens[nanal] = scalefact*pvens[nanal,...].reshape(2*nx*ny)[indxob] # surface pv obs
     hxensmean_b = hxens.mean(axis=0)
     hxprime_b = hxens-hxensmean_b
     obsprd = (hxprime_b**2).sum(axis=0)/(nanals-1)
@@ -334,9 +281,6 @@ for ntime in range(nassim):
     xmean_b = xmean.copy()
     xprime_b = xprime.copy()
 
-    # compute ob space perturbations with filtered state vector
-    hxprime_b = hofx(xprime_b, indxob, models[0])
-
     # update state vector.
     # hxens,pvob are in PV units, xens is not
 
@@ -347,32 +291,22 @@ for ntime in range(nassim):
         distob = cartdist(x1[n],y1[n],xob,yob,nc_climo.L,nc_climo.L)
         obindx = distob < np.abs(hcovlocal_scales[0])
         nobs_local = obindx.sum()
-        obs_local = []; hxmean_local = []
-        for k in range(2):
-            obs_local.append(pvob[k,obindx])
-            hxmean_local.append(hxensmean_b[k,obindx])
-        obs_local = np.asarray(obs_local); hxmean_local = np.asarray(hxmean_local)
-        obs_local = obs_local.reshape(2*nobs_local)
-        hxmean_local = hxmean_local.reshape(2*nobs_local)
         squeezefact=[]
         for nlscale in range(nlscales):
             squeezefact.append( np.sqrt(covlocal_modelspace[nlscale,:,n]) )
         squeezefact = np.asarray(squeezefact)
         # squeeze' in ob space
-        hxprime_local = (hxprime_b[:,:,obindx]).reshape(nanals, 2*nobs_local)
-        oberrtmp = oberrvar[obindx]
-        oberr_local = np.concatenate((oberrtmp, oberrtmp))
+        hxprime_local = hxprime_b[:,obindx]
+        oberr_local = oberrvar[obindx]
+        obs_local = pvob[obindx]
+        hxmean_local = hxensmean_b[obindx]
         # loop over obs in local region
-        for nob, ob, oberr in zip(np.arange(2*nobs_local), obs_local, oberr_local):
-            if nob < nobs_local:
-                nobx = nob
-            else:
-                nobx = nob-nobs_local
+        for nob, ob, oberr in zip(np.arange(nobs_local), obs_local, oberr_local):
             # squeeze ob space
             squeezewts_norm = 0.
             for nlscale in range(nlscales):
                 nanal1=nlscale*nanals; nanal2=(nlscale+1)*nanals
-                obsqueezefact = squeezefact[nlscale,indxob[obindx]][nobx]
+                obsqueezefact = squeezefact[nlscale,indxob[obindx]][nob]
                 squeezewts[nlscale] = obsqueezefact
                 squeezewts_norm += squeezewts[nlscale]**2
                 hxprime_localsqueeze[nanal1:nanal2] = obsqueezefact*hxprime_local[nanal1:nanal2,nob]
@@ -389,7 +323,7 @@ for ntime in range(nassim):
             obinc_prime = hxprime_a - hxprime_local[:,nob]
             # state space
             xprime_weighted = (squeezewts[:,np.newaxis,np.newaxis]*(xprime[:,:,n].reshape(nlscales,nanals,2))).sum(axis=0)
-            hxprime_weighted = (squeezewts[:,np.newaxis,np.newaxis]*(hxprime_local.reshape(nlscales,nanals,2*nobs_local))).sum(axis=0) 
+            hxprime_weighted = (squeezewts[:,np.newaxis,np.newaxis]*(hxprime_local.reshape(nlscales,nanals,nobs_local))).sum(axis=0) 
             hpbht = (hxprime_weighted[:,nob]**2).sum(axis=0) / (nanals-1)
             for k in range(2):
                 pbht = (xprime_weighted[:, k].T * hxprime_weighted[:,nob]).sum(axis=0) / (nanals-1)
