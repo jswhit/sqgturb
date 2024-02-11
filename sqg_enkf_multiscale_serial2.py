@@ -265,6 +265,11 @@ for ntime in range(nassim):
     pvens_filtered = np.vstack(pvens_filtered_lst)
     pvens = pvensmean_b + pvens_filtered
 
+    # forward operator to get ensemble in ob space
+    hxprime_b = np.empty((nlscales*nanals,nobs),np.float32)
+    for nanal in range(nlscales*nanals):
+        hxprime_b[nanal] = scalefact*pvens[nanal,...].reshape(2*nx*ny)[indxob] # surface pv obs
+
     if savedata is not None:
         if savedata == 'restart' and ntime != nassim-1:
             pass
