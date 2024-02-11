@@ -54,9 +54,9 @@ nanals = 20 # ensemble members
 oberrstdev = 1. # ob error standard deviation in K
 
 # nature run created using sqg_run.py.
-filename_climo = 'sqgu17p5_N64_6hrly.nc' # file name for forecast model climo
+filename_climo = 'sqgu20_N64_6hrly.nc' # file name for forecast model climo
 # perfect model
-filename_truth = 'sqgu17p5_N64_6hrly.nc' # file name for nature run to draw obs
+filename_truth = 'sqgu20_N64_6hrly.nc' # file name for nature run to draw obs
 #filename_truth = 'sqg_N256_N96_12hrly.nc' # file name for nature run to draw obs
 
 print('# filename_modelclimo=%s' % filename_climo)
@@ -108,7 +108,7 @@ print('# band_cutoffs=%s' % repr(band_cutoffs))
 
 # each ob time nobs ob locations are randomly sampled (without
 # replacement) from the model grid
-nobs = nx*ny//4 # number of obs to assimilate (randomly distributed)
+nobs = 2*nx*ny//8 # number of obs to assimilate (randomly distributed)
 
 # nature run
 nc_truth = Dataset(filename_truth)
@@ -121,8 +121,7 @@ xens = np.empty((nanals,2,nx*ny),np.float32)
 n = 0
 covlocal_modelspace = np.empty((nlscales,2*nx*ny,nx*ny),np.float32)
 x1 = x.reshape(nx*ny); y1 = y.reshape(nx*ny)
-x2 = np.concatenate((x.reshape(nx*ny),x.reshape(nx*ny)))
-y2 = np.concatenate((y.reshape(nx*ny),y.reshape(nx*ny)))
+x2 = np.concatenate((x1,x1)); y2 = np.concatenate((y1,y1))
 mincovlocal = np.finfo(np.float32).eps
 for nscale in range(nlscales):
    for n in range(2*nx*ny):
@@ -182,7 +181,7 @@ if savedata is not None:
    pv_a.units = 'K'
    pv_b.units = 'K'
    inf = nc.createVariable('inflation',np.float32,('t','z','y','x'),zlib=True)
-   pv_obs = nc.createVariable('obs',np.float32,('t','z','obs'))
+   pv_obs = nc.createVariable('obs',np.float32,('t','obs'))
    x_obs = nc.createVariable('x_obs',np.float32,('t','obs'))
    y_obs = nc.createVariable('y_obs',np.float32,('t','obs'))
    # eady pv scaled by g/(f*theta0) so du/dz = d(pv)/dy
@@ -219,17 +218,20 @@ for ntime in range(nassim):
 
     t1 = time.time()
 
+    # indxob defines observing network
     indxob = np.sort(rsobs.choice(2*nx*ny,nobs,replace=False))
+    # pvob is sample nature run plus noise
     pvob = scalefact*pv_truth[ntime+ntstart,...].reshape(2*nx*ny)[indxob]
     pvob += rsobs.normal(scale=oberrstdev,size=nobs) # add ob errors
     xob = x2[indxob]; yob = y2[indxob]
+    # forward operatore to get ensemble in ob space
+    hxens = np.empty((nanals,nobs),np.float32)
+    for nanal in range(nanals):
+        hxens[nanal] = scalefact*pvens[nanal,...].reshape(2*nx*ny)[indxob] # surface pv obs
 
     # first-guess spread (need later to compute inflation factor)
     fsprd = ((pvens - pvens.mean(axis=0))**2).sum(axis=0)/(nanals-1)
 
-    hxens = np.empty((nanals,nobs),np.float32)
-    for nanal in range(nanals):
-        hxens[nanal] = scalefact*pvens[nanal,...].reshape(2*nx*ny)[indxob] # surface pv obs
     hxensmean_b = hxens.mean(axis=0)
     hxprime_b = hxens-hxensmean_b
     obsprd = (hxprime_b**2).sum(axis=0)/(nanals-1)
@@ -278,8 +280,6 @@ for ntime in range(nassim):
     xens = pvens.reshape(nlscales*nanals,2,nx*ny)
     xmean = xens.mean(axis=0)
     xprime = xens - xmean
-    xmean_b = xmean.copy()
-    xprime_b = xprime.copy()
 
     # update state vector.
     # hxens,pvob are in PV units, xens is not
