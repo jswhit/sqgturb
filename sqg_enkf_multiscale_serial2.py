@@ -8,10 +8,10 @@ import sys, time, os
 from sqgturb import SQG, rfft2, irfft2, cartdist, gaspcohn
 from scipy.linalg import lapack, inv
 
-# LETKF cycling for SQG turbulence model with boundary mean temp obs,
+# local volume serial filter cycling for SQG turbulence model with boundary temp obs.
 # Multi-scale horizontal (Z localization)  but no vertical localization.
 # Relaxation to prior spread inflation.
-# Random or fixed observing network.
+# Random observing network.
 
 if len(sys.argv) == 1:
    msg="""
