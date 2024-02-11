@@ -143,14 +143,6 @@ else:
     evals, evecs = eigh(vloc)
     vcovlocal_sqrt = np.dot(evecs, np.diag(np.sqrt(evals)))
 
-# model-space horizontal localization matrix
-#n = 0
-#covlocal_modelspace = np.empty((nx*ny,nx*ny),np.float32)
-#x1 = x.reshape(nx*ny); y1 = y.reshape(nx*ny)
-#for n in range(nx*ny):
-#    dist = cartdist(x1[n],y1[n],x1,y1,nc_climo.L,nc_climo.L)
-#    covlocal_modelspace[n,:] = gaspcohn(dist/hcovlocal_scale)
-
 obtimes = nc_truth.variables['t'][:]
 if read_restart:
     timeslist = obtimes.tolist()
