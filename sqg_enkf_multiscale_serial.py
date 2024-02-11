@@ -38,12 +38,12 @@ diff_efold = None # use diffusion from climo file
 
 profile = False # turn on profiling?
 
-read_restart = True
+read_restart = False
 # if savedata not None, netcdf filename will be defined by env var 'exptname'
 # if savedata = 'restart', only last time is saved (so expt can be restarted)
 #savedata = True
-savedata = 'restart'
-#savedata = None
+#savedata = 'restart'
+savedata = None
 #nassim = 101
 #nassim_spinup = 1
 nassim = 200 # assimilation times to run
@@ -390,24 +390,24 @@ for ntime in range(nassim):
             hxprime_a = np.sqrt(1.-gainob)*hxprime_local[:,nob] # rescaling
             # step 2: update model priors in state and ob space 
             # (linear regression of model priors on observation priors)
-            obincrement = (hxmean_a + hxprime_a) - (hxmean_local[nob] + hxprime_local[:,nob])
+            obinc_mean = hxmean_a - hxmean_local[nob]
+            obinc_prime = hxprime_a - hxprime_local[:,nob]
             # state space
             xprime_weighted = (squeezewts[:,np.newaxis,np.newaxis]*(xprime[:,:,n].reshape(nlscales,nanals,2))).sum(axis=0)
             hxprime_weighted = (squeezewts[:,np.newaxis,np.newaxis]*(hxprime_local.reshape(nlscales,nanals,nobs_local))).sum(axis=0) 
             hpbht = (hxprime_weighted[:,nob]**2).sum(axis=0) / (nanals-1)
             for k in range(2):
                 pbht = (xprime_weighted[:, k].T * hxprime_weighted[:,nob]).sum(axis=0) / (nanals-1)
-                xens[:, k, n] += (pbht/hpbht)*obincrement
+                xmean[k, n] += (pbht/hpbht)*obinc_mean
+                xprime[:, k, n] += (pbht/hpbht)*obinc_prime
             # ob space (only really need to update obs not yet assimilated)
             pbht = (hxprime_weighted[:,nob:].T * hxprime_weighted[:,nob]).sum(axis=1) / (nanals-1)
-            hxincrement = (pbht[np.newaxis,:]/hpbht)*obincrement[:,np.newaxis]
-            hxmeanincrement = hxincrement.mean(axis=0)
-            hxmean_local[nob:] += hxmeanincrement
-            hxprime_local[:,nob:] += hxincrement - hxmeanincrement[np.newaxis,:]
+            hxmean_local[nob:] += (pbht/hpbht)*obinc_mean
+            hxprime_local[:,nob:] += (pbht[np.newaxis,:]/hpbht)*obinc_prime[:,np.newaxis]
             # update 'squeezed' ob space
             #pbht = (hxprime_localsqueeze[:,nob:].T * hxprime_local[:,nob]).sum(axis=1) / (nanals-1)
-            #hxincrement = (pbht[np.newaxis,:]/hpbht)*obincrement[:,np.newaxis]
-            #hxprime_localsqueeze[:,nob:] += hxincrement - hxincrement.mean(axis=0)
+            #hxprime_localsqueeze[:,nob:] += (pbht[np.newaxis,:]/hpbht)*obinc_prime[:,np.newaxis]
+        xens[:,:,n] = xmean[:,n] + xprime[:,:,n]
 
 
     # back to 3d state vector
