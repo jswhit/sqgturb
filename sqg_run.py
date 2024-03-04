@@ -44,7 +44,7 @@ dek = 0 # applied only at surface if symmetric=False
 nsq = 1.e-4; f=1.e-4; g = 9.8; theta0 = 300
 H = 10.e3 # lid height
 r = dek*nsq/f
-U = 17.5 # jet speed
+U = 25 # jet speed
 Lr = np.sqrt(nsq)*H/f # Rossby radius
 L = 20.*Lr
 # thermal relaxation time scale
@@ -78,13 +78,13 @@ model = SQG(pv,nsq=nsq,f=f,U=U,H=H,r=r,tdiab=tdiab,dt=dt,
             precision=precision,tstart=0)
 
 #  initialize figure.
-outputinterval = 6.*3600. # interval between frames in seconds
+outputinterval = 12.*3600. # interval between frames in seconds
 tmin = 100.*86400. # time to start saving data (in days)
-tmax = 300.*86400. # time to stop (in days)
+tmax = 200.*86400. # time to stop (in days)
 nsteps = int(tmax/outputinterval) # number of time steps to animate
 # set number of timesteps to integrate for each call to model.advance
 model.timesteps = int(outputinterval/model.dt)
-savedata = 'sqgu17p5_N%s_6hrly.nc' % N # save data plotted in a netcdf file.
+savedata = 'sqgu25_N%s_12hrly.nc' % N # save data plotted in a netcdf file.
 #savedata = None # don't save data
 plot = True # animate data as model is running?
 
