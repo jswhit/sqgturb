@@ -6,7 +6,6 @@ import numpy as np
 from netCDF4 import Dataset
 import sys, time, os
 from sqgturb import SQG, rfft2, irfft2, cartdist,enkf_update,gaspcohn
-from scipy.linalg import eigh
 
 # EnKF cycling for SQG turbulence model with boundary temp obs,
 # ob space horizontal and model space vertical localization.
