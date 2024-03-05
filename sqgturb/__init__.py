@@ -18,5 +18,6 @@ Jeff Whitaker December, 2016 <jeffrey.s.whitaker@noaa.gov>
 """
 from .enkf_utils import gaspcohn, enkf_update, cartdist
 from .sqg import SQG, rfft2, irfft2
+from .Enscore import EnSF
 
-__all__=['SQG','rfft2','irfft2',gaspcohn, enkf_update, cartdist]
+__all__=['SQG','rfft2','irfft2',gaspcohn, enkf_update, cartdist, EnSF]
