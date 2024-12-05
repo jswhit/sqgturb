@@ -306,7 +306,7 @@ for ntime in range(nassim):
         Rd = (Rinv_nerger*hpbht).sum(axis=0)/hpbht_tot
         for nlscale in range(nlscales):
             nanal1=nlscale*nanals; nanal2=(nlscale+1)*nanals
-            YbRinv[nanal1:nanal2] = hxprime[nanal1:nanal2,obindx]*Rd**2/normfact
+            YbRinv[nanal1:nanal2] = hxprime[nanal1:nanal2,obindx]*Rinv_nerger[nlscale]*Rd/normfact
             YbsqrtRinv[nanal1:nanal2] = hxprime[nanal1:nanal2,obindx]*Rinv_nerger[nlscale]/normfact
 
         # LETKF update
