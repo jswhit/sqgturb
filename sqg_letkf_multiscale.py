@@ -38,18 +38,18 @@ diff_efold = None # use diffusion from climo file
 
 profile = False # turn on profiling?
 
-read_restart = False
+read_restart = True
 # if savedata not None, netcdf filename will be defined by env var 'exptname'
 # if savedata = 'restart', only last time is saved (so expt can be restarted)
 #savedata = True
-savedata = 'restart'
-#savedata = None
+#savedata = 'restart'
+savedata = None
 #nassim = 101
 #nassim_spinup = 1
-nassim = 500 # assimilation times to run
-nassim_spinup = 100
+nassim = 250 # assimilation times to run
+nassim_spinup = 50
 
-nanals = 1024 # ensemble members
+nanals = 16 # ensemble members
 
 oberrstdev = 1. # ob error standard deviation in K
 
@@ -85,7 +85,7 @@ if not read_restart:
 else:
     ncinit = Dataset('%s_restart.nc' % exptname, mode='r', format='NETCDF4_CLASSIC')
     ncinit.set_auto_mask(False)
-    pvens[:] = ncinit.variables['pv_b'][-1,...]/scalefact
+    pvens[:] = ncinit.variables['pv_b'][-1,0:nanals,...]/scalefact
     tstart = ncinit.variables['t'][-1]
     #for nanal in range(nanals):
     #    print(nanal, pvens[nanal].min(), pvens[nanal].max())
