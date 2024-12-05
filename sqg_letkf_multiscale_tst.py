@@ -63,8 +63,7 @@ print('# filename_modelclimo=%s' % filename_climo)
 print('# filename_truth=%s' % filename_truth)
 
 # fix random seed for reproducibility.
-rsobs = np.random.RandomState(7) # fixed seed for observations
-#rsobs = np.random.RandomState() # fixed seed for observations
+rsobs = np.random.RandomState(42) # fixed seed for observations
 rsics = np.random.RandomState() # varying seed for initial conditions
 
 # get model info
@@ -288,12 +287,12 @@ for ntime in range(nassim):
         YbRinv=np.empty((nanals*nlscales,nobs_local),hxprime.dtype)
         YbsqrtRinv=np.empty((nanals*nlscales,nobs_local),hxprime.dtype)
         hpbht = np.empty((nlscales,nobs_local),hxprime.dtype)
-        rij = np.empty(nobs_local,hxprime.dtype)
+        rij = np.zeros(nobs_local,hxprime.dtype)
         Rinv_nerger = np.empty((nlscales,nobs_local),hxprime.dtype)
         for nlscale in range(nlscales):
             Rlocalfact = np.clip(gaspcohn(distob[obindx]/hcovlocal_scales[nlscale]).ravel(),a_min=mincovlocal,a_max=None)
             nanal1=nlscale*nanals; nanal2=(nlscale+1)*nanals
-            hpbht[nlscale] =  (hxprime[nanal1:nanal2,obindx]**2).sum(axis=0)/normfact
+            hpbht[nlscale] =  (hxprime[nanal1:nanal2,obindx]**2).sum(axis=0)/normfact**2
             if nlscale == 0:
                rij = hpbht[0]
             else:
@@ -303,12 +302,12 @@ for ntime in range(nassim):
         for nlscale in range(nlscales):
             Rlocalfact = np.clip(gaspcohn(distob[obindx]/hcovlocal_scales[nlscale]).ravel(),a_min=mincovlocal,a_max=None)
             Rinv_nerger[nlscale] = np.sqrt(Rinv)*np.sqrt(Rlocalfact/(rij*(hpbht_tot*Rinv*(1.-Rlocalfact)+1)))
-        Rd = (Rinv_nerger*hpbht).sum()/hpbht_tot
+            #Rinv_nerger[nlscale] = np.sqrt(Rlocalfact*Rinv)
+        Rd = (Rinv_nerger*hpbht).sum(axis=0)/hpbht_tot
         for nlscale in range(nlscales):
-            Rlocalfact = np.clip(gaspcohn(distob[obindx]/hcovlocal_scales[nlscale]).ravel(),a_min=mincovlocal,a_max=None)
             nanal1=nlscale*nanals; nanal2=(nlscale+1)*nanals
-            YbRinv[nanal1:nanal2] = hxprime[nanal1:nanal2,obindx]*Rinv_nerger[nlscale]/normfact
-            YbsqrtRinv[nanal1:nanal2] = hxprime[nanal1:nanal2,obindx]*Rd/normfact
+            YbRinv[nanal1:nanal2] = hxprime[nanal1:nanal2,obindx]*Rd**2/normfact
+            YbsqrtRinv[nanal1:nanal2] = hxprime[nanal1:nanal2,obindx]*Rinv_nerger[nlscale]/normfact
 
         # LETKF update
         pa = np.eye(nlscales*nanals) + np.dot(YbsqrtRinv, YbsqrtRinv.T)
