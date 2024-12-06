@@ -11,7 +11,7 @@ from scipy.linalg import eigh
 # EnKF cycling for SQG turbulence model with boundary temp obs,
 # ob space horizontal and model space vertical localization.
 # Relaxation to prior spread inflation.
-# Random or fixed observing network.
+# Random observing network.
 # Options for LETKF or serial EnSRF.
 
 if len(sys.argv) == 1:
@@ -36,27 +36,27 @@ diff_efold = None # use diffusion from climo file
 
 profile = False # turn on profiling?
 
-local_volume = True  # use local volume solver (serial or LGETKF), otherwise use serial EnSRF
-local_volume_serial = False # if local_volume=T, use serial solver instead of LGETKF
+local_volume = False  # use local volume solver (serial or LGETKF), otherwise use serial EnSRF
+local_volume_serial = True # if local_volume=T, use serial solver instead of LGETKF
 read_restart = False
 # if savedata not None, netcdf filename will be defined by env var 'exptname'
 # if savedata = 'restart', only last time is saved (so expt can be restarted)
 #savedata = True
-#savedata = 'restart'
-savedata = None
+savedata = 'restart'
+#savedata = None
 #nassim = 101
 #nassim_spinup = 1
-nassim = 300 # assimilation times to run
+nassim = 150 # assimilation times to run
 nassim_spinup = 100
 
-nanals = 20 # ensemble members
+nanals = 256 # ensemble members
 
 oberrstdev = 1. # ob error standard deviation in K
 
 # nature run created using sqg_run.py.
-filename_climo = 'sqgu20_N64_6hrly.nc' # file name for forecast model climo
+filename_climo = 'sqg_N96_6hrly.nc' # file name for forecast model climo
 # perfect model
-filename_truth = 'sqgu20_N64_6hrly.nc' # file name for nature run to draw obs
+filename_truth = 'sqg_N96_6hrly.nc' # file name for nature run to draw obs
 #filename_truth = 'sqg_N256_N96_12hrly.nc' # file name for nature run to draw obs
 
 print('# filename_modelclimo=%s' % filename_climo)
