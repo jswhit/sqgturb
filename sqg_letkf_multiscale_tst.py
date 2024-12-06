@@ -46,7 +46,7 @@ read_restart = True
 savedata = None
 #nassim = 101
 #nassim_spinup = 1
-nassim = 250 # assimilation times to run
+nassim = 450 # assimilation times to run
 nassim_spinup = 50
 
 nanals = 16 # ensemble members
@@ -63,7 +63,7 @@ print('# filename_modelclimo=%s' % filename_climo)
 print('# filename_truth=%s' % filename_truth)
 
 # fix random seed for reproducibility.
-rsobs = np.random.RandomState(42) # fixed seed for observations
+rsobs = np.random.RandomState(7) # fixed seed for observations
 rsics = np.random.RandomState() # varying seed for initial conditions
 
 # get model info
@@ -110,6 +110,7 @@ print('# band_cutoffs=%s' % repr(band_cutoffs))
 #  each ob time nobs ob locations are randomly sampled (without
 # replacement) from the model grid
 nobs = 2*nx*ny//8 # number of obs to assimilate (randomly distributed)
+#nobs = 3
 
 # nature run
 nc_truth = Dataset(filename_truth)
@@ -354,15 +355,16 @@ for ntime in range(nassim):
      np.sqrt(obfits_b),np.sqrt(obsprd_b+oberrstdev**2),obbias_b,
      inflation_factor.mean(),asprd_over_fsprd))
 
-    #import matplotlib.pyplot as plt
-    #vmin = -0.0251; vmax = 0.025
-    #levplot = 0
-    #inc = scalefact*(pvensmean_a-pvensmean_b)[levplot]
-    #print(inc.min(), inc.max())
-    #plt.imshow(inc,cmap=plt.cm.bwr,vmin=vmin,vmax=vmax)
-    #plt.savefig('inc.png')
-    #plt.show()
-    #raise SystemExit
+    if nobs < 10:
+        import matplotlib.pyplot as plt
+        vmin = -0.0251; vmax = 0.025
+        levplot = 0
+        inc = scalefact*(pvensmean_a-pvensmean_b)[levplot]
+        print(inc.min(), inc.max())
+        plt.imshow(inc,cmap=plt.cm.bwr,vmin=vmin,vmax=vmax)
+        plt.savefig('inc.png')
+        plt.show()
+        raise SystemExit
 
     # save data.
     if savedata is not None:
