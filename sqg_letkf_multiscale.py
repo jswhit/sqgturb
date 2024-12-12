@@ -285,13 +285,12 @@ for ntime in range(nassim):
         distob = cartdist(x1[n],y1[n],xob,yob,nc_climo.L,nc_climo.L)
         obindx = distob < np.abs(hcovlocal_scales[0])
         ominusf = (pvob - hxensmean_b)[obindx]
-        Rinv = 1./oberrvar[obindx]
         nobs_local = len(ominusf)
         YbRinv=np.empty((nanals*nlscales,nobs_local),hxprime.dtype)
         YbsqrtRinv=np.empty((nanals*nlscales,nobs_local),hxprime.dtype)
         hpbht = np.empty((nlscales,nobs_local),hxprime.dtype)
         rij = np.zeros(nobs_local,hxprime.dtype)
-        Rinv_nerger = np.empty((nlscales,nobs_local),hxprime.dtype)
+        Rinvsqrt_nerger = np.empty((nlscales,nobs_local),hxprime.dtype)
         for nlscale in range(nlscales):
             Rlocalfact = np.clip(gaspcohn(distob[obindx]/hcovlocal_scales[nlscale]).ravel(),a_min=mincovlocal,a_max=None)
             nanal1=nlscale*nanals; nanal2=(nlscale+1)*nanals
@@ -304,13 +303,13 @@ for ntime in range(nassim):
         rij = rij/hpbht_tot
         for nlscale in range(nlscales):
             Rlocalfact = np.clip(gaspcohn(distob[obindx]/hcovlocal_scales[nlscale]).ravel(),a_min=mincovlocal,a_max=None)
-            Rinv_nerger[nlscale] = np.sqrt(Rinv)*np.sqrt(Rlocalfact/(rij*(hpbht_tot*Rinv*(1.-Rlocalfact)+1)))
-            #Rinv_nerger[nlscale] = np.sqrt(Rinv*Rlocalfact)
-        Rd = (Rinv_nerger*hpbht).sum(axis=0)/hpbht_tot
+            Rinvsqrt_nerger[nlscale] = np.sqrt(Rlocalfact/(rij*hpbht_tot*(1.-Rlocalfact)+oberrvar[obindx]))
+            #Rinvsqrt_nerger[nlscale] = np.sqrt(Rlocalfact/oberrvar[obindx])
+        Rdsqrt = (Rinvsqrt_nerger*hpbht).sum(axis=0)/hpbht_tot
         for nlscale in range(nlscales):
             nanal1=nlscale*nanals; nanal2=(nlscale+1)*nanals
-            YbRinv[nanal1:nanal2] = hxprime[nanal1:nanal2,obindx]*Rinv_nerger[nlscale]*Rd/normfact
-            YbsqrtRinv[nanal1:nanal2] = hxprime[nanal1:nanal2,obindx]*Rinv_nerger[nlscale]/normfact
+            YbRinv[nanal1:nanal2] = hxprime[nanal1:nanal2,obindx]*Rinvsqrt_nerger[nlscale]*Rdsqrt/normfact
+            YbsqrtRinv[nanal1:nanal2] = hxprime[nanal1:nanal2,obindx]*Rinvsqrt_nerger[nlscale]/normfact
 
         # LETKF update
         pa = np.eye(nlscales*nanals) + np.dot(YbsqrtRinv, YbsqrtRinv.T)
