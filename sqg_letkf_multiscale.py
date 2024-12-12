@@ -1,6 +1,6 @@
 from __future__ import print_function
 import matplotlib
-matplotlib.use('agg')
+matplotlib.use('qtagg')
 import matplotlib.pyplot as plt
 import numpy as np
 from netCDF4 import Dataset
@@ -38,7 +38,7 @@ diff_efold = None # use diffusion from climo file
 
 profile = False # turn on profiling?
 
-read_restart = True
+read_restart = False
 # if savedata not None, netcdf filename will be defined by env var 'exptname'
 # if savedata = 'restart', only last time is saved (so expt can be restarted)
 #savedata = True
@@ -46,10 +46,10 @@ read_restart = True
 savedata = None
 #nassim = 101
 #nassim_spinup = 1
-nassim = 50 # assimilation times to run
-nassim_spinup = 50
+nassim = 200 # assimilation times to run
+nassim_spinup = 100
 
-nanals = 256 # ensemble members
+nanals = 16 # ensemble members
 
 oberrstdev = 1. # ob error standard deviation in K
 
@@ -63,7 +63,7 @@ print('# filename_modelclimo=%s' % filename_climo)
 print('# filename_truth=%s' % filename_truth)
 
 # fix random seed for reproducibility.
-rsobs = np.random.RandomState(42) # fixed seed for observations
+rsobs = np.random.RandomState(7) # fixed seed for observations
 rsics = np.random.RandomState() # varying seed for initial conditions
 
 # get model info
@@ -109,7 +109,8 @@ print('# band_cutoffs=%s' % repr(band_cutoffs))
 
 #  each ob time nobs ob locations are randomly sampled (without
 # replacement) from the model grid
-#nobs = 2*nx*ny//8 # number of obs to assimilate (randomly distributed)
+nobs = 2*nx*ny//16 # number of obs to assimilate (randomly distributed)
+#nobs = 3
 
 # nature run
 nc_truth = Dataset(filename_truth)
@@ -117,7 +118,6 @@ pv_truth = nc_truth.variables['pv']
 oberrvar = oberrstdev**2*np.ones(nobs,np.float32)
 pvob = np.empty(nobs,np.float32)
 xens = np.empty((nanals,2,nx*ny),np.float32)
-
 
 obtimes = nc_truth.variables['t'][:]
 if read_restart:
@@ -251,20 +251,8 @@ for ntime in range(nassim):
             pvsum += pvens_filtered_lst[n]
         pvens_filtered_lst.append(pvpert-pvsum)
     # concatenate along ensemble dimension (nanals*nlscales)
-    pvens_filtered = np.asarray(pvens_filtered_lst)
-    print(pvens_filtered.shape)
-    pvsprd_bsc =  ((scalefact*(pvens_filtered[0]*pvens_filtered[1]))).sum(axis=0)/(nanals-1)
-    pvsprd_bsc1 =  ((scalefact*(pvens_filtered[0]))**2).sum(axis=0)/(nanals-1)
-    pvsprd_bsc2 =  ((scalefact*(pvens_filtered[1]))**2).sum(axis=0)/(nanals-1)
-    print(pvsprd_bsc.mean(),pvsprd_bsc1.mean(),pvsprd_bsc2.mean())
     pvens_filtered = np.vstack(pvens_filtered_lst)
     pvens = pvensmean_b + pvens_filtered
-
-    print(pvsprd_b.mean())
-    pvsprd_bs =  ((scalefact*(pvens_filtered))**2).sum(axis=0)/(nanals-1)
-    pvsprd_bsc =  ((scalefact*(pvens_filtered[0]*pvens_filtered[1]))**2).sum(axis=0)/(nanals-1)
-    print(pvsprd_bs.mean())
-    raise SystemExit
 
     if savedata is not None:
         if savedata == 'restart' and ntime != nassim-1:
@@ -299,11 +287,28 @@ for ntime in range(nassim):
         nobs_local = len(ominusf)
         YbRinv=np.empty((nanals*nlscales,nobs_local),hxprime.dtype)
         YbsqrtRinv=np.empty((nanals*nlscales,nobs_local),hxprime.dtype)
+        hpbht = np.empty((nlscales,nobs_local),hxprime.dtype)
+        rij = np.zeros(nobs_local,hxprime.dtype)
+        Rinv_nerger = np.empty((nlscales,nobs_local),hxprime.dtype)
         for nlscale in range(nlscales):
             Rlocalfact = np.clip(gaspcohn(distob[obindx]/hcovlocal_scales[nlscale]).ravel(),a_min=mincovlocal,a_max=None)
             nanal1=nlscale*nanals; nanal2=(nlscale+1)*nanals
-            YbRinv[nanal1:nanal2] = hxprime[nanal1:nanal2,obindx]*Rlocalfact*Rinv/normfact
-            YbsqrtRinv[nanal1:nanal2] = hxprime[nanal1:nanal2,obindx]*np.sqrt(Rlocalfact*Rinv)/normfact
+            hpbht[nlscale] =  (hxprime[nanal1:nanal2,obindx]**2).sum(axis=0)/normfact**2
+            if nlscale == 0:
+               rij = hpbht[0]
+            else:
+               rij += Rlocalfact*hpbht[nlscale]
+        hpbht_tot = hpbht.sum(axis=0)
+        rij = rij/hpbht_tot
+        for nlscale in range(nlscales):
+            Rlocalfact = np.clip(gaspcohn(distob[obindx]/hcovlocal_scales[nlscale]).ravel(),a_min=mincovlocal,a_max=None)
+            Rinv_nerger[nlscale] = np.sqrt(Rinv)*np.sqrt(Rlocalfact/(rij*(hpbht_tot*Rinv*(1.-Rlocalfact)+1)))
+            #Rinv_nerger[nlscale] = np.sqrt(Rinv*Rlocalfact)
+        Rd = (Rinv_nerger*hpbht).sum(axis=0)/hpbht_tot
+        for nlscale in range(nlscales):
+            nanal1=nlscale*nanals; nanal2=(nlscale+1)*nanals
+            YbRinv[nanal1:nanal2] = hxprime[nanal1:nanal2,obindx]*Rinv_nerger[nlscale]*Rd/normfact
+            YbsqrtRinv[nanal1:nanal2] = hxprime[nanal1:nanal2,obindx]*Rinv_nerger[nlscale]/normfact
 
         # LETKF update
         pa = np.eye(nlscales*nanals) + np.dot(YbsqrtRinv, YbsqrtRinv.T)
@@ -349,6 +354,17 @@ for ntime in range(nassim):
      np.sqrt(pverr_b.mean()),np.sqrt(pvsprd_b.mean()),\
      np.sqrt(obfits_b),np.sqrt(obsprd_b+oberrstdev**2),obbias_b,
      inflation_factor.mean(),asprd_over_fsprd))
+
+    if nobs < 10:
+        import matplotlib.pyplot as plt
+        vmin = -0.0251; vmax = 0.025
+        levplot = 0
+        inc = scalefact*(pvensmean_a-pvensmean_b)[levplot]
+        print(inc.min(), inc.max())
+        plt.imshow(inc,cmap=plt.cm.bwr,vmin=vmin,vmax=vmax)
+        plt.savefig('inc.png')
+        plt.show()
+        raise SystemExit
 
     # save data.
     if savedata is not None:
