@@ -254,20 +254,27 @@ for ntime in range(nassim):
         hxprime[nanal] = (scalefact*xprime[nanal].reshape(2*nx*ny))[indxob] # surface pv obs
 
     # loop over model grid points, perform update in each local region.
+    nobs_local=np.zeros(nx*ny,np.int32)
     for n in range(nx*ny):
         distob = cartdist(x1[n],y1[n],xob,yob,nc_climo.L,nc_climo.L)
         obindx = distob < np.abs(hcovlocal_scale)
         ominusf = (pvob - hxensmean_b)[obindx]
-        Rlocalfact = np.clip(gaspcohn(distob[obindx]/hcovlocal_scale).ravel(),a_min=mincovlocal,a_max=None)
-        Rinv = Rlocalfact/oberrvar[obindx]
-        # Nerger version
-        #Rinv = 1./oberrvar[obindx]
-        #hpbht = (hxprime[:,obindx]**2).sum(axis=0)/normfact**2
-        #Rinv = np.sqrt(Rinv)*np.sqrt(Rlocalfact/((hpbht*Rinv*(1.-Rlocalfact)+1)))
-        #nobs_local = len(ominusf)
+        localfact = np.clip(gaspcohn(distob[obindx]/hcovlocal_scale).ravel(),a_min=mincovlocal,a_max=None)
+        hpbht = (hxprime[:,obindx]**2).sum(axis=0)/normfact**2
+        hpbhtplusR = hpbht+oberrvar[obindx]
+        Rlocalfact = localfact
+        # Nerger regularlized version
+        Rlocalfact = (localfact*oberrvar[obindx]/hpbhtplusR)/(1.-localfact*hpbht/hpbhtplusR)
+        Rinvsqrt = np.sqrt(Rlocalfact/oberrvar[obindx])
+        #print(Rinvsqrt)
+        # same as Nerger version
+        #Rinvsqrt = np.sqrt(localfact/(hpbht*(1.-localfact)+oberrvar[obindx]))
+        #print(Rinvsqrt)
+        #raise SystemExit
+        nobs_local[n] = len(ominusf)
 
-        YbRinv = hxprime[:,obindx]*Rinv/normfact
-        YbsqrtRinv = hxprime[:,obindx]*np.sqrt(Rinv)/normfact
+        YbRinv = hxprime[:,obindx]*Rinvsqrt**2/normfact
+        YbsqrtRinv = hxprime[:,obindx]*Rinvsqrt/normfact
 
         # LETKF update
         pa = np.eye(nanals) + np.dot(YbsqrtRinv, YbsqrtRinv.T)
@@ -286,6 +293,7 @@ for ntime in range(nassim):
         for k in range(2):
             xens[:, k, n] = xmean[k, n] + np.dot(wts.T, xprime_b[:, k, n])
 
+    #print('min/max nobs_local=',nobs_local.min(),nobs_local.max())
     # back to 3d state vector
     pvens = xens.reshape((nanals,2,ny,nx))
     pvensmean_a = pvens.mean(axis=0)
