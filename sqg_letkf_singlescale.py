@@ -57,8 +57,10 @@ print('# filename_modelclimo=%s' % filename_climo)
 print('# filename_truth=%s' % filename_truth)
 
 # fix random seed for reproducibility.
-rsobs = np.random.RandomState(7) # fixed seed for observations
-rsics = np.random.RandomState() # varying seed for initial conditions
+rsobs = np.random.RandomState(42) # fixed seed for observations
+rsics = np.random.RandomState(24) # varying seed for initial conditions
+#rsobs = np.random.RandomState(7) # fixed seed for observations
+#rsics = np.random.RandomState() # varying seed for initial conditions
 
 # get model info
 nc_climo = Dataset(filename_climo)
@@ -257,15 +259,15 @@ for ntime in range(nassim):
         obindx = distob < np.abs(hcovlocal_scale)
         ominusf = (pvob - hxensmean_b)[obindx]
         Rlocalfact = np.clip(gaspcohn(distob[obindx]/hcovlocal_scale).ravel(),a_min=mincovlocal,a_max=None)
-        #Rinv = Rlocalfact/oberrvar[obindx]
+        Rinv = Rlocalfact/oberrvar[obindx]
         # Nerger version
-        Rinv = 1./oberrvar[obindx]
-        hpbht = (hxprime[:,obindx]**2).sum(axis=0)/normfact**2
-        Rinv = np.sqrt(Rinv)*np.sqrt(Rlocalfact/((hpbht*Rinv*(1.-Rlocalfact)+1)))
-        nobs_local = len(ominusf)
+        #Rinv = 1./oberrvar[obindx]
+        #hpbht = (hxprime[:,obindx]**2).sum(axis=0)/normfact**2
+        #Rinv = np.sqrt(Rinv)*np.sqrt(Rlocalfact/((hpbht*Rinv*(1.-Rlocalfact)+1)))
+        #nobs_local = len(ominusf)
 
-        YbRinv = hxprime[:,obindx]*Rinv**2/normfact
-        YbsqrtRinv = hxprime[:,obindx]*Rinv/normfact
+        YbRinv = hxprime[:,obindx]*Rinv/normfact
+        YbsqrtRinv = hxprime[:,obindx]*np.sqrt(Rinv)/normfact
 
         # LETKF update
         pa = np.eye(nanals) + np.dot(YbsqrtRinv, YbsqrtRinv.T)
