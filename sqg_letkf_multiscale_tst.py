@@ -38,7 +38,7 @@ diff_efold = None # use diffusion from climo file
 
 profile = False # turn on profiling?
 
-read_restart = True
+read_restart = False
 # if savedata not None, netcdf filename will be defined by env var 'exptname'
 # if savedata = 'restart', only last time is saved (so expt can be restarted)
 #savedata = True
@@ -46,8 +46,8 @@ read_restart = True
 savedata = None
 #nassim = 101
 #nassim_spinup = 1
-nassim = 450 # assimilation times to run
-nassim_spinup = 50
+nassim = 200 # assimilation times to run
+nassim_spinup = 100
 
 nanals = 16 # ensemble members
 
@@ -109,7 +109,7 @@ print('# band_cutoffs=%s' % repr(band_cutoffs))
 
 #  each ob time nobs ob locations are randomly sampled (without
 # replacement) from the model grid
-nobs = 2*nx*ny//8 # number of obs to assimilate (randomly distributed)
+nobs = 2*nx*ny//16 # number of obs to assimilate (randomly distributed)
 #nobs = 3
 
 # nature run
@@ -303,7 +303,7 @@ for ntime in range(nassim):
         for nlscale in range(nlscales):
             Rlocalfact = np.clip(gaspcohn(distob[obindx]/hcovlocal_scales[nlscale]).ravel(),a_min=mincovlocal,a_max=None)
             Rinv_nerger[nlscale] = np.sqrt(Rinv)*np.sqrt(Rlocalfact/(rij*(hpbht_tot*Rinv*(1.-Rlocalfact)+1)))
-            #Rinv_nerger[nlscale] = np.sqrt(Rlocalfact*Rinv)
+            #Rinv_nerger[nlscale] = np.sqrt(Rinv*Rlocalfact)
         Rd = (Rinv_nerger*hpbht).sum(axis=0)/hpbht_tot
         for nlscale in range(nlscales):
             nanal1=nlscale*nanals; nanal2=(nlscale+1)*nanals

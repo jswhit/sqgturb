@@ -46,10 +46,10 @@ read_restart = True
 savedata = None
 #nassim = 101
 #nassim_spinup = 1
-nassim = 250 # assimilation times to run
+nassim = 50 # assimilation times to run
 nassim_spinup = 50
 
-nanals = 16 # ensemble members
+nanals = 256 # ensemble members
 
 oberrstdev = 1. # ob error standard deviation in K
 
@@ -109,7 +109,7 @@ print('# band_cutoffs=%s' % repr(band_cutoffs))
 
 #  each ob time nobs ob locations are randomly sampled (without
 # replacement) from the model grid
-nobs = 2*nx*ny//8 # number of obs to assimilate (randomly distributed)
+#nobs = 2*nx*ny//8 # number of obs to assimilate (randomly distributed)
 
 # nature run
 nc_truth = Dataset(filename_truth)
@@ -208,6 +208,7 @@ for ntime in range(nassim):
 
     t1 = time.time()
 
+    # random obs network (ob locatons not the same on each boundary)
     indxob = np.sort(rsobs.choice(2*nx*ny,nobs,replace=False))
     pvob = scalefact*pv_truth[ntime+ntstart,...].reshape(2*nx*ny)[indxob]
     pvob += rsobs.normal(scale=oberrstdev,size=nobs) # add ob errors
@@ -250,8 +251,20 @@ for ntime in range(nassim):
             pvsum += pvens_filtered_lst[n]
         pvens_filtered_lst.append(pvpert-pvsum)
     # concatenate along ensemble dimension (nanals*nlscales)
+    pvens_filtered = np.asarray(pvens_filtered_lst)
+    print(pvens_filtered.shape)
+    pvsprd_bsc =  ((scalefact*(pvens_filtered[0]*pvens_filtered[1]))).sum(axis=0)/(nanals-1)
+    pvsprd_bsc1 =  ((scalefact*(pvens_filtered[0]))**2).sum(axis=0)/(nanals-1)
+    pvsprd_bsc2 =  ((scalefact*(pvens_filtered[1]))**2).sum(axis=0)/(nanals-1)
+    print(pvsprd_bsc.mean(),pvsprd_bsc1.mean(),pvsprd_bsc2.mean())
     pvens_filtered = np.vstack(pvens_filtered_lst)
     pvens = pvensmean_b + pvens_filtered
+
+    print(pvsprd_b.mean())
+    pvsprd_bs =  ((scalefact*(pvens_filtered))**2).sum(axis=0)/(nanals-1)
+    pvsprd_bsc =  ((scalefact*(pvens_filtered[0]*pvens_filtered[1]))**2).sum(axis=0)/(nanals-1)
+    print(pvsprd_bs.mean())
+    raise SystemExit
 
     if savedata is not None:
         if savedata == 'restart' and ntime != nassim-1:
