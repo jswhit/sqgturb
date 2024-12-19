@@ -48,9 +48,9 @@ nanals = 16 # ensemble members
 oberrstdev = 1. # ob error standard deviation in K
 
 # nature run created using sqg_run.py.
-filename_climo = 'sqg_N96_6hrly.nc' # file name for forecast model climo
+filename_climo = 'sqg_N64_6hrly_dek50.nc' # file name for forecast model climo
 # perfect model
-filename_truth = 'sqg_N96_6hrly.nc' # file name for nature run to draw obs
+filename_truth = 'sqg_N64_6hrly_dek50.nc' # file name for nature run to draw obs
 #filename_truth = 'sqg_N256_N96_12hrly.nc' # file name for nature run to draw obs
 
 print('# filename_modelclimo=%s' % filename_climo)
@@ -104,8 +104,9 @@ print("# hcovlocal=%s diff_efold=%s covinflate=%s nanals=%s" %\
 
 #  each ob time nobs ob locations are randomly sampled (without
 # replacement) from the model grid
-nobs = 2*nx*ny//16 # number of obs to assimilate (randomly distributed)
+nobs = 2*nx*ny//32 # number of obs to assimilate (randomly distributed)
 #nobs = 3
+print('# random network nobs = %s' % nobs)
 
 # nature run
 nc_truth = Dataset(filename_truth)
@@ -259,8 +260,13 @@ for ntime in range(nassim):
         distob = cartdist(x1[n],y1[n],xob,yob,nc_climo.L,nc_climo.L)
         obindx = distob < np.abs(hcovlocal_scale)
         ominusf = (pvob - hxensmean_b)[obindx]
-        localfact = np.clip(gaspcohn(distob[obindx]/hcovlocal_scale).ravel(),a_min=mincovlocal,a_max=None)
         hpbht = (hxprime[:,obindx]**2).sum(axis=0)/normfact**2
+        localfact = np.clip(gaspcohn(distob[obindx]/hcovlocal_scale).ravel(),a_min=mincovlocal,a_max=None)
+        #rsqxy = np.zeros_like(hpbht)
+        #for k in range(2):
+        #    xprimesprd_b = (xprime_b[:,k,n]**2).sum(axis=0)/normfact**2
+        #    rsqxy += 0.5*(((hxprime[:,obindx]*xprime_b[:, k, n, np.newaxis]).sum(axis=0)/normfact**2)/np.sqrt(hpbht*xprimesprd_b))**2
+        #localfact = rsqxy*(nanals-1)/(1.+rsqxy*nanals) # optimal prior localization factor from Morzfeld and Hodyss
         hpbhtplusR = hpbht+oberrvar[obindx]
         Rlocalfact = localfact
         # Nerger regularlized version
@@ -270,7 +276,6 @@ for ntime in range(nassim):
         # same as Nerger version
         #Rinvsqrt = np.sqrt(localfact/(hpbht*(1.-localfact)+oberrvar[obindx]))
         #print(Rinvsqrt)
-        #raise SystemExit
         nobs_local[n] = len(ominusf)
 
         YbRinv = hxprime[:,obindx]*Rinvsqrt**2/normfact

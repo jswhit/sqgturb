@@ -23,13 +23,13 @@ import os
 #dt = 600
 #diff_efold = 86400./3.
 
-N = 96
-dt = 900
-diff_efold = 86400./2.
+#N = 96
+#dt = 900
+#diff_efold = 86400./2.
 
 N = 64
-dt = 900    
-diff_efold = 86400./2.
+dt = 1200    
+diff_efold = 86400.
 
 norder = 8 # order of hyperdiffusion
 dealias = True # dealiased with 2/3 rule?
@@ -40,11 +40,11 @@ dealias = True # dealiased with 2/3 rule?
 # corresponding to ekman depth of 141-316 m over ocean.
 # spindown time of a barotropic vortex is tau = H/(f*dek), 10 days for
 # H=10km, f=0.0001, dek=100m.
-dek = 0 # applied only at surface if symmetric=False
+dek = 50 # applied only at surface if symmetric=False
 nsq = 1.e-4; f=1.e-4; g = 9.8; theta0 = 300
 H = 10.e3 # lid height
 r = dek*nsq/f
-U = 17.5 # jet speed
+U = 15. # jet speed
 Lr = np.sqrt(nsq)*H/f # Rossby radius
 L = 20.*Lr
 # thermal relaxation time scale
@@ -80,11 +80,11 @@ model = SQG(pv,nsq=nsq,f=f,U=U,H=H,r=r,tdiab=tdiab,dt=dt,
 #  initialize figure.
 outputinterval = 6.*3600. # interval between frames in seconds
 tmin = 100.*86400. # time to start saving data (in days)
-tmax = 300.*86400. # time to stop (in days)
+tmax = 600.*86400. # time to stop (in days)
 nsteps = int(tmax/outputinterval) # number of time steps to animate
 # set number of timesteps to integrate for each call to model.advance
 model.timesteps = int(outputinterval/model.dt)
-savedata = 'sqgu17p5_N%s_6hrly.nc' % N # save data plotted in a netcdf file.
+savedata = 'sqg_N%s_6hrly_dek50.nc' % N # save data plotted in a netcdf file.
 #savedata = None # don't save data
 plot = True # animate data as model is running?
 
