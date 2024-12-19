@@ -30,6 +30,7 @@ nband_cutoffs = len(band_cutoffs)
 covinflate = float(sys.argv[3])
 if nband_cutoffs != nlscales-1:
     raise SystemExit('band_cutoffs should be one less than hcovlocal_scales')
+crossbandcov_fact=0.0
 
 exptname = os.getenv('exptname','sqg_enkf')
 threads = int(os.getenv('OMP_NUM_THREADS','1'))
@@ -42,7 +43,7 @@ read_restart = False
 # if savedata not None, netcdf filename will be defined by env var 'exptname'
 # if savedata = 'restart', only last time is saved (so expt can be restarted)
 #savedata = True
-#savedata = 'restart'
+#savedat = 'restart' 
 savedata = None
 #nassim = 101
 #nassim_spinup = 1
@@ -54,9 +55,9 @@ nanals = 16 # ensemble members
 oberrstdev = 1. # ob error standard deviation in K
 
 # nature run created using sqg_run.py.
-filename_climo = 'sqg_N96_6hrly.nc' # file name for forecast model climo
+filename_climo = 'sqg_N64_6hrly_dek50.nc' # file name for forecast model climo
 # perfect model
-filename_truth = 'sqg_N96_6hrly.nc' # file name for nature run to draw obs
+filename_truth = 'sqg_N64_6hrly_dek50.nc' # file name for nature run to draw obs
 #filename_truth = 'sqg_N256_N96_12hrly.nc' # file name for nature run to draw obs
 
 print('# filename_modelclimo=%s' % filename_climo)
@@ -111,8 +112,9 @@ print('# band_cutoffs=%s' % repr(band_cutoffs))
 
 #  each ob time nobs ob locations are randomly sampled (without
 # replacement) from the model grid
-nobs = 2*nx*ny//16 # number of obs to assimilate (randomly distributed)
+nobs = 2*nx*ny//32 # number of obs to assimilate (randomly distributed)
 #nobs = 3
+print('# random network nobs = %s' % nobs)
 
 # nature run
 nc_truth = Dataset(filename_truth)
@@ -253,7 +255,11 @@ for ntime in range(nassim):
             pvsum += pvens_filtered_lst[n]
         pvens_filtered_lst.append(pvpert-pvsum)
     # concatenate along ensemble dimension (nanals*nlscales)
-    pvens_filtered = np.vstack(pvens_filtered_lst)
+    pvens_filtered = np.asarray(pvens_filtered_lst)
+    if nlscales == 2:
+        pvens_filtered[0] += crossbandcov_fact*pvens_filtered[1]
+        pvens_filtered[1] += crossbandcov_fact*pvens_filtered[0]
+    pvens_filtered = np.vstack([pvens_filtered[0],pvens_filtered[1]])
     pvens = pvensmean_b + pvens_filtered
 
     if savedata is not None:
@@ -308,7 +314,8 @@ for ntime in range(nassim):
         Rdsqrt = (Rinvsqrt_nerger*hpbht).sum(axis=0)/hpbht_tot
         for nlscale in range(nlscales):
             nanal1=nlscale*nanals; nanal2=(nlscale+1)*nanals
-            YbRinv[nanal1:nanal2] = hxprime[nanal1:nanal2,obindx]*Rinvsqrt_nerger[nlscale]*Rdsqrt/normfact
+            #YbRinv[nanal1:nanal2] = hxprime[nanal1:nanal2,obindx]*Rinvsqrt_nerger[nlscale]*Rdsqrt/normfact
+            YbRinv[nanal1:nanal2] = hxprime[nanal1:nanal2,obindx]*Rinvsqrt_nerger[nlscale]**2/normfact
             YbsqrtRinv[nanal1:nanal2] = hxprime[nanal1:nanal2,obindx]*Rinvsqrt_nerger[nlscale]/normfact
 
         # LETKF update
@@ -333,6 +340,9 @@ for ntime in range(nassim):
     pvensmean_a = pvens.mean(axis=0)
     pvens_filtered = pvens - pvensmean_a
     pvens_filtered = pvens_filtered.reshape(nlscales,nanals,2,ny,nx)
+    if nlscales == 2:
+        pvens_filtered[0] -= crossbandcov_fact*pvens_filtered[1]
+        pvens_filtered[1] -= crossbandcov_fact*pvens_filtered[0]
     pvens = pvens_filtered.sum(axis=0) + pvensmean_a
     t2 = time.time()
     if profile: print('cpu time for EnKF update',t2-t1)
