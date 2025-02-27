@@ -157,26 +157,6 @@ def enkf_update(
                     hxmean_local[nob:] += (pbht/varob)*obinc_mean
                     hxprime_local[:,nob:] += (pbht[np.newaxis,:]/varob)*obinc_prime[:,np.newaxis]
                     hxprime2_local[:,nob:] += (pbht[np.newaxis,:]/varob)*obinc_prime2[:,np.newaxis]
-                    #ominusf = ob - hxmean_local[nob]
-                    #hpbht = (hxprime2_local[:,nob] ** 2).sum(axis=0) / (nanals - 1)
-                    #gainfact = (
-                    #    (hpbht + oberr)
-                    #    / hpbht
-                    #    * (1.0 - np.sqrt(oberr / (hpbht + oberr)))
-                    #)
-                    ## state space update
-                    #for k in range(2):
-                    #    pbht = (xprime2[:, k, n] * hxprime2_local[:,nob]).sum(axis=0) / (nanals - 1)
-                    #    kfgain = pbht / (hpbht + oberr)
-                    #    xmean[k, n] += kfgain*ominusf
-                    #    xprime[:, k, n] -= gainfact * kfgain * hxprime_local[:,nob]
-                    #    xprime2[:, k, n] -= gainfact * kfgain * hxprime2_local[:,nob]
-                    ## only update obs within localization radius
-                    #pbht = (hxprime2_local[:, nob:]*hxprime2_local[:,nob][:,np.newaxis]).sum(axis=0) / (nanals-1)
-                    #kfgain = pbht / (hpbht + oberr)
-                    #hxmean_local[nob:] += kfgain * ominusf
-                    #hxprime_local[:, nob:]  -= gainfact * kfgain * hxprime_local[:,nob][:,np.newaxis]
-                    #hxprime2_local[:, nob:]  -= gainfact * kfgain * hxprime2_local[:,nob][:,np.newaxis]
             else: # LGETKF update
                 Rinv = covlocal[mask, n] / oberrs[mask]
                 ominusf = (obs-hxmean)[mask]
