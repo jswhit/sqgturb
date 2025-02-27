@@ -16,9 +16,10 @@ from scipy.linalg import eigh
 
 if len(sys.argv) == 1:
    msg="""
-python sqg_enkf.py hcovlocal_scale covinflate>
+python sqg_enkf.py hcovlocal_scale covinflate vlocal> 
    hcovlocal_scale = horizontal localization scale in km
    covinflate: RTPS covinflate inflation parameter
+   vlocal: optional - vertical localizatino factor (default 1)
    """
    raise SystemExit(msg)
 
@@ -36,8 +37,8 @@ diff_efold = None # use diffusion from climo file
 
 profile = False # turn on profiling?
 
-local_volume = True  # use local volume solver (serial or LGETKF), otherwise use serial EnSRF
-local_volume_serial = False # if local_volume=T, use serial solver instead of LGETKF
+local_volume = False  # use local volume solver (serial or LGETKF), otherwise use serial EnSRF
+local_volume_serial = True # if local_volume=T, use serial solver instead of LGETKF
 read_restart = False
 # if savedata not None, netcdf filename will be defined by env var 'exptname'
 # if savedata = 'restart', only last time is saved (so expt can be restarted)
@@ -56,8 +57,8 @@ oberrstdev = 1. # ob error standard deviation in K
 # nature run created using sqg_run.py.
 filename_climo = 'sqgu20_N64_6hrly.nc' # file name for forecast model climo
 # perfect model
-filename_truth = 'sqgu20_N64_6hrly.nc' # file name for nature run to draw obs
-#filename_truth = 'sqg_N256_N96_12hrly.nc' # file name for nature run to draw obs
+#filename_truth = 'sqgu20_N64_6hrly.nc' # file name for nature run to draw obs
+filename_truth = 'sqgu20_N128N64_6hrly.nc' # file name for nature run to draw obs
 
 print('# filename_modelclimo=%s' % filename_climo)
 print('# filename_truth=%s' % filename_truth)
@@ -107,7 +108,7 @@ print("# hcovlocal=%g vcovlocal=%g diff_efold=%s covinfate=%s nanals=%s" %\
 
 # each ob time nobs ob locations are randomly sampled (without
 # replacement) from the model grid
-nobs = 2*nx*ny//8 # number of obs to assimilate (randomly distributed)
+nobs = 2*nx*ny//4 # number of obs to assimilate (randomly distributed)
 
 # nature run
 nc_truth = Dataset(filename_truth)
