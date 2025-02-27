@@ -9,10 +9,9 @@ from sqgturb import SQG, rfft2, irfft2, cartdist, gaspcohn
 from scipy.linalg import eigh
 
 # EnKF cycling for SQG turbulence model with boundary temp obs,
-# ob space horizontal and model space vertical localization.
+# serial solvers (local volume and global) with assimilation thresholding
 # Relaxation to prior spread inflation.
 # Random or fixed observing network.
-# Options for LETKF or serial EnSRF.
 
 if len(sys.argv) == 1:
    msg="""
