@@ -27,8 +27,9 @@ python sqg_enkf.py hcovlocal_scale covinflate assim_thresh vlocal>
 hcovlocal_scale = float(sys.argv[1])
 covinflate = float(sys.argv[2])
 assim_thresh = float(sys.argv[3])
-if len(sys.argv) > 4:
-    vcovlocal_fact = float(sys.argv[4])
+hlocal_fact = float(sys.argv[4])
+if len(sys.argv) > 5:
+    vcovlocal_fact = float(sys.argv[5])
 else:
     vcovlocal_fact = 1.
 exptname = os.getenv('exptname','test')
@@ -104,7 +105,7 @@ for nanal in range(nanals):
     diff_order=nc_climo.diff_order,diff_efold=diff_efold,threads=threads))
 if read_restart: ncinit.close()
 
-print('# local_volume=%s' % (local_volume))
+print('# local_volume=%s hlocal_fact=%s' % (local_volume,hlocal_fact))
 print("# hcovlocal=%g vcovlocal=%g diff_efold=%s covinfate=%s nanals=%s" %\
      (hcovlocal_scale/1000.,vcovlocal_fact,diff_efold,covinflate,nanals))
 
@@ -223,21 +224,12 @@ for ntime in range(nassim):
     pvob += rsobs.normal(scale=oberrstdev,size=nobs) # add ob errors
     xob = np.concatenate((x.ravel(),x.ravel()))[indxob]
     yob = np.concatenate((y.ravel(),y.ravel()))[indxob]
-    # compute covariance localization function for each ob
-    for nob in range(nobs):
-        dist = cartdist(xob[nob],yob[nob],x,y,nc_climo.L,nc_climo.L)
-        covlocal = gaspcohn(dist/hcovlocal_scale)
-        covlocal_tmp[nob] = covlocal.ravel()
 
     # first-guess spread (need later to compute inflation factor)
     pvensmean = pvens.mean(axis=0)
     pvprime = pvens - pvensmean
 
     # modulate ensemble
-    #def modensv(enspert,sqrtcovlocal):
-    #    nanals = enspert.shape[0]
-    #    neig = sqrtcovlocal.shape[0]
-    #    return np.multiply(np.repeat(sqrtcovlocal[:,np.newaxis,:],nanals,axis=0),np.tile(enspert,(neig,1,1)))
     neig = vcovlocal_sqrt.shape[1]; nanals2 = neig*nanals
     pvprime2 = np.empty((nanals2,2,ny,nx),pvprime.dtype)
     nanal2 = 0
@@ -302,29 +294,26 @@ for ntime in range(nassim):
     hxprime2 = hxens2 - hxmean
     if local_volume:
 
+        corr_power = hlocal_fact
         corr_thresh = assim_thresh
         nobscount = 0
         for n in range(nx*ny):
             distob = cartdist(xx[n],yy[n],xob,yob,nc_climo.L,nc_climo.L)
             mask = distob < np.abs(hcovlocal_scale)
-            #mask = covlocal_tmp[:,n] > 1.0e-10
             # loop over obs in local region
             nobs_local = mask.sum()
             # apply inflation to ob error
-            #oberr_local = oberrvar[mask]/covlocal_tmp[mask,n]
             oberr_local = oberrvar[mask]
             obs_local = pvob[mask]
             hxmean_local = hxmean[mask]
             hxprime_local = hxprime[:,mask]
             hxprime2_local = hxprime2[:,mask]
-            covlocal_local = covlocal_tmp[:,n]
             distob_local = distob[mask]
             iassim = np.zeros(nobs_local, np.int32)
 
-            corrmax = 1.; ncountassim = 0
-            while corrmax > corr_thresh:
+            corrmax = 1.e30; ncountassim = 0
+            while corrmax > corr_thresh and ncountassim < nobs_local:
 
-                
                 #varob = (hxprime2_local**2).sum(axis=0)/(nanals-1)
                 #corr = np.zeros(nobs_local, np.float32)
                 #for k in range(2):
@@ -335,51 +324,63 @@ for ntime in range(nassim):
                 #nobx = np.argmax(corr); corrmax = corr[nobx]
                 
                 # recode in cython?
-                corrmax = 0.
-                for nob in range(nobs_local):
-                    if iassim[nob] == 0: 
-                        pbht = np.empty((2,),xprime.dtype)
-                        corr = 0.
-                        varob = (hxprime2_local[:,nob]**2).sum(axis=0)/(nanals-1)
-                        for k in range(2):
-                            pbht[k] = (xprime2[:, k, n] * hxprime2_local[:,nob]).sum(axis=0) / (nanals-1)
-                            varstate = (xprime2[:, k, n]**2).sum(axis=0)/(nanals-1)
-                            corr = corr + 0.5*np.abs(pbht[k]/np.sqrt(varob*varstate))
-                        if corr > corrmax:
-                           corrmax = corr; nobx = nob
-
-                if corrmax > corr_thresh:
-                    ncountassim += 1
-                    #if n==0: print(ncountassim, nobs_local, nobx,corrmax)
-                    iassim[nobx]=1
-                    # step 1: update observed variable for ob being assimilated
-                    varob = (hxprime2_local[:,nobx]**2).sum(axis=0)/(nanals-1)
+                if corr_thresh > 1.e-2: 
+                    corrmax = 0.
+                    for nob in range(nobs_local):
+                        if iassim[nob] == 0: 
+                            pbht = np.empty((2,),xprime.dtype)
+                            corr = 0.
+                            varob = (hxprime2_local[:,nob]**2).sum(axis=0)/(nanals-1)
+                            for k in range(2):
+                                pbht[k] = (xprime2[:, k, n] * hxprime2_local[:,nob]).sum(axis=0) / (nanals-1)
+                                varstate = (xprime2[:, k, n]**2).sum(axis=0)/(nanals-1)
+                                corr = corr + 0.5*np.abs(pbht[k]/np.sqrt(varob*varstate))
+                            if corr > corrmax:
+                               corrmax = corr; nobx = nob
+                else:
+                    nobx = ncountassim
                     pbht = np.empty((2,),xprime.dtype)
+                    corrmax = 0.
+                    varob = (hxprime2_local[:,nobx]**2).sum(axis=0)/(nanals-1)
                     for k in range(2):
                         pbht[k] = (xprime2[:, k, n] * hxprime2_local[:,nobx]).sum(axis=0) / (nanals-1)
+                        varstate = (xprime2[:, k, n]**2).sum(axis=0)/(nanals-1)
+                        corrmax = corrmax + 0.5*np.abs(pbht[k]/np.sqrt(varob*varstate))
+
+                #if n==0: print(ncountassim, nobs_local, nobx,corrmax)
+                iassim[nobx]=1
+                # step 1: update observed variable for ob being assimilated
+                varob = (hxprime2_local[:,nobx]**2).sum(axis=0)/(nanals-1)
+                pbht = np.empty((2,),xprime.dtype)
+                for k in range(2):
+                    pbht[k] = (xprime2[:, k, n] * hxprime2_local[:,nobx]).sum(axis=0) / (nanals-1)
+                if corr_power < 0:
                     covlocal_ob = gaspcohn(distob_local[nobx]/hcovlocal_scale)
-                    # oberr localization happens here
-                    gainob = varob/(varob+(oberr_local[nobx]/covlocal_ob))
-                    hxmean_a = (1.-gainob)*hxmean_local[nobx] + gainob*obs_local[nobx] # linear interp
-                    hxprime_a = np.sqrt(1.-gainob)*hxprime_local[:,nobx] # rescaling
-                    hxprime2_a = np.sqrt(1.-gainob)*hxprime2_local[:,nobx] 
-                    # step 2: update model priors in state and ob space 
-                    # (linear regression of model priors on observation priors)
-                    obinc_mean = hxmean_a - hxmean_local[nobx]
-                    obinc_prime = hxprime_a - hxprime_local[:,nobx]
-                    obinc_prime2 = hxprime2_a - hxprime2_local[:,nobx]
-                    # state space
-                    for k in range(2):
-                        #pbht = (xprime2[:, k, n] * hxprime2_local[:,nobx]).sum(axis=0) / (nanals-1)
-                        xmean[k, n] +=  (pbht[k]/varob)*obinc_mean
-                        xprime[:, k, n] += (pbht[k]/varob)*obinc_prime
-                        xprime2[:, k, n] += (pbht[k]/varob)*obinc_prime2
-                    # ob space (only really need to update obs not yet assimilated)
-                    mask_assim = iassim == 0
-                    pbht = (hxprime2_local[:,mask_assim] * hxprime2_local[:,nobx][:,np.newaxis]).sum(axis=0) / (nanals-1)
-                    hxmean_local[mask_assim] += (pbht/varob)*obinc_mean
-                    hxprime_local[:,mask_assim] += (pbht[np.newaxis,:]/varob)*obinc_prime[:,np.newaxis]
-                    hxprime2_local[:,mask_assim] += (pbht[np.newaxis,:]/varob)*obinc_prime2[:,np.newaxis]
+                else:
+                    covlocal_ob = corrmax**corr_power
+                # oberr localization happens here
+                gainob = varob/(varob+(oberr_local[nobx]/covlocal_ob))
+                hxmean_a = (1.-gainob)*hxmean_local[nobx] + gainob*obs_local[nobx] # linear interp
+                hxprime_a = np.sqrt(1.-gainob)*hxprime_local[:,nobx] # rescaling
+                hxprime2_a = np.sqrt(1.-gainob)*hxprime2_local[:,nobx] 
+                # step 2: update model priors in state and ob space 
+                # (linear regression of model priors on observation priors)
+                obinc_mean = hxmean_a - hxmean_local[nobx]
+                obinc_prime = hxprime_a - hxprime_local[:,nobx]
+                obinc_prime2 = hxprime2_a - hxprime2_local[:,nobx]
+                # state space
+                for k in range(2):
+                    #pbht = (xprime2[:, k, n] * hxprime2_local[:,nobx]).sum(axis=0) / (nanals-1)
+                    xmean[k, n] +=  (pbht[k]/varob)*obinc_mean
+                    xprime[:, k, n] += (pbht[k]/varob)*obinc_prime
+                    xprime2[:, k, n] += (pbht[k]/varob)*obinc_prime2
+                # ob space (only really need to update obs not yet assimilated)
+                mask_assim = iassim == 0
+                pbht = (hxprime2_local[:,mask_assim] * hxprime2_local[:,nobx][:,np.newaxis]).sum(axis=0) / (nanals-1)
+                hxmean_local[mask_assim] += (pbht/varob)*obinc_mean
+                hxprime_local[:,mask_assim] += (pbht[np.newaxis,:]/varob)*obinc_prime[:,np.newaxis]
+                hxprime2_local[:,mask_assim] += (pbht[np.newaxis,:]/varob)*obinc_prime2[:,np.newaxis]
+                ncountassim += 1
 
             xens[:,:,n] = xmean[:,n]+xprime[:,:,n]
             nobscount += ncountassim
@@ -392,16 +393,16 @@ for ntime in range(nassim):
         paoverpb = oberrvar/(hpbht + oberrvar)
         iassim = np.zeros(nobs,np.bool)
         paoverpb_min = paoverpb.min()
-        covl_minfact=1.
-        covl_efold=0.3
+        covl_minfact=0.1
+        covl_efold=hlocal_fact
         
         nobscount = 0 
         while paoverpb_min < paoverpb_thresh and nobscount < nobs:
             nob = np.argmin(paoverpb)
             paoverpb_min = paoverpb[nob]
             nobscount += 1
-            covl_fact = max(1. - np.exp( -((1.-paoverpb_min)/covl_efold)**2 ),covl_minfact)
-            covl_fact = (1.-paoverpb_min)**0.1
+            #covl_fact = max(1. - np.exp( -((1.-paoverpb_min)/covl_efold)**2 ),covl_minfact)
+            covl_fact = (1.-paoverpb_min)**hlocal_fact
             #print(nob, ncount, paoverpb_min, covl_fact)
             ob = pvob[nob]; oberr = oberrvar[nob]
             dist = cartdist(xob[nob],yob[nob],x,y,nc_climo.L,nc_climo.L)
