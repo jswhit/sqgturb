@@ -15,19 +15,19 @@ from scipy.linalg import eigh
 
 if len(sys.argv) == 1:
    msg="""
-python sqg_enkf.py hcovlocal_scale covinflate assim_thresh corr_power vlocal>
+python sqg_enkf.py hcovlocal_scale covinflate corr_thresh corr_power vlocal>
    hcovlocal_scale = horizontal localization scale in km
    covinflate: RTPS covinflate inflation parameter
-   assim_thresh: threshold for serial assimilation (correlation or HPaHT/HPbHT)
-   corr_power: power to raise correlation in ob error inflation
-   vlocal:  vertical localization (1 by default)
+   corr_thresh: corr threshold for serial assimilation (set to zero for use all obs, or neg to turn off sorting by corr)
+   corr_power: power to raise correlation in ob error inflation (set to zero for no extra factor in oberr inflation)
+   vlocal: vertical localization (1, i.e. no vertical localization,  by default)
    """
    raise SystemExit(msg)
 
 # horizontal covariance localization length scale in meters.
 hcovlocal_scale = float(sys.argv[1])
 covinflate = float(sys.argv[2])
-assim_thresh = float(sys.argv[3])
+corr_thresh = float(sys.argv[3])
 corr_power = float(sys.argv[4])
 if len(sys.argv) > 5:
     vcovlocal_fact = float(sys.argv[5])
@@ -142,7 +142,7 @@ else:
     ntstart = 0
 assim_interval = obtimes[1]-obtimes[0]
 assim_timesteps = int(np.round(assim_interval/models[0].dt))
-print('# assim interval = %s secs (%s time steps) assim_thresh = %s corr_power=%s' % (assim_interval,assim_timesteps,assim_thresh,corr_power))
+print('# assim interval = %s secs (%s time steps) corr_thresh = %s corr_power=%s' % (assim_interval,assim_timesteps,corr_thresh,corr_power))
 print('# ntime,pverr_a,pvsprd_a,pverr_b,pvsprd_b,obfits_b,osprd_b+R,obbias_b,inflation,tr(P^a)/tr(P^b),nobs_assim')
 
 # initialize model clock
@@ -292,7 +292,6 @@ for ntime in range(nassim):
     hxprime = hxens - hxmean
     hxprime2 = hxens2 - hxmean
 
-    corr_thresh = assim_thresh
     nobscount = 0
 
     distob = np.empty((nx*ny,nobs), np.float32)
@@ -324,8 +323,10 @@ for ntime in range(nassim):
                 pbht = (xprime2[:,k,n,np.newaxis]*hxprime2_local[:,:]).sum(axis=0) / (nanals-1)
                 corr = np.abs(pbht/np.sqrt(varob[np.newaxis,:]*varstate)).squeeze()
                 corr[iassim==1]=0 # set corr to zero for already assimilated obs
-                nobx = np.argmax(corr)
-                #nobx = ncountassim # don't sort by correlation
+                if corr_thresh < 0: 
+                    nobx = ncountassim # don't sort by correlation if corr_thresh<0
+                else:
+                    nobx = np.argmax(corr)
                 corrmax = corr[nobx]
                 
                 #if n==0: print(k,ncountassim, nobs_local, nobx,corrmax)
