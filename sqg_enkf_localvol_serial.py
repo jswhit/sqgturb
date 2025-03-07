@@ -19,6 +19,7 @@ python sqg_enkf.py hcovlocal_scale covinflate assim_thresh corr_power vlocal>
    hcovlocal_scale = horizontal localization scale in km
    covinflate: RTPS covinflate inflation parameter
    assim_thresh: threshold for serial assimilation (correlation or HPaHT/HPbHT)
+   corr_power: power to raise correlation in ob error inflation
    vlocal:  vertical localization (1 by default)
    """
    raise SystemExit(msg)
@@ -141,7 +142,7 @@ else:
     ntstart = 0
 assim_interval = obtimes[1]-obtimes[0]
 assim_timesteps = int(np.round(assim_interval/models[0].dt))
-print('# assim interval = %s secs (%s time steps) assim_thresh = %s' % (assim_interval,assim_timesteps,assim_thresh))
+print('# assim interval = %s secs (%s time steps) assim_thresh = %s corr_power=%s' % (assim_interval,assim_timesteps,assim_thresh,corr_power))
 print('# ntime,pverr_a,pvsprd_a,pverr_b,pvsprd_b,obfits_b,osprd_b+R,obbias_b,inflation,tr(P^a)/tr(P^b),nobs_assim')
 
 # initialize model clock
@@ -294,19 +295,25 @@ for ntime in range(nassim):
     corr_thresh = assim_thresh
     nobscount = 0
 
+    distob = np.empty((nx*ny,nobs), np.float32)
+    for n in range(nx*ny):
+        distob[n,:] = cartdist(xx[n],yy[n],xob,yob,nc_climo.L,nc_climo.L)
+
     for k in range(2):
         for n in range(nx*ny):
-            distob = cartdist(xx[n],yy[n],xob,yob,nc_climo.L,nc_climo.L)
-            mask = distob < np.abs(hcovlocal_scale)
-            # loop over obs in local region
+            mask = distob[n] < np.abs(hcovlocal_scale)
+
+            # select obs in local region
             nobs_local = mask.sum()
             oberr_local = oberrvar[mask]
             obs_local = pvob[mask]
             hxmean_local = hxmean[mask]
             hxprime_local = hxprime[:,mask]
             hxprime2_local = hxprime2[:,mask]
-            distob_local = distob[mask]
+            distob_local = distob[n,mask]
 
+            # assimilate obs in local region in order of decreasing correlation
+            # with state variable being updated.
             iassim = np.zeros(nobs_local, np.int32)
             corrmax = 1.e30; ncountassim = 0
             while corrmax > corr_thresh and ncountassim < nobs_local:
@@ -327,9 +334,9 @@ for ntime in range(nassim):
                 iassim[nobx]=1
                 # step 1: update observed variable for ob being assimilated
                 varob = (hxprime2_local[:,nobx]**2).sum(axis=0)/(nanals-1)
+                # ob error inflation based on gaspari-cohn taper multiplied by correlation raised to a power.
                 covlocal_ob = (corrmax**corr_power)*gaspcohn(distob_local[nobx]/hcovlocal_scale)
-                # oberr localization happens here
-                gainob = varob/(varob+(oberr_local[nobx]/covlocal_ob))
+                gainob = varob/(varob+(oberr_local[nobx]/covlocal_ob)) # only place where localization enters in
                 hxmean_a = (1.-gainob)*hxmean_local[nobx] + gainob*obs_local[nobx] # linear interp
                 hxprime_a = np.sqrt(1.-gainob)*hxprime_local[:,nobx] # rescaling
                 hxprime2_a = np.sqrt(1.-gainob)*hxprime2_local[:,nobx] 
@@ -343,7 +350,7 @@ for ntime in range(nassim):
                 xmean[k, n] +=  (pbht/varob)*obinc_mean
                 xprime[:, k, n] += (pbht/varob)*obinc_prime
                 xprime2[:, k, n] += (pbht/varob)*obinc_prime2
-                # ob space (only really need to update obs not yet assimilated)
+                # ob space (only need to update obs not yet assimilated)
                 mask_assim = iassim == 0
                 pbht = (hxprime2_local[:,mask_assim] * hxprime2_local[:,nobx][:,np.newaxis]).sum(axis=0) / (nanals-1)
                 hxmean_local[mask_assim] += (pbht/varob)*obinc_mean
