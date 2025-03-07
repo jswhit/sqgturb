@@ -58,8 +58,8 @@ oberrstdev = 1. # ob error standard deviation in K
 # nature run created using sqg_run.py.
 filename_climo = 'sqgu20_N64_6hrly.nc' # file name for forecast model climo
 # perfect model
-filename_truth = 'sqgu20_N64_6hrly.nc' # file name for nature run to draw obs
-#filename_truth = 'sqgu20_N128N64_6hrly.nc' # file name for nature run to draw obs
+#filename_truth = 'sqgu20_N64_6hrly.nc' # file name for nature run to draw obs
+filename_truth = 'sqgu20_N128N64_6hrly.nc' # file name for nature run to draw obs
 
 print('# filename_modelclimo=%s' % filename_climo)
 print('# filename_truth=%s' % filename_truth)
@@ -318,10 +318,10 @@ for ntime in range(nassim):
             while corrmax > corr_thresh and ncountassim < nobs_local:
 
                 # compute correlation between ob and state
-                varob = (hxprime2_local**2).sum(axis=0)/(nanals-1)
+                varobs = (hxprime2_local**2).sum(axis=0)/(nanals-1)
                 varstate =  (xprime2[:, k, n]**2).sum(axis=0)/(nanals-1)
-                pbht = (xprime2[:,k,n,np.newaxis]*hxprime2_local[:,:]).sum(axis=0) / (nanals-1)
-                corr = np.abs(pbht/np.sqrt(varob[np.newaxis,:]*varstate)).squeeze()
+                pbht = (xprime2[:,k,n,np.newaxis]*hxprime2_local).sum(axis=0) / (nanals-1)
+                corr = np.abs(pbht/np.sqrt(varobs[np.newaxis,:]*varstate)).squeeze()
                 corr[iassim==1]=0 # set corr to zero for already assimilated obs
                 if corr_thresh < 0: 
                     nobx = ncountassim # don't sort by correlation if corr_thresh<0
@@ -332,7 +332,8 @@ for ntime in range(nassim):
                 #if n==0: print(k,ncountassim, nobs_local, nobx,corrmax)
                 iassim[nobx]=1
                 # step 1: update observed variable for ob being assimilated
-                varob = (hxprime2_local[:,nobx]**2).sum(axis=0)/(nanals-1)
+                #varob = (hxprime2_local[:,nobx]**2).sum(axis=0)/(nanals-1)
+                varob = varobs[nobx]
                 # ob error inflation based on gaspari-cohn taper multiplied by correlation raised to a power.
                 covlocal_ob = (corrmax**corr_power)*gaspcohn(distob_local[nobx]/hcovlocal_scale)
                 gainob = varob/(varob+(oberr_local[nobx]/covlocal_ob)) # only place where localization enters in
@@ -345,7 +346,8 @@ for ntime in range(nassim):
                 obinc_prime = hxprime_a - hxprime_local[:,nobx]
                 obinc_prime2 = hxprime2_a - hxprime2_local[:,nobx]
                 # state space
-                pbht = (xprime2[:, k, n] * hxprime2_local[:,nobx]).sum(axis=0) / (nanals-1)
+                #pbht = (xprime2[:, k, n] * hxprime2_local[:,nobx]).sum(axis=0) / (nanals-1)
+                pbht = pbht[nobx] 
                 xmean[k, n] +=  (pbht/varob)*obinc_mean
                 xprime[:, k, n] += (pbht/varob)*obinc_prime
                 xprime2[:, k, n] += (pbht/varob)*obinc_prime2
