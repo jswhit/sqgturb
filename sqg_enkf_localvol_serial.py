@@ -323,11 +323,9 @@ for ntime in range(nassim):
                 varstate =  (xprime2[:, k, n]**2).sum(axis=0)/(nanals-1)
                 pbht = (xprime2[:,k,n,np.newaxis]*hxprime2_local[:,:]).sum(axis=0) / (nanals-1)
                 corr = np.abs(pbht/np.sqrt(varob[np.newaxis,:]*varstate)).squeeze()
-                if corr_thresh > 1.e-2:
-                    corr[iassim==1]=0 # set corr to zero for already assimilated obs
-                    nobx = np.argmax(corr)
-                else:
-                    nobx = ncountassim
+                corr[iassim==1]=0 # set corr to zero for already assimilated obs
+                nobx = np.argmax(corr)
+                #nobx = ncountassim # don't sort by correlation
                 corrmax = corr[nobx]
                 
                 #if n==0: print(k,ncountassim, nobs_local, nobx,corrmax)
