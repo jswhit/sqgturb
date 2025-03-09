@@ -18,6 +18,8 @@ if len(sys.argv) == 1:
 python sqg_enkf.py hcovlocal_scale covinflate corr_power corr_thresh> 
    hcovlocal_scale = horizontal localization scale in km
    covinflate: RTPS covinflate inflation parameter
+   corr_power: power to raise correlation in ob error inflation (set to zero for no extra factor in oberr inflation)
+   corr_thresh: corr threshold for serial assimilation (set to zero for use all obs, or neg to turn off sorting by corr)
    """
    raise SystemExit(msg)
 
@@ -125,7 +127,7 @@ else:
     ntstart = 0
 assim_interval = obtimes[1]-obtimes[0]
 assim_timesteps = int(np.round(assim_interval/models[0].dt))
-print('# assim interval = %s secs (%s time steps)' % (assim_interval,assim_timesteps))
+print('# assim interval = %s secs (%s time steps) corr_thresh = %s corr_power=%s' % (assim_interval,assim_timesteps,corr_thresh,corr_power))
 print('# ntime,pverr_a,pvsprd_a,pverr_b,pvsprd_b,obfits_b,osprd_b+R,obbias_b,inflation,tr(P^a)/tr(P^b),nobs_local')
 
 # initialize model clock
