@@ -283,12 +283,12 @@ for ntime in range(nassim):
                     corr = corr[mask2]
                     ominusf = ominusf[mask2]
 
-                nobs_local =+ nobs_local + len(oberr_local)
                 covlocal_ob = (corr**corr_power)*gaspcohn(distob_local/hcovlocal_scale)
-                covlocal_ob = covlocal_ob.clip(min=1.e-7)
             else:
                 covlocal_ob = gaspcohn(distob_local/hcovlocal_scale)
-                covlocal_ob = covlocal_ob.clip(min=1.e-7)
+
+            covlocal_ob = covlocal_ob.clip(min=1.e-7)
+            nobs_local =+ nobs_local + len(oberr_local)
 
             Rinvsqrt = np.sqrt(covlocal_ob/oberr_local)
             YbRinv = hxprime_local*Rinvsqrt**2/normfact
