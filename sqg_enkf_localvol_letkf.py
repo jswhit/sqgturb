@@ -251,21 +251,19 @@ for ntime in range(nassim):
 
     xmean = xens.mean(axis=0)
     xprime = xens - xmean
-    distob = np.empty((nx*ny,nobs), np.float32)
-    for n in range(nx*ny):
-        distob[n,:] = cartdist(xx[n],yy[n],xob,yob,nc_climo.L,nc_climo.L)
 
     normfact = np.array(np.sqrt(nanals-1),dtype=np.float32)
     nobs_local = 0
     for n in range(nx*ny):
-        mask = distob[n] < np.abs(hcovlocal_scale)
+        distob = cartdist(xx[n],yy[n],xob,yob,nc_climo.L,nc_climo.L)
+        mask = distob < np.abs(hcovlocal_scale)
 
         # select obs in local region
         oberr_local = oberrvar[mask]
         obs_local = pvob[mask]
         hxmean_local = hxensmean_b[mask]
         hxprime_local = hxens[:,mask] - hxmean_local
-        distob_local = distob[n,mask]
+        distob_local = distob[mask]
         ominusf = obs_local - hxmean_local
 
         for k in range(2):
