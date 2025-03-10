@@ -15,11 +15,12 @@ from scipy.linalg import lapack
 
 if len(sys.argv) == 1:
    msg="""
-python sqg_enkf.py hcovlocal_scale covinflate corr_power corr_thresh> 
+python sqg_enkf.py hcovlocal_scale covinflate corr_power corr_thresh vcovlocal_fact> 
    hcovlocal_scale = horizontal localization scale in km
    covinflate: RTPS covinflate inflation parameter
    corr_power: power to raise correlation in ob error inflation (set to zero for no extra factor in oberr inflation)
    corr_thresh: corr threshold for serial assimilation (set to zero for use all obs, or neg to turn off sorting by corr)
+   vcovlocal_fact: optional - vertical localizatino factor (default 1)
    """
    raise SystemExit(msg)
 
@@ -28,6 +29,10 @@ hcovlocal_scale = float(sys.argv[1])
 covinflate = float(sys.argv[2])
 corr_power = float(sys.argv[3])
 corr_thresh = float(sys.argv[4])
+if len(sys.argv) > 5:
+    vcovlocal_fact = float(sys.argv[5])
+else:
+    vcovlocal_fact = 1.
 exptname = os.getenv('exptname','test')
 threads = int(os.getenv('OMP_NUM_THREADS','1'))
 
@@ -99,7 +104,7 @@ for nanal in range(nanals):
     diff_order=nc_climo.diff_order,diff_efold=diff_efold,threads=threads))
 if read_restart: ncinit.close()
 
-print('# corr_power=%s corr_thresh=%s' % (corr_power,corr_thresh))
+print('# corr_power=%s corr_thresh=%s vcovlocal_fact=%s' % (corr_power,corr_thresh,vcovlocal_fact))
 print("# hcovlocal=%g diff_efold=%s covinfate=%s nanals=%s" %\
      (hcovlocal_scale/1000.,diff_efold,covinflate,nanals))
 
@@ -291,6 +296,10 @@ for ntime in range(nassim):
             nobs_local =+ nobs_local + len(oberr_local)
 
             Rinvsqrt = np.sqrt(covlocal_ob/oberr_local)
+            if k==0: 
+                Rinvsqrt[nobs//2:] = np.sqrt(vcovlocal_fact)*Rinvsqrt[nobs//2:]
+            else:
+                Rinvsqrt[:nobs//2] = np.sqrt(vcovlocal_fact)*Rinvsqrt[:nobs//2]
             YbRinv = hxprime_local*Rinvsqrt**2/normfact
             YbsqrtRinv = hxprime_local*Rinvsqrt/normfact
 
