@@ -209,6 +209,7 @@ for ntime in range(nassim):
 
     t1 = time.time()
     indxob = np.sort(rsobs.choice(2*nx*ny,nobs,replace=False))
+    kob = (indxob >= nx*ny).astype(np.int32) # is ob at top or bottom?
     pvob = scalefact*pv_truth[ntime+ntstart,...].reshape(2*nx*ny)[indxob]
     pvob += rsobs.normal(scale=oberrstdev,size=nobs) # add ob errors
     xob = np.concatenate((x.ravel(),x.ravel()))[indxob]
@@ -269,6 +270,7 @@ for ntime in range(nassim):
         hxmean_local = hxensmean_b[mask]
         hxprime_local = hxens[:,mask] - hxmean_local
         distob_local = distob[mask]
+        vcovl_local = kob[mask]
         ominusf = obs_local - hxmean_local
 
         for k in range(2):
@@ -285,6 +287,7 @@ for ntime in range(nassim):
                     oberr_local = oberr_local[mask2]
                     distob_local = distob_local[mask2]
                     hxprime_local = hxprime_local[:,mask2]
+                    vcovl_local = vcovl_local[mask2]
                     corr = corr[mask2]
                     ominusf = ominusf[mask2]
 
@@ -295,11 +298,8 @@ for ntime in range(nassim):
             covlocal_ob = covlocal_ob.clip(min=1.e-7)
             nobs_local =+ nobs_local + len(oberr_local)
 
-            Rinvsqrt = np.sqrt(covlocal_ob/oberr_local)
-            if k==0: 
-                Rinvsqrt[nobs//2:] = np.sqrt(vcovlocal_fact)*Rinvsqrt[nobs//2:]
-            else:
-                Rinvsqrt[:nobs//2] = np.sqrt(vcovlocal_fact)*Rinvsqrt[:nobs//2]
+            vcovlocal = np.where(vcovl_local == k, 1, vcovlocal_fact)
+            Rinvsqrt = np.sqrt(vcovlocal*covlocal_ob/oberr_local)
             YbRinv = hxprime_local*Rinvsqrt**2/normfact
             YbsqrtRinv = hxprime_local*Rinvsqrt/normfact
 
