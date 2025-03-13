@@ -35,10 +35,9 @@ else:
     vcovlocal_fact = 1.
 exptname = os.getenv('exptname','test')
 threads = int(os.getenv('OMP_NUM_THREADS','1'))
+verbose = bool(int(os.getenv('VERBOSE','0')))
 
 diff_efold = None # use diffusion from climo file
-
-verbose = False # turn on profiling?
 
 read_restart = False
 nassim = 300 # assimilation times to run
@@ -289,15 +288,19 @@ def run_exp(models, pv_truth, pvens, hcovlocal_scale, vcovlocal_fact, corr_power
 
     return ncount, pverra_mean/ncount, pvsprda_mean/ncount, pverrb_mean/ncount, pvsprdb_mean/ncount
 
-for hcovl_scale in np.arange(1500,3001,100):
-    hcovlocal_scale = hcovl_scale*1000.
-    for vcovlocal_fact in np.arange(0,1.01,0.1):
+#for hcovl_scale in np.arange(2000,3201,100):
+#   hcovlocal_scale = hcovl_scale*1000.
+if verbose:
+    ncount,pverra,pvsprda,pverrb,pvsprdb = run_exp(models, pv_truth, pvens, hcovlocal_scale, vcovlocal_fact, corr_power, covinflate)
+    print('%g %g %g %g %s %s %g %g %g %g' % (hcovlocal_scale/1000,vcovlocal_fact,covinflate,corr_power,nassim_spinup,ncount,pverra,pvsprda,pverrb,pvsprdb))
+else:
+    for corr_power in np.arange(0.5,1.51,0.1):
         ncount,pverra,pvsprda,pverrb,pvsprdb = run_exp(models, pv_truth, pvens, hcovlocal_scale, vcovlocal_fact, corr_power, covinflate)
         print('%g %g %g %g %s %s %g %g %g %g' % (hcovlocal_scale/1000,vcovlocal_fact,covinflate,corr_power,nassim_spinup,ncount,pverra,pvsprda,pverrb,pvsprdb))
         
-        from tinydb import TinyDB
-        db = TinyDB('perfect96_results/db.json')
-        db.insert({'hcovlocal_scale': int(hcovlocal_scale/1000.), 'vcovlocal_fact': int(vcovlocal_fact*100), 'covinflate': int(covinflate*100), 
-                   'corr_power': int(corr_power*100),
-                   'PVError_anal': pverra, 'PVError_bkg': pverrb, 'PVSpread_anal': pvsprda, 'PVSpread_bkg': pvsprdb})
-        db.close()
+        #from tinydb import TinyDB
+        #db = TinyDB('perfect96_results/db.json')
+        #db.insert({'hcovlocal_scale': int(hcovlocal_scale/1000.), 'vcovlocal_fact': int(vcovlocal_fact*100), 'covinflate': int(covinflate*100), 
+        #           'corr_power': int(corr_power*100),
+        #           'PVError_anal': pverra, 'PVError_bkg': pverrb, 'PVSpread_anal': pvsprda, 'PVSpread_bkg': pvsprdb})
+        #db.close()
