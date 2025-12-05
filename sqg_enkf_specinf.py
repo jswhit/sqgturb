@@ -66,7 +66,8 @@ print('# filename_truth=%s' % filename_truth)
 
 # fix random seed for reproducibility.
 rsobs = np.random.RandomState(42) # fixed seed for observations
-rsics = np.random.RandomState(24) # varying seed for initial conditions
+#rsics = np.random.RandomState() # varying seed for initial conditions
+rsics = np.random.RandomState(24) # fixed seed for initial conditions
 
 # get model info
 nc_climo = Dataset(filename_climo)
@@ -222,6 +223,7 @@ ktotsq = (k**2+l**2).astype(np.int32)
 jmax,imax = ktotsq.shape
 ktot = np.sqrt(ktotsq)
 ktotmax = (N//2)+1
+# RTPS relaxation parameter is a function of total wavenumber (larger for smaller wavenumbers)
 covinflate_spec = np.exp(-(np.arange(ktotmax)/covinflate_ktot0)**covinflate_power)*covinflate
 
 for ntime in range(nassim):
@@ -293,18 +295,10 @@ for ntime in range(nassim):
     pverr_b = (scalefact*(pvensmean_b-pv_truth[ntime+ntstart]))**2
     pvsprd_b = ((scalefact*(pvensmean_b-pvens))**2).sum(axis=0)/(nanals-1)
 
-    pvpertspec_mag = np.zeros((2,jmax,imax), np.float32)
+    pvspecsprd_b = np.zeros((2,jmax,imax), np.float32)
     for nanal in range(nanals):
         pvpertspecb = rfft2(pvprime[nanal])
-        pvpertspec_mag += (pvpertspecb*np.conjugate(pvpertspecb)).real/(nanals-1)
-    pvspecsprd_b = np.zeros((2,ktotmax),np.float32)
-    for k in range(2):
-        for i in range(imax):
-            for j in range(jmax):
-                totwavenum = ktot[j,i]
-                if int(totwavenum) < ktotmax:
-                    pvspecsprd_b[k,int(totwavenum)] = pvspecsprd_b[k,int(totwavenum)] +\
-                    pvpertspec_mag[k,j,i]
+        pvspecsprd_b += (pvpertspecb*np.conjugate(pvpertspecb)).real/(nanals-1)
 
     if savedata is not None:
         if savedata == 'restart' and ntime != nassim-1:
@@ -338,38 +332,25 @@ for ntime in range(nassim):
     asprd_over_fsprd = asprd.mean()/fsprd.mean()
 
     # relaxation to prior stdev (Whitaker & Hamill 2012)
+    # grid space
     #asprd = np.sqrt(asprd); fsprd = np.sqrt(fsprd)
     #inflation_factor = 1.+covinflate*(fsprd-asprd)/asprd
     #pvprime = pvprime*inflation_factor
     #pvens = pvprime + pvensmean_a
 
+    # spectral space
     pvpertspeca = np.zeros((nanals,2,jmax,imax), pvpertspecb.dtype)
-    pvpertspec_mag = np.zeros((2,jmax,imax), np.float32)
+    pvspecsprd_a = np.zeros((2,jmax,imax), np.float32)
     for nanal in range(nanals):
         pvpertspeca[nanal] = rfft2(pvprime[nanal])
-        pvpertspec_mag += (pvpertspeca[nanal]*np.conjugate(pvpertspeca[nanal])).real/(nanals-1)
-    pvspecsprd_a = np.zeros((2,ktotmax),np.float32)
-    for k in range(2):
-        for i in range(imax):
-            for j in range(jmax):
-                totwavenum = ktot[j,i]
-                if int(totwavenum) < ktotmax:
-                    pvspecsprd_a[k,int(totwavenum)] = pvspecsprd_a[k,int(totwavenum)] +\
-                    pvpertspec_mag[k,j,i]
+        pvspecsprd_a += (pvpertspeca[nanal]*np.conjugate(pvpertspeca[nanal])).real/(nanals-1)
+
     asprd = np.sqrt(pvspecsprd_a)
     fsprd = np.sqrt(pvspecsprd_b)
     inflation_factor = 1.+covinflate_spec*(fsprd-asprd)/asprd
     inflation_factor = inflation_factor.clip(1.0)
-    #print(inflation_factor.shape, inflation_factor.min(), inflation_factor.max())
-    #for n in range(ktotmax):
-    #    print(n,pvspecsprd_a[1,n],pvspecsprd_b[1,n],inflation_factor[1,n],covinflate_spec[n])
-    #raise SystemExit
-    for k in range(2):
-        for i in range(imax):
-            for j in range(jmax):
-                totwavenum = ktot[j,i]
-                if int(totwavenum) < ktotmax:
-                    pvpertspeca[:,k,j,i] = inflation_factor[k,int(totwavenum)]*pvpertspeca[:,k,j,i]
+
+    pvpertspeca = inflation_factor*pvpertspeca
     for nanal in range(nanals):
         pvens[nanal] = pvensmean_a + irfft2(pvpertspeca[nanal])
 
