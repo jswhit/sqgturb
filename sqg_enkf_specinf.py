@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from netCDF4 import Dataset
 import sys, time, os
-from sqgturb import SQG, rfft2, irfft2, cartdist,enkf_update,gaspcohn
+from sqgturb import SQG, rfft2, irfft2, cartdist, enkf_update, gaspcohn
 from scipy.linalg import eigh
 
 # EnKF cycling for SQG turbulence model with boundary temp obs,
@@ -347,13 +347,10 @@ for ntime in range(nassim):
         for nanal in range(nanals):
             pvpertspeca[nanal] = rfft2(pvprime[nanal])
             pvspecsprd_a += (pvpertspeca[nanal]*np.conjugate(pvpertspeca[nanal])).real/(nanals-1)
-        asprd = np.sqrt(pvspecsprd_a)
-        fsprd = np.sqrt(pvspecsprd_b)
-        inflation_factor = 1.+covinflate_spec*(fsprd-asprd)/asprd
-        inflation_factor = inflation_factor.clip(1.0)
-        pvpertspeca = inflation_factor*pvpertspeca
+        asprd = np.sqrt(pvspecsprd_a); fsprd = np.sqrt(pvspecsprd_b)
+        inflation_factor = (1.+covinflate_spec*(fsprd-asprd)/asprd).clip(1.0)
         for nanal in range(nanals):
-            pvens[nanal] = pvensmean_a + irfft2(pvpertspeca[nanal])
+            pvens[nanal] = pvensmean_a + irfft2(inflation_factor*pvpertspeca[nanal])
 
     # print out analysis error, spread and innov stats for background
     pverr_a = (scalefact*(pvensmean_a-pv_truth[ntime+ntstart]))**2
