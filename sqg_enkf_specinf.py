@@ -214,7 +214,6 @@ if savedata is not None:
 pvspec_errmean = None; pvspec_sprdmean = None
 
 ncount = 0
-nanals_spec = min(20,nanals) # ensemble members used for pvspec spread
 
 N = models[0].N
 k = np.abs((N*np.fft.fftfreq(N))[0:(N//2)+1])
@@ -297,10 +296,11 @@ for ntime in range(nassim):
     pverr_b = (scalefact*(pvensmean_b-pv_truth[ntime+ntstart]))**2
     pvsprd_b = ((scalefact*(pvensmean_b-pvens))**2).sum(axis=0)/(nanals-1)
 
-    pvspecsprd_b = np.zeros((2,jmax,imax), np.float32)
-    for nanal in range(nanals):
-        pvpertspecb = rfft2(pvprime[nanal])
-        pvspecsprd_b += (pvpertspecb*np.conjugate(pvpertspecb)).real/(nanals-1)
+    if covinflate_specparm > 0:
+        pvspecsprd_b = np.zeros((2,jmax,imax), np.float32)
+        for nanal in range(nanals):
+            pvpertspecb = rfft2(pvprime[nanal])
+            pvspecsprd_b += (pvpertspecb*np.conjugate(pvpertspecb)).real/(nanals-1)
 
     if savedata is not None:
         if savedata == 'restart' and ntime != nassim-1:
@@ -334,27 +334,26 @@ for ntime in range(nassim):
     asprd_over_fsprd = asprd.mean()/fsprd.mean()
 
     # relaxation to prior stdev (Whitaker & Hamill 2012)
-    # grid space
-    #asprd = np.sqrt(asprd); fsprd = np.sqrt(fsprd)
-    #inflation_factor = 1.+covinflate*(fsprd-asprd)/asprd
-    #pvprime = pvprime*inflation_factor
-    #pvens = pvprime + pvensmean_a
-
-    # spectral space
-    pvpertspeca = np.zeros((nanals,2,jmax,imax), pvpertspecb.dtype)
-    pvspecsprd_a = np.zeros((2,jmax,imax), np.float32)
-    for nanal in range(nanals):
-        pvpertspeca[nanal] = rfft2(pvprime[nanal])
-        pvspecsprd_a += (pvpertspeca[nanal]*np.conjugate(pvpertspeca[nanal])).real/(nanals-1)
-
-    asprd = np.sqrt(pvspecsprd_a)
-    fsprd = np.sqrt(pvspecsprd_b)
-    inflation_factor = 1.+covinflate_spec*(fsprd-asprd)/asprd
-    inflation_factor = inflation_factor.clip(1.0)
-
-    pvpertspeca = inflation_factor*pvpertspeca
-    for nanal in range(nanals):
-        pvens[nanal] = pvensmean_a + irfft2(pvpertspeca[nanal])
+    if covinflate_specparm < 0:
+        # grid space
+        asprd = np.sqrt(asprd); fsprd = np.sqrt(fsprd)
+        inflation_factor = 1.+covinflate*(fsprd-asprd)/asprd
+        pvprime = pvprime*inflation_factor
+        pvens = pvprime + pvensmean_a
+    else:
+        # spectral space
+        pvpertspeca = np.zeros((nanals,2,jmax,imax), pvpertspecb.dtype)
+        pvspecsprd_a = np.zeros((2,jmax,imax), np.float32)
+        for nanal in range(nanals):
+            pvpertspeca[nanal] = rfft2(pvprime[nanal])
+            pvspecsprd_a += (pvpertspeca[nanal]*np.conjugate(pvpertspeca[nanal])).real/(nanals-1)
+        asprd = np.sqrt(pvspecsprd_a)
+        fsprd = np.sqrt(pvspecsprd_b)
+        inflation_factor = 1.+covinflate_spec*(fsprd-asprd)/asprd
+        inflation_factor = inflation_factor.clip(1.0)
+        pvpertspeca = inflation_factor*pvpertspeca
+        for nanal in range(nanals):
+            pvens[nanal] = pvensmean_a + irfft2(pvpertspeca[nanal])
 
     # print out analysis error, spread and innov stats for background
     pverr_a = (scalefact*(pvensmean_a-pv_truth[ntime+ntstart]))**2
@@ -391,9 +390,9 @@ for ntime in range(nassim):
             pvspec_errmean = pverrspec_mag
         else:
             pvspec_errmean = pvspec_errmean + pverrspec_mag
-        for nanal in range(nanals_spec):
+        for nanal in range(nanals):
             pvpertspec = scalefact*rfft2(pvens[nanal] - pvfcstmean)
-            pvpertspec_mag = (pvpertspec*np.conjugate(pvpertspec)).real/nanals_spec
+            pvpertspec_mag = (pvpertspec*np.conjugate(pvpertspec)).real/(nanals-1)
             if pvspec_sprdmean is None:
                 pvspec_sprdmean = pvpertspec_mag
             else:
@@ -412,9 +411,9 @@ if ncount:
             totwavenum = ktot[j,i]
             if int(totwavenum) < ktotmax:
                 pvspec_err[int(totwavenum)] = pvspec_err[int(totwavenum)] +\
-                pvspec_errmean[:,j,i].sum(axis=0)/(nanals-1)
+                pvspec_errmean[:,j,i].mean(axis=0) # average of upper/lower boundary
                 pvspec_sprd[int(totwavenum)] = pvspec_sprd[int(totwavenum)] +\
-                pvspec_sprdmean[:,j,i].sum(axis=0)/(nanals-1)
+                pvspec_sprdmean[:,j,i].mean(axis=0)
 
     print('# mean error/spread',pvspec_errmean.sum(), pvspec_sprdmean.sum())
     plt.figure()

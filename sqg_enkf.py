@@ -208,7 +208,6 @@ if savedata is not None:
 pvspec_errmean = None; pvspec_sprdmean = None
 
 ncount = 0
-nanals_spec = min(20,nanals) # ensemble members used for pvspec spread
 
 for ntime in range(nassim):
 
@@ -350,9 +349,9 @@ for ntime in range(nassim):
             pvspec_errmean = pverrspec_mag
         else:
             pvspec_errmean = pvspec_errmean + pverrspec_mag
-        for nanal in range(nanals_spec):
+        for nanal in range(nanals):
             pvpertspec = scalefact*rfft2(pvens[nanal] - pvfcstmean)
-            pvpertspec_mag = (pvpertspec*np.conjugate(pvpertspec)).real/nanals_spec
+            pvpertspec_mag = (pvpertspec*np.conjugate(pvpertspec)).real/(nanals-1)
             if pvspec_sprdmean is None:
                 pvspec_sprdmean = pvpertspec_mag
             else:
