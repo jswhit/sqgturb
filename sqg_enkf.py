@@ -1,4 +1,3 @@
-from __future__ import print_function
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -46,7 +45,7 @@ read_restart = False
 savedata = None
 #nassim = 101
 #nassim_spinup = 1
-nassim = 300 # assimilation times to run
+nassim = 200 # assimilation times to run
 nassim_spinup = 100
 
 nanals = 20 # ensemble members
@@ -107,7 +106,7 @@ print("# hcovlocal=%g vcovlocal=%g diff_efold=%s covinfate=%s nanals=%s" %\
 
 # each ob time nobs ob locations are randomly sampled (without
 # replacement) from the model grid
-nobs = 2*nx*ny//8 # number of obs to assimilate (randomly distributed)
+nobs = 2*nx*ny//16 # number of obs to assimilate (randomly distributed)
 
 # nature run
 nc_truth = Dataset(filename_truth)
@@ -206,10 +205,10 @@ if savedata is not None:
    ensvar[:] = np.arange(1,nanals+1)
 
 # initialize kinetic energy error/spread spectra
-kespec_errmean = None; kespec_sprdmean = None
+pvspec_errmean = None; pvspec_sprdmean = None
 
 ncount = 0
-nanalske = min(10,nanals) # ensemble members used for kespec spread
+nanals_spec = min(20,nanals) # ensemble members used for pvspec spread
 
 for ntime in range(nassim):
 
@@ -346,54 +345,48 @@ for ntime in range(nassim):
     if ntime >= nassim_spinup:
         pvfcstmean = pvens.mean(axis=0)
         pverrspec = scalefact*rfft2(pvfcstmean - pv_truth[ntime+ntstart+1])
-        psispec = models[0].invert(pverrspec)
-        psispec = psispec/(models[0].N*np.sqrt(2.))
-        kespec = (models[0].ksqlsq*(psispec*np.conjugate(psispec))).real
-        if kespec_errmean is None:
-            kespec_errmean =\
-            (models[0].ksqlsq*(psispec*np.conjugate(psispec))).real
+        pverrspec_mag = (pverrspec*np.conjugate(pverrspec)).real
+        if pvspec_errmean is None:
+            pvspec_errmean = pverrspec_mag
         else:
-            kespec_errmean = kespec_errmean + kespec
-        for nanal in range(nanalske):
-            pvsprdspec = scalefact*rfft2(pvens[nanal] - pvfcstmean)
-            psispec = models[0].invert(pvsprdspec)
-            psispec = psispec/(models[0].N*np.sqrt(2.))
-            kespec = (models[0].ksqlsq*(psispec*np.conjugate(psispec))).real
-            if kespec_sprdmean is None:
-                kespec_sprdmean =\
-                (models[0].ksqlsq*(psispec*np.conjugate(psispec))).real/nanalske
+            pvspec_errmean = pvspec_errmean + pverrspec_mag
+        for nanal in range(nanals_spec):
+            pvpertspec = scalefact*rfft2(pvens[nanal] - pvfcstmean)
+            pvpertspec_mag = (pvpertspec*np.conjugate(pvpertspec)).real/nanals_spec
+            if pvspec_sprdmean is None:
+                pvspec_sprdmean = pvpertspec_mag
             else:
-                kespec_sprdmean = kespec_sprdmean+kespec/nanalske
+                pvspec_sprdmean = pvspec_sprdmean+pvpertspec_mag
         ncount += 1
 
 if savedata: nc.close()
 
 if ncount:
-    kespec_sprdmean = kespec_sprdmean/ncount
-    kespec_errmean = kespec_errmean/ncount
+    pvspec_sprdmean = pvspec_sprdmean/ncount
+    pvspec_errmean = pvspec_errmean/ncount
     N = models[0].N
     k = np.abs((N*np.fft.fftfreq(N))[0:(N//2)+1])
     l = N*np.fft.fftfreq(N)
     k,l = np.meshgrid(k,l)
     ktot = np.sqrt(k**2+l**2)
     ktotmax = (N//2)+1
-    kespec_err = np.zeros(ktotmax,np.float32)
-    kespec_sprd = np.zeros(ktotmax,np.float32)
-    for i in range(kespec_errmean.shape[2]):
-        for j in range(kespec_errmean.shape[1]):
+    pvspec_err = np.zeros(ktotmax,np.float32)
+    pvspec_sprd = np.zeros(ktotmax,np.float32)
+    for i in range(pvspec_errmean.shape[2]):
+        for j in range(pvspec_errmean.shape[1]):
             totwavenum = ktot[j,i]
             if int(totwavenum) < ktotmax:
-                kespec_err[int(totwavenum)] = kespec_err[int(totwavenum)] +\
-                kespec_errmean[:,j,i].mean(axis=0)
-                kespec_sprd[int(totwavenum)] = kespec_sprd[int(totwavenum)] +\
-                kespec_sprdmean[:,j,i].mean(axis=0)
+                pvspec_err[int(totwavenum)] = pvspec_err[int(totwavenum)] +\
+                pvspec_errmean[:,j,i].mean(axis=0)
+                pvspec_sprd[int(totwavenum)] = pvspec_sprd[int(totwavenum)] +\
+                pvspec_sprdmean[:,j,i].mean(axis=0)
 
-    print('# mean error/spread',kespec_errmean.sum(), kespec_sprdmean.sum())
+    print('# mean error/spread',pvspec_errmean.sum(), pvspec_sprdmean.sum())
     plt.figure()
     wavenums = np.arange(ktotmax,dtype=np.float32)
     for n in range(1,ktotmax):
-        print('# ',wavenums[n],kespec_err[n],kespec_sprd[n])
-    plt.loglog(wavenums[1:-1],kespec_err[1:-1],color='r')
-    plt.loglog(wavenums[1:-1],kespec_sprd[1:-1],color='b')
+        print('# ',wavenums[n],pvspec_err[n],pvspec_sprd[n])
+    plt.loglog(wavenums[1:-1],pvspec_err[1:-1],color='r')
+    plt.loglog(wavenums[1:-1],pvspec_sprd[1:-1],color='b')
     plt.title('error (red) and spread (blue) spectra')
     plt.savefig('errorspread_spectra_%s.png' % exptname)
