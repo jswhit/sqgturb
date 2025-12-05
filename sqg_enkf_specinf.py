@@ -18,6 +18,8 @@ if len(sys.argv) == 1:
 python sqg_enkf.py hcovlocal_scale covinflate>
    hcovlocal_scale = horizontal localization scale in km
    covinflate: RTPS covinflate inflation parameter
+   covinflate_specparm:  parameter controlling spectral dependence of RTPS
+   vcovlocal_fact:  optional vertical cov local factor (default 1, no vert loc)
    """
    raise SystemExit(msg)
 
