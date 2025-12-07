@@ -107,8 +107,9 @@ for nanal in range(nanals):
 if read_restart: ncinit.close()
 
 print('# local_volume=%s' % (local_volume))
+hcovlocal_km = int(hcovlocal_scale/1000.)
 print("# hcovlocal=%g vcovlocal=%g diff_efold=%s covinflate=%s covinflate_ktot0=%s covinflate_power=%s nanals=%s" %\
-     (hcovlocal_scale/1000.,vcovlocal_fact,diff_efold,covinflate,int(covinflate_ktot0),int(covinflate_power),nanals))
+     (hcovlocal_km,vcovlocal_fact,diff_efold,covinflate,int(covinflate_ktot0),int(covinflate_power),nanals))
 
 # each ob time nobs ob locations are randomly sampled (without
 # replacement) from the model grid
@@ -419,5 +420,5 @@ if ncount:
         print('# ',wavenums[n],pvspec_err[n],pvspec_sprd[n])
     plt.loglog(wavenums[1:-1],pvspec_err[1:-1],color='r')
     plt.loglog(wavenums[1:-1],pvspec_sprd[1:-1],color='b')
-    plt.title('error (red) and spread (blue) spectra')
+    plt.title('error (red) and spread (blue) l=%s alpha=%4.2f' % (hcovlocal_km, covinflate))
     plt.savefig('errorspread_spectra_%s.png' % exptname)
