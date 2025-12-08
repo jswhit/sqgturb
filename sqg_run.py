@@ -27,9 +27,9 @@ N = 96
 dt = 900
 diff_efold = 86400./2.
 
-N = 64
-dt = 900    
-diff_efold = 86400./2.
+#N = 64
+#dt = 900    
+#diff_efold = 86400./2.
 
 norder = 8 # order of hyperdiffusion
 dealias = True # dealiased with 2/3 rule?
