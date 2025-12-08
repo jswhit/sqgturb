@@ -295,12 +295,15 @@ for ntime in range(nassim):
     xprime2 = xens2 - xmean
     ensmean_wts, ensperts_wts = lgetkf_update(hxens, hxens2, pvob, oberrvar, covlocal_tmp)
     # spatially smooth weights
-    ensmean_wts_smoothed = np.reshape(
-                           gaussian_filter(ensmean_wts.reshape(nanals2,2,ny,nx),kernel_size,
-                           output=None,order=0,mode='wrap',axes=(2,3),cval=0.0, truncate=6),(nanals2,2,nx*ny))
-    ensperts_wts_smoothed = np.reshape(
-                            gaussian_filter(ensperts_wts.reshape(nanals,nanals2,2,ny,nx),kernel_size,
-                            output=None,order=0,mode='wrap',axes=(3,4),cval=0.0, truncate=6),(nanals,nanals2,2,nx*ny))
+    if kernel_size > 0:
+        ensmean_wts_smoothed = np.reshape(
+                               gaussian_filter(ensmean_wts.reshape(nanals2,2,ny,nx),kernel_size,
+                               output=None,order=0,mode='wrap',axes=(2,3),cval=0.0, truncate=6),(nanals2,2,nx*ny))
+        ensperts_wts_smoothed = np.reshape(
+                                gaussian_filter(ensperts_wts.reshape(nanals,nanals2,2,ny,nx),kernel_size,
+                                output=None,order=0,mode='wrap',axes=(3,4),cval=0.0, truncate=6),(nanals,nanals2,2,nx*ny))
+    else:
+       ensmean_wts_smoothed = ensmean_wts; ensperts_wts_smoothed = ensperts_wts
     #if ntime == nassim-1:
     #   plt.imshow(ensmean_wts[-1,1,:].reshape(ny,nx))
     #   plt.figure()
