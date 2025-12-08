@@ -45,7 +45,7 @@ read_restart = False
 savedata = None
 #nassim = 101
 #nassim_spinup = 1
-nassim = 200 # assimilation times to run
+nassim = 600 # assimilation times to run
 nassim_spinup = 100
 
 nanals = 20 # ensemble members
@@ -53,9 +53,9 @@ nanals = 20 # ensemble members
 oberrstdev = 1. # ob error standard deviation in K
 
 # nature run created using sqg_run.py.
-filename_climo = 'sqgu20_N64_6hrly.nc' # file name for forecast model climo
+filename_climo = 'sqgu20_N96_6hrly.nc' # file name for forecast model climo
 # perfect model
-filename_truth = 'sqgu20_N64_6hrly.nc' # file name for nature run to draw obs
+filename_truth = 'sqgu20_N96_6hrly.nc' # file name for nature run to draw obs
 #filename_truth = 'sqg_N256_N96_12hrly.nc' # file name for nature run to draw obs
 
 print('# filename_modelclimo=%s' % filename_climo)
@@ -106,7 +106,8 @@ print("# hcovlocal=%g vcovlocal=%g diff_efold=%s covinfate=%s nanals=%s" %\
 
 # each ob time nobs ob locations are randomly sampled (without
 # replacement) from the model grid
-nobs = 2*nx*ny//16 # number of obs to assimilate (randomly distributed)
+#nobs = nx*ny//6 # number of obs to assimilate (randomly distributed)
+nobs = 1024
 
 # nature run
 nc_truth = Dataset(filename_truth)
@@ -302,6 +303,8 @@ for ntime in range(nassim):
     pvens = xens.reshape((nanals,2,ny,nx))
     t2 = time.time()
     if profile: print('cpu time for EnKF update',t2-t1)
+    if not np.all(np.isfinite(pvens)):
+        raise SystemExit('non-finite values detected after forecast, stopping...')
 
     # posterior multiplicative inflation.
     pvensmean_a = pvens.mean(axis=0)
