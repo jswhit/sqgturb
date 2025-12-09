@@ -16,7 +16,7 @@ time stepping (dealiasing with 2/3 rule, hyperdiffusion treated implicitly).
 
 Jeff Whitaker December, 2016 <jeffrey.s.whitaker@noaa.gov>
 """
-from .enkf_utils import gaspcohn, enkf_update, cartdist, lgetkf_update
+from .enkf_utils import gaspcohn, cartdist, lgetkf
 from .sqg import SQG, rfft2, irfft2
 
-__all__=['SQG','rfft2','irfft2',gaspcohn, enkf_update, cartdist]
+__all__=['SQG','rfft2','irfft2',gaspcohn,cartdist,lgetkf]
