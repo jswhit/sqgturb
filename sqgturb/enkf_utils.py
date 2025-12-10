@@ -72,7 +72,8 @@ def lgetkf(xens, hxens, obs, oberrs, covlocal):
         return np.dot(pa, np.dot(YbRinv,ominusf))/normfact
 
     def calcwts_perts(hx_orig, hx, Rinv):
-        nens = hx.shape[0]-1
+        # hx_orig contains the ensemble for the witheld member
+        nens = hx.shape[0]-1 # size of subensemble
         normfact = np.array(np.sqrt(nens-1),dtype=np.float32)
         # gain-form etkf solution
         # HZ^T = hxens * R**-1/2
@@ -111,6 +112,8 @@ def lgetkf(xens, hxens, obs, oberrs, covlocal):
                 wts_ensperts_cv = calcwts_perts(hxprime_local[nanal_cv], hxprime_cv, Rinv_local)
                 for k in range(2):
                     xprime[nanal_cv,k,n] += np.dot(wts_ensperts_cv,xprime_cv[:,k])
+            xprime_mean = xprime[:,:,n].mean(axis=0) # ensure zero mean
+            xprime[:,:,n] -= xprime_mean # ensure zero mean
             xens[:,:,n] = xmean[:,n]+xprime[:,:,n]
 
     return xens
