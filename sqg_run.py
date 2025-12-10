@@ -27,9 +27,9 @@ N = 96
 dt = 900
 diff_efold = 86400./2.
 
-N = 64
-dt = 900    
-diff_efold = 86400./2.
+#N = 64
+#dt = 900    
+#diff_efold = 86400./2.
 
 norder = 8 # order of hyperdiffusion
 dealias = True # dealiased with 2/3 rule?
@@ -44,7 +44,7 @@ dek = 0 # applied only at surface if symmetric=False
 nsq = 1.e-4; f=1.e-4; g = 9.8; theta0 = 300
 H = 10.e3 # lid height
 r = dek*nsq/f
-U = 17.5 # jet speed
+U = 20 # jet speed
 Lr = np.sqrt(nsq)*H/f # Rossby radius
 L = 20.*Lr
 # thermal relaxation time scale
@@ -84,7 +84,7 @@ tmax = 300.*86400. # time to stop (in days)
 nsteps = int(tmax/outputinterval) # number of time steps to animate
 # set number of timesteps to integrate for each call to model.advance
 model.timesteps = int(outputinterval/model.dt)
-savedata = 'sqgu17p5_N%s_6hrly.nc' % N # save data plotted in a netcdf file.
+savedata = 'sqgu20_N%s_6hrly.nc' % N # save data plotted in a netcdf file.
 #savedata = None # don't save data
 plot = True # animate data as model is running?
 
