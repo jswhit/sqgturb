@@ -5,9 +5,10 @@ import numpy as np
 from netCDF4 import Dataset
 import sys, time, os
 from sqgturb import SQG, rfft2, irfft2, cartdist, lgetkf, gaspcohn
+from scipy.linalg import eigh
 
 # LGETKF cycling for SQG turbulence model with boundary temp obs,
-# ob space horizontal localization, no vertical localization.
+# ob space horizontal localization, optional model-space vertical localization.
 # cross-validation update (no inflation).
 # Random or fixed observing network.
 
@@ -15,11 +16,16 @@ if len(sys.argv) == 1:
    msg="""
 python sqg_lgetkf_cv.py hcovlocal_scale covinflate>
    hcovlocal_scale = horizontal localization scale in km
+   vcovlocal_fact:  optional vertical cov local factor (default 1, no vert loc)
    """
    raise SystemExit(msg)
 
 # horizontal covariance localization length scale in meters.
 hcovlocal_scale = float(sys.argv[1])
+if len(sys.argv) > 2:
+    vcovlocal_fact = float(sys.argv[2])
+else:
+    vcovlocal_fact = 1.
 exptname = os.getenv('exptname','test')
 threads = int(os.getenv('OMP_NUM_THREADS','1'))
 
@@ -92,8 +98,8 @@ for nanal in range(nanals):
 if read_restart: ncinit.close()
 
 hcovlocal_km = int(hcovlocal_scale/1000.)
-print("# hcovlocal=%g diff_efold=%s nanals=%s" %\
-     (hcovlocal_km,diff_efold,nanals))
+print("# hcovlocal=%g vcovlocal=%g diff_efold=%s nanals=%s" %\
+     (hcovlocal_km,vcovlocal_fact,diff_efold,nanals))
 
 # each ob time nobs ob locations are randomly sampled (without
 # replacement) from the model grid
@@ -112,6 +118,14 @@ covlocal = np.empty((ny,nx),np.float32)
 covlocal_tmp = np.empty((nobs,nx*ny),np.float32)
 
 xens = np.empty((nanals,2,nx*ny),np.float32)
+
+# square-root of vertical localization
+if vcovlocal_fact > 0.99: # no vertical localization
+    vcovlocal_sqrt = np.ones((2,1),np.float32)
+else:
+    vloc = np.array([(1,vcovlocal_fact),(vcovlocal_fact,1)],np.float32)
+    evals, evecs = eigh(vloc)
+    vcovlocal_sqrt = np.dot(evecs, np.diag(np.sqrt(evals)))
 
 obtimes = nc_truth.variables['t'][:]
 if read_restart:
@@ -222,14 +236,40 @@ for ntime in range(nassim):
     pvensmean = pvens.mean(axis=0)
     pvprime = pvens - pvensmean
 
+    # modulate ensemble
+    def modens(pvprime, vcovlocal_sqrt):
+        neig = vcovlocal_sqrt.shape[1]; nanals2 = neig*nanals
+        pvprime2 = np.empty((nanals2,2,ny,nx),pvprime.dtype)
+        nanal_index = np.empty(nanals2,np.int32)
+        nanal2 = 0
+        for j in range(neig):
+            for nanal in range(nanals):
+                for k in range(2):
+                    pvprime2[nanal2,k,...] =\
+                    pvprime[nanal,k,...]*vcovlocal_sqrt[k,neig-j-1]
+                nanal_index[nanal2]=nanal
+                nanal2 += 1
+        return nanal_index,pvprime2
+    nanal_index,pvprime2 = modens(pvprime, vcovlocal_sqrt)
+    nanals2 = pvprime2.shape[0]
+    # check modulation works
+    #crosscov1 = (pvprime[:,0,...]*pvprime[:,1,...]).sum(axis=0)/(nanals-1)
+    #crosscov2 = (pvprime2[:,0,...]*pvprime2[:,1,...]).sum(axis=0)/(nanals-1)
+    #print(nanals2,vcovlocal_fact,(crosscov2/crosscov1).mean()) # should be the same
+    #raise SystemExit
+
     fsprd = (pvprime**2).sum(axis=0)/(nanals-1)
+    pvens2 = pvprime2 + pvensmean # modulated ensemble (size nanals2=nanals*neig)
 
     # compute forward operator on modulated ensemble.
     # hxens is ensemble in observation space.
     hxens = np.empty((nanals,nobs),np.float32)
+    hxens2 = np.empty((nanals2,nobs),np.float32)
 
     for nanal in range(nanals):
         hxens[nanal] = scalefact*pvens[nanal,...].reshape(2*nx*ny)[indxob] # surface pv obs
+    for nanal in range(nanals2):
+        hxens2[nanal] = scalefact*pvens2[nanal,...].reshape(2*nx*ny)[indxob] # surface pv obs
     hxensmean_b = hxens.mean(axis=0)
     obsprd = ((hxens-hxensmean_b)**2).sum(axis=0)/(nanals-1)
     # innov stats for background
@@ -254,11 +294,12 @@ for ntime in range(nassim):
     # EnKF update
     # create 1d state vector.
     xens = pvens.reshape(nanals,2,nx*ny)
+    xens2 = pvens2.reshape(nanals2,2,nx*ny)
 
     # update state vector.
 
     # hxens,pvob are in PV units, xens is not
-    xens = lgetkf(xens,hxens,pvob,oberrvar,covlocal_tmp)
+    xens = lgetkf(xens,xens2,hxens,hxens2,pvob,oberrvar,covlocal_tmp,nanal_index)
 
     # back to 3d state vector
     pvens = xens.reshape((nanals,2,ny,nx))
