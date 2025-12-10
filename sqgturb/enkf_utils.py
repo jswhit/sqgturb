@@ -37,7 +37,7 @@ def gaspcohn(r):
 
 def lgetkf(xens, hxens, obs, oberrs, covlocal):
 
-    """returns ensemble updated by LGETKF with cross-validation"""
+    """returns ensemble updated by LGETKF with 'leave one out' cross-validation"""
 
     hxmean = hxens.mean(axis=0)
     hxprime = hxens - hxmean
@@ -85,7 +85,7 @@ def lgetkf(xens, hxens, obs, oberrs, covlocal):
         a = np.dot(YbsqrtRinv,YbsqrtRinv.T)
         evals, evecs, info = lapack.dsyevd(a)
         evals = evals.clip(min=np.finfo(evals.dtype).eps)
-        gamma_inv = 1./evals
+        gamma_inv = 1./evals 
         # gammapI used in calculation of posterior cov in ensemble space
         gammapI = evals+1.
         # compute factor to multiply with model space ensemble perturbations
@@ -94,7 +94,7 @@ def lgetkf(xens, hxens, obs, oberrs, covlocal):
         # in Bishop paper (eqn 29).
         pa=np.dot(evecs*(1.-np.sqrt(1./gammapI[np.newaxis,:]))*gamma_inv[np.newaxis,:],evecs.T)
         # wts_ensperts = -C [ (I - (Gamma+I)**-1/2)*Gamma**-1 ] C^T (HZ)^T R**-1/2 HXprime
-        return -np.dot(pa, np.dot(YbRinv,hx_orig.T)).T/normfact # use orig (full) ens here
+        return -np.dot(pa, np.dot(YbRinv,hx_orig.T)).T/normfact # use witheld ens member here
 
     for n in range(ndim):
         mask = covlocal[:,n] > 1.0e-10
