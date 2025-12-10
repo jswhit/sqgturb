@@ -112,7 +112,7 @@ def lgetkf(xens, hxens, obs, oberrs, covlocal):
                 wts_ensperts_cv = calcwts_perts(hxprime_local[nanal_cv], hxprime_cv, Rinv_local)
                 for k in range(2):
                     xprime[nanal_cv,k,n] += np.dot(wts_ensperts_cv,xprime_cv[:,k])
-            xprime_mean = xprime[:,:,n].mean(axis=0) # ensure zero mean
+            xprime_mean = xprime[:,:,n].mean(axis=0) 
             xprime[:,:,n] -= xprime_mean # ensure zero mean
             xens[:,:,n] = xmean[:,n]+xprime[:,:,n]
 
