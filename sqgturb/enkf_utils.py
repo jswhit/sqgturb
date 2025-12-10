@@ -40,14 +40,14 @@ def lgetkf(xens, xens2, hxens, hxens2, obs, oberrs, covlocal, nanal_index):
     """returns ensemble updated by LGETKF with 'leave one out' cross-validation (with modulated ens in vertical)"""
 
     hxmean = hxens.mean(axis=0)
-    hxprime = hxens - hxmean
-    hxprime2 = hxens2 - hxmean
-    nanals = hxens.shape[0]
-    nanals2 = hxens2.shape[0]
+    hxprime = hxens - hxmean # original ens
+    hxprime2 = hxens2 - hxmean # modulated ens
+    nanals = hxens.shape[0] # original ens size
+    nanals2 = hxens2.shape[0] # modulated ens size
     ndim = covlocal.shape[-1]
     xmean = xens.mean(axis=0)
-    xprime = xens - xmean
-    xprime2 = xens2 - xmean
+    xprime = xens - xmean # original ens
+    xprime2 = xens2 - xmean # modulated ens
 
     def calcwts_mean(nens, hx, Rinv, ominusf):
         normfact = np.array(np.sqrt(nens-1),dtype=np.float32)
@@ -110,6 +110,7 @@ def lgetkf(xens, xens2, hxens, hxens2, obs, oberrs, covlocal, nanal_index):
                 xmean[k,n] += np.dot(wts_ensmean,xprime2[:,k,n])
             # update one member at a time, using cross validation.
             for nanal_cv in range(nanals):
+                # nanal_index has original ens index for modulated member
                 nanals_sub = np.nonzero(nanal_index==nanal_cv)
                 hxprime_cv = np.delete(hxprime_local,nanals_sub,axis=0)
                 xprime_cv = np.delete(xprime2[:,:,n],nanals_sub,axis=0)
