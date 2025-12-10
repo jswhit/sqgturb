@@ -72,7 +72,8 @@ def lgetkf(xens, hxens, obs, oberrs, covlocal):
         return np.dot(pa, np.dot(YbRinv,ominusf))/normfact
 
     def calcwts_perts(hx_orig, hx, Rinv):
-        normfact = np.array(np.sqrt(hx_orig.shape[0]-1),dtype=np.float32)
+        nens = hx.shape[0]-1
+        normfact = np.array(np.sqrt(nens-1),dtype=np.float32)
         # gain-form etkf solution
         # HZ^T = hxens * R**-1/2
         # compute eigenvectors/eigenvalues of A = HZ^T HZ (C=left SV)
@@ -92,22 +93,24 @@ def lgetkf(xens, hxens, obs, oberrs, covlocal):
         # in Bishop paper (eqn 29).
         pa=np.dot(evecs*(1.-np.sqrt(1./gammapI[np.newaxis,:]))*gamma_inv[np.newaxis,:],evecs.T)
         # wts_ensperts = -C [ (I - (Gamma+I)**-1/2)*Gamma**-1 ] C^T (HZ)^T R**-1/2 HXprime
-        return -np.dot(pa, np.dot(YbRinv,hx_orig.T)).T/normfact # use orig ens here
+        return -np.dot(pa, np.dot(YbRinv,hx_orig.T)).T/normfact # use orig (full) ens here
 
     for n in range(ndim):
         mask = covlocal[:,n] > 1.0e-10
-        Rinv_local = covlocal[mask, n] / oberrs[mask]
-        ominusf_local = (obs-hxmean)[mask]
-        hxprime_local = hxprime[:,mask]
-        wts_ensmean = calcwts_mean(hxprime_local, Rinv_local, ominusf_local)
-        for k in range(2):
-            xmean[k,n] += np.dot(wts_ensmean,xprime_b[:,k,n])
-        # update one member at a time, using cross validation.
-        for nanal_cv in range(nanals):
-            hxprime_cv = np.delete(hxprime_local,nanal_cv,axis=0); xprime_cv = np.delete(xprime_b[:,:,n],nanal_cv,axis=0)
-            wts_ensperts_cv = calcwts_perts(hxprime_local[nanal_cv], hxprime_cv, Rinv_local)
+        nobs_local = mask.sum()
+        if nobs_local > 0:
+            Rinv_local = covlocal[mask, n] / oberrs[mask]
+            ominusf_local = (obs-hxmean)[mask]
+            hxprime_local = hxprime[:,mask]
+            wts_ensmean = calcwts_mean(hxprime_local, Rinv_local, ominusf_local)
             for k in range(2):
-                xprime[nanal_cv,k,n] += np.dot(wts_ensperts_cv,xprime_cv[:,k])
-        xens[:,:,n] = xmean[:,n]+xprime[:,:,n]
+                xmean[k,n] += np.dot(wts_ensmean,xprime_b[:,k,n])
+            # update one member at a time, using cross validation.
+            for nanal_cv in range(nanals):
+                hxprime_cv = np.delete(hxprime_local,nanal_cv,axis=0); xprime_cv = np.delete(xprime_b[:,:,n],nanal_cv,axis=0)
+                wts_ensperts_cv = calcwts_perts(hxprime_local[nanal_cv], hxprime_cv, Rinv_local)
+                for k in range(2):
+                    xprime[nanal_cv,k,n] += np.dot(wts_ensperts_cv,xprime_cv[:,k])
+            xens[:,:,n] = xmean[:,n]+xprime[:,:,n]
 
     return xens
