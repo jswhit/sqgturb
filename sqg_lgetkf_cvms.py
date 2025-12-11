@@ -148,7 +148,8 @@ if savedata is not None:
    nc.L = models[0].L
    nc.H = models[0].H
    nc.nanals = nanals
-   nc.hcovlocal_scale = hcovlocal_scale
+   nc.hcovlocal_scales = hcovlocal_scales
+   nc.band_cutoffs = band_cutoffs
    nc.oberrstdev = oberrstdev
    nc.g = nc_climo.g; nc.theta0 = nc_climo.theta0
    nc.nsq = models[0].nsq
