@@ -385,5 +385,5 @@ if ncount:
         print('# ',wavenums[n],pvspec_err[n],pvspec_sprd[n])
     plt.loglog(wavenums[1:-1],pvspec_err[1:-1],color='r')
     plt.loglog(wavenums[1:-1],pvspec_sprd[1:-1],color='b')
-    plt.title('error (red) and spread (blue) l=%s' % hcovlocal_km)
+    plt.title('error (red) and spread (blue)')
     plt.savefig('errorspread_spectra_cv_%s.png' % exptname)

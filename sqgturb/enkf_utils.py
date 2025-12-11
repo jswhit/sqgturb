@@ -47,15 +47,29 @@ def lgetkf(xens, hxens, obs, oberrs, covlocal):
     xprime = xens - xmean
     xprime_b = xprime.copy()
 
-    def calcwts_mean(hx, Rinv, ominusf):
+    def getYbvecs(hx, Rlocal, oberrvar, nerger=True):
+        normfact = np.array(np.sqrt(hx.shape[0]-1),dtype=np.float32)
+        # Nerger regularization
+        if nerger:
+            hpbht = (hx**2).sum(axis=0)/normfact**2
+            hpbhtplusR = hpbht+oberrvar
+            Rlocalfact = (Rlocal*oberrvar/hpbhtplusR)/(1.-Rlocal*hpbht/hpbhtplusR)
+            Rinvsqrt = np.sqrt(Rlocalfact/oberrvar)
+            YbRinv = hx*Rinvsqrt**2/normfact
+            YbsqrtRinv = hx*Rinvsqrt/normfact
+        else:
+            YbsqrtRinv = hx*np.sqrt(Rlocal/oberrvar)/normfact
+            YbRinv = hx*(Rlocal/oberrvar)/normfact
+        return YbsqrtRinv, YbRinv
+
+    def calcwts_mean(hx, Rlocal, oberrvar, ominusf):
         normfact = np.array(np.sqrt(hx.shape[0]-1),dtype=np.float32)
         # gain-form etkf solution
         # HZ^T = hxens * R**-1/2
         # compute eigenvectors/eigenvalues of A = HZ^T HZ (C=left SV)
         # (in Bishop paper HZ is nobs, nanals, here is it nanals, nobs)
         # normalize so dot product is covariance
-        YbsqrtRinv = hx*np.sqrt(Rinv)/normfact
-        YbRinv = hx*Rinv/normfact
+        YbsqrtRinv, YbRinv = getYbvecs(hx,Rlocal,oberrvar)
         a = np.dot(YbsqrtRinv,YbsqrtRinv.T)
         evals, evecs, info = lapack.dsyevd(a)
         evals = evals.clip(min=np.finfo(evals.dtype).eps)
@@ -71,7 +85,7 @@ def lgetkf(xens, hxens, obs, oberrs, covlocal):
         # wts_ensmean = C (Gamma + I)**-1 C^T (HZ)^ T R**-1/2 (y - HXmean)
         return np.dot(pa, np.dot(YbRinv,ominusf))/normfact
 
-    def calcwts_perts(hx_orig, hx, Rinv):
+    def calcwts_perts(hx_orig, hx, Rlocal, oberrvar):
         # hx_orig contains the ensemble for the witheld member
         nens = hx.shape[0]-1 # size of subensemble
         normfact = np.array(np.sqrt(nens-1),dtype=np.float32)
@@ -80,8 +94,7 @@ def lgetkf(xens, hxens, obs, oberrs, covlocal):
         # compute eigenvectors/eigenvalues of A = HZ^T HZ (C=left SV)
         # (in Bishop paper HZ is nobs, nanals, here is it nanals, nobs)
         # normalize so dot product is covariance
-        YbsqrtRinv = hx*np.sqrt(Rinv)/normfact
-        YbRinv = hx*Rinv/normfact
+        YbsqrtRinv, YbRinv = getYbvecs(hx,Rlocal,oberrvar)
         a = np.dot(YbsqrtRinv,YbsqrtRinv.T)
         evals, evecs, info = lapack.dsyevd(a)
         evals = evals.clip(min=np.finfo(evals.dtype).eps)
@@ -100,16 +113,17 @@ def lgetkf(xens, hxens, obs, oberrs, covlocal):
         mask = covlocal[:,n] > 1.0e-10
         nobs_local = mask.sum()
         if nobs_local > 0:
-            Rinv_local = covlocal[mask, n] / oberrs[mask]
+            Rlocal = covlocal[mask, n]
+            oberrvar_local = oberrs[mask]
             ominusf_local = (obs-hxmean)[mask]
             hxprime_local = hxprime[:,mask]
-            wts_ensmean = calcwts_mean(hxprime_local, Rinv_local, ominusf_local)
+            wts_ensmean = calcwts_mean(hxprime_local, Rlocal, oberrvar_local, ominusf_local)
             for k in range(2):
                 xmean[k,n] += np.dot(wts_ensmean,xprime_b[:,k,n])
             # update one member at a time, using cross validation.
             for nanal_cv in range(nanals):
                 hxprime_cv = np.delete(hxprime_local,nanal_cv,axis=0); xprime_cv = np.delete(xprime_b[:,:,n],nanal_cv,axis=0)
-                wts_ensperts_cv = calcwts_perts(hxprime_local[nanal_cv], hxprime_cv, Rinv_local)
+                wts_ensperts_cv = calcwts_perts(hxprime_local[nanal_cv], hxprime_cv, Rlocal, oberrvar_local)
                 for k in range(2):
                     xprime[nanal_cv,k,n] += np.dot(wts_ensperts_cv,xprime_cv[:,k])
             xprime_mean = xprime[:,:,n].mean(axis=0) 
@@ -228,9 +242,13 @@ def lgetkf_ms(nlscales, xens, hxprime, omf, oberrs, covlocal):
                 nanals_sub = np.nonzero(nanal_index==nanal_cv)
                 hxprime_cv = np.delete(hxprime_local,nanals_sub,axis=0)
                 xprime_cv = np.delete(xprime[:,:,n],nanals_sub,axis=0)
-                wts_ensperts_cv = calcwts_perts(nlscales,hxprime_local[nanal_cv], hxprime_cv, oberrvar_local, Rlocal)
+                #hxprime_orig = np.empty((nlscales,nobs_local),hxprime.dtype)
+                #for nl in range(nlscales):
+                #    hxprime_orig[nl] = hxprime_local[nanals_sub[0][nl]]
+                hxprime_orig = hxprime_local[nanals_sub]
+                wts_ensperts_cv = calcwts_perts(nlscales, hxprime_orig, hxprime_cv, oberrvar_local, Rlocal)
                 for k in range(2):
-                    xprime[nanal_cv,k,n] += np.dot(wts_ensperts_cv,xprime_cv[:,k])
+                    xprime[nanals_sub,k,n] += np.dot(wts_ensperts_cv,xprime_cv[:,k])
             xprime_mean = xprime[:,:,n].mean(axis=0) 
             xprime[:,:,n] -= xprime_mean # ensure zero mean
             xens[:,:,n] = xmean[:,n]+xprime[:,:,n]
