@@ -158,8 +158,8 @@ def lgetkf_ms(nlscales, xens, hxprime, omf, oberrs, covlocal):
         Rdsqrt = (Rinvsqrt_nerger*hpbht).sum(axis=0)/hpbht_tot
         for nl in range(nlscales):
             nanal1=nl*nanals_orig; nanal2=(nl+1)*nanals_orig
-            #YbRinv[nanal1:nanal2] = hx[nanal1:nanal2]*Rinvsqrt_nerger[nl]*Rdsqrt/normfact
-            YbRinv[nanal1:nanal2] = hx[nanal1:nanal2]*Rinvsqrt_nerger[nl]**2/normfact
+            YbRinv[nanal1:nanal2] = hx[nanal1:nanal2]*Rinvsqrt_nerger[nl]*Rdsqrt/normfact
+            #YbRinv[nanal1:nanal2] = hx[nanal1:nanal2]*Rinvsqrt_nerger[nl]**2/normfact
             YbsqrtRinv[nanal1:nanal2] = hx[nanal1:nanal2]*Rinvsqrt_nerger[nl]/normfact
         return YbsqrtRinv, YbRinv
 
