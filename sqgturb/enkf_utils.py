@@ -141,6 +141,7 @@ def lgetkf_ms(nlscales, xens, hxprime, omf, oberrs, covlocal):
     ndim = covlocal.shape[-1]
     xmean = xens.mean(axis=0)
     xprime = xens - xmean
+    xprime_b = xprime.copy()
     nanal_index = np.empty(nanals)
     nanal2 = 0
     for nl in range(nlscales):
@@ -168,12 +169,10 @@ def lgetkf_ms(nlscales, xens, hxprime, omf, oberrs, covlocal):
         rij = rij/hpbht_tot
         for nl in range(nlscales):
             Rinvsqrt_nerger[nl] = np.sqrt(Rlocal[nl]/(rij*hpbht_tot*(1.-Rlocal[nl])+oberrvar))
-            #Rinvsqrt_nerger[nl] = np.sqrt(Rlocal[nl]/oberrvar)
         Rdsqrt = (Rinvsqrt_nerger*hpbht).sum(axis=0)/hpbht_tot
         for nl in range(nlscales):
             nanal1=nl*nanals_orig; nanal2=(nl+1)*nanals_orig
             YbRinv[nanal1:nanal2] = hx[nanal1:nanal2]*Rinvsqrt_nerger[nl]*Rdsqrt/normfact
-            #YbRinv[nanal1:nanal2] = hx[nanal1:nanal2]*Rinvsqrt_nerger[nl]**2/normfact
             YbsqrtRinv[nanal1:nanal2] = hx[nanal1:nanal2]*Rinvsqrt_nerger[nl]/normfact
         return YbsqrtRinv, YbRinv
 
@@ -236,12 +235,12 @@ def lgetkf_ms(nlscales, xens, hxprime, omf, oberrs, covlocal):
             hxprime_local = hxprime[:,mask]
             wts_ensmean = calcwts_mean(nlscales, hxprime_local, oberrvar_local, Rlocal, ominusf_local)
             for k in range(2):
-                xmean[k,n] += np.dot(wts_ensmean,xprime[:,k,n])
+                xmean[k,n] += np.dot(wts_ensmean,xprime_b[:,k,n])
             # update one member at a time (one member for each scale), using cross validation.
             for nanal_cv in range(nanals_orig):
                 nanals_sub = np.nonzero(nanal_index==nanal_cv)
                 hxprime_cv = np.delete(hxprime_local,nanals_sub,axis=0)
-                xprime_cv = np.delete(xprime[:,:,n],nanals_sub,axis=0)
+                xprime_cv = np.delete(xprime_b[:,:,n],nanals_sub,axis=0)
                 #hxprime_orig = np.empty((nlscales,nobs_local),hxprime.dtype)
                 #for nl in range(nlscales):
                 #    hxprime_orig[nl] = hxprime_local[nanals_sub[0][nl]]
