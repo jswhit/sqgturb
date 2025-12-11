@@ -223,7 +223,7 @@ def lgetkf_ms(nlscales, xens, hxprime, omf, oberrs, covlocal):
             wts_ensmean = calcwts_mean(nlscales, hxprime_local, oberrvar_local, Rlocal, ominusf_local)
             for k in range(2):
                 xmean[k,n] += np.dot(wts_ensmean,xprime[:,k,n])
-            # update one member at a time, using cross validation.
+            # update one member at a time (one member for each scale), using cross validation.
             for nanal_cv in range(nanals_orig):
                 nanals_sub = np.nonzero(nanal_index==nanal_cv)
                 hxprime_cv = np.delete(hxprime_local,nanals_sub,axis=0)

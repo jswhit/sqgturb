@@ -10,11 +10,13 @@ from sqgturb import SQG, rfft2, irfft2, cartdist, lgetkf_ms, gaspcohn
 # ob space horizontal localization, no vertical localization.
 # cross-validation update (no inflation).
 # Random or fixed observing network.
+# multi-scale version
 
 if len(sys.argv) == 1:
    msg="""
 python sqg_lgetkf_cv.py hcovlocal_scale covinflate>
-   hcovlocal_scale = horizontal localization scale in km
+   hcovlocal_scales = horizontal localization scale(s) in km
+   band_cutoffs = filter waveband cutoffs 
    """
    raise SystemExit(msg)
 
