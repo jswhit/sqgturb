@@ -134,7 +134,7 @@ def lgetkf(xens, hxens, obs, oberrs, covlocal, nerger=True):
 
 def lgetkf_ms(nlscales, xens, hxprime, omf, oberrs, covlocal):
 
-    """returns ensemble updated by LGETKF with 'leave one out' cross-validation"""
+    """returns ensemble updated by LGETKF with 'leave one out' cross-validation and multi-scale R localization"""
 
     nanals = hxprime.shape[0]
     nanals_orig = nanals//nlscales
@@ -241,9 +241,6 @@ def lgetkf_ms(nlscales, xens, hxprime, omf, oberrs, covlocal):
                 nanals_sub = np.nonzero(nanal_index==nanal_cv)
                 hxprime_cv = np.delete(hxprime_local,nanals_sub,axis=0)
                 xprime_cv = np.delete(xprime_b[:,:,n],nanals_sub,axis=0)
-                #hxprime_orig = np.empty((nlscales,nobs_local),hxprime.dtype)
-                #for nl in range(nlscales):
-                #    hxprime_orig[nl] = hxprime_local[nanals_sub[0][nl]]
                 hxprime_orig = hxprime_local[nanals_sub]
                 wts_ensperts_cv = calcwts_perts(nlscales, hxprime_orig, hxprime_cv, oberrvar_local, Rlocal)
                 for k in range(2):
