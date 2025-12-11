@@ -216,7 +216,6 @@ for ntime in range(nassim):
         dist = cartdist(xob[nob],yob[nob],x,y,nc_climo.L,nc_climo.L)
         covlocal = gaspcohn(dist/hcovlocal_scale)
         covlocal_tmp[nob] = covlocal.ravel()
-        dist = cartdist(xob[nob],yob[nob],xob,yob,nc_climo.L,nc_climo.L)
 
     # first-guess spread
     pvensmean = pvens.mean(axis=0)
