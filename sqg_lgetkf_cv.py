@@ -9,7 +9,7 @@ from sqgturb import SQG, rfft2, irfft2, cartdist, lgetkf, gaspcohn
 # LGETKF cycling for SQG turbulence model with boundary temp obs,
 # ob space horizontal localization, no vertical localization.
 # cross-validation update (no inflation).
-# Random or fixed observing network.
+# Random observing network.
 
 if len(sys.argv) == 1:
    msg="""
