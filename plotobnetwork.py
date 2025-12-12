@@ -6,7 +6,7 @@ import numpy as np
 
 nc = Dataset('sqgu20_N96_6hrly.nc')
 ntimes, nlevs, ny, nx = nc['pv'].shape
-nobs = 1024
+nobs = 1024 # 512 obs on each boundary
 
 rsobs = np.random.RandomState(42)
 indxob = np.sort(rsobs.choice(2*nx*ny,nobs,replace=False))
@@ -25,6 +25,7 @@ plt.scatter(xobs[:nobs//2], yobs[:nobs//2], s=5, color='black')
 #pv = nc['pv'][-1,1,...] # last time, upper boundary
 #plt.imshow(pv,cmap=plt.cm.jet,interpolation='nearest',origin='lower')
 #plt.scatter(xobs[nobs//2:], yobs[nobs//2:], s=5, color='black')
+
 plt.axis('off')
 plt.tight_layout()
 plt.savefig('obnetwork.png')
