@@ -39,6 +39,7 @@ nassim = 600 # assimilation times to run
 nassim_spinup = 100
 
 nanals = 20 # ensemble members
+nerger = True # use Nerger regularization for R localization
 
 oberrstdev = 1. # ob error standard deviation in K
 
@@ -216,6 +217,7 @@ for ntime in range(nassim):
         dist = cartdist(xob[nob],yob[nob],x,y,nc_climo.L,nc_climo.L)
         covlocal = gaspcohn(dist/hcovlocal_scale)
         covlocal_tmp[nob] = covlocal.ravel()
+        dist = cartdist(xob[nob],yob[nob],xob,yob,nc_climo.L,nc_climo.L)
 
     # first-guess spread
     pvensmean = pvens.mean(axis=0)
@@ -257,7 +259,7 @@ for ntime in range(nassim):
     # update state vector.
 
     # hxens,pvob are in PV units, xens is not
-    xens = lgetkf(xens,hxens,pvob,oberrvar,covlocal_tmp)
+    xens = lgetkf(xens,hxens,pvob,oberrvar,covlocal_tmp,nerger=True)
 
     # back to 3d state vector
     pvens = xens.reshape((nanals,2,ny,nx))
