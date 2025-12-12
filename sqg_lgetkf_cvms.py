@@ -27,7 +27,7 @@ band_cutoffs = eval(sys.argv[2])
 nband_cutoffs = len(band_cutoffs)
 if nband_cutoffs != nlscales-1:
     raise SystemExit('band_cutoffs should be one less than hcovlocal_scales')
-crossbandcov_fact=0.0
+crossbandcov_fact=0.0 # only used if nband_cutoffs=1 (cross-band cov)
 exptname = os.getenv('exptname','test')
 threads = int(os.getenv('OMP_NUM_THREADS','1'))
 
