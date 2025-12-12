@@ -9,7 +9,7 @@ from sqgturb import SQG, rfft2, irfft2, cartdist, lgetkf, gaspcohn
 # LGETKF cycling for SQG turbulence model with boundary temp obs,
 # ob space horizontal localization, no vertical localization.
 # cross-validation update (no inflation).
-# Random or fixed observing network.
+# Random observing network.
 
 if len(sys.argv) == 1:
    msg="""
@@ -99,7 +99,7 @@ print("# hcovlocal=%g diff_efold=%s nanals=%s" %\
 # each ob time nobs ob locations are randomly sampled (without
 # replacement) from the model grid
 #nobs = nx*ny//6 # number of obs to assimilate (randomly distributed)
-nobs = 1024
+nobs = 1024 # nobs//2 obs on each boundary
 
 # nature run
 nc_truth = Dataset(filename_truth)
@@ -108,7 +108,6 @@ pv_truth = nc_truth.variables['pv']
 print('# random network nobs = %s' % nobs)
 
 oberrvar = oberrstdev**2*np.ones(nobs,np.float32)
-pvob = np.empty(nobs,np.float32)
 covlocal = np.empty((ny,nx),np.float32)
 covlocal_tmp = np.empty((nobs,nx*ny),np.float32)
 
@@ -207,11 +206,30 @@ for ntime in range(nassim):
         (models[0].t, obtimes[ntime+ntstart]))
 
     t1 = time.time()
+
+    # lower boundary obs
+    #indxob1 = np.sort(rsobs.choice(nx*ny,nobs//2,replace=False))
+    #pvob1 = scalefact*pv_truth[ntime+ntstart,0,...].reshape(nx*ny)[indxob1]
+    #pvob1 += rsobs.normal(scale=oberrstdev,size=nobs//2) 
+    #xob1 = x.ravel()[indxob1]
+    #yob1 = y.ravel()[indxob1]
+    ## upper boundary obs
+    #indxob2 = np.sort(rsobs.choice(nx*ny,nobs//2,replace=False))
+    #pvob2 = scalefact*pv_truth[ntime+ntstart,1,...].reshape(nx*ny)[indxob2]
+    #pvob2 += rsobs.normal(scale=oberrstdev,size=nobs//2) # add ob errors
+    #xob2 = x.ravel()[indxob2]
+    #yob2 = y.ravel()[indxob2]
+    #pvob = np.concatenate((pvob1,pvob2))
+    #xob = np.concatenate((xob1,xob2))
+    #yob = np.concatenate((yob1,yob2))
+    #indxob = np.concatenate((indxob1,indxob2+nx*ny))
+    # sample both at once
     indxob = np.sort(rsobs.choice(2*nx*ny,nobs,replace=False))
     pvob = scalefact*pv_truth[ntime+ntstart,...].reshape(2*nx*ny)[indxob]
     pvob += rsobs.normal(scale=oberrstdev,size=nobs) # add ob errors
     xob = np.concatenate((x.ravel(),x.ravel()))[indxob]
     yob = np.concatenate((y.ravel(),y.ravel()))[indxob]
+
     # compute covariance localization function for each ob
     for nob in range(nobs):
         dist = cartdist(xob[nob],yob[nob],x,y,nc_climo.L,nc_climo.L)
