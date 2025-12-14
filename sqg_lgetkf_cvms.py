@@ -17,6 +17,7 @@ if len(sys.argv) == 1:
 python sqg_lgetkf_cv.py hcovlocal_scale covinflate>
    hcovlocal_scales = horizontal localization scale(s) in km
    band_cutoffs = filter waveband cutoffs 
+   crossbandcov_facts = cross-band covariance factors
    """
    raise SystemExit(msg)
 
@@ -27,7 +28,17 @@ band_cutoffs = eval(sys.argv[2])
 nband_cutoffs = len(band_cutoffs)
 if nband_cutoffs != nlscales-1:
     raise SystemExit('band_cutoffs should be one less than hcovlocal_scales')
-crossbandcov_fact=float(sys.argv[3]) # only used if nband_cutoffs=1 (cross-band cov)
+crossbandcov_facts = eval(sys.argv[3])
+if len(crossbandcov_facts) != nband_cutoffs:
+    raise SystemExit('band_cutoffs and crossbandcov_facts should be same length')
+crossband_covmat = np.ones((nlscales,nlscales),np.float32)
+crossband_covmatr = np.ones((nlscales,nlscales),np.float32)
+for i in range(nlscales):
+    for j in range(nlscales):
+        if j != i:
+            crossband_covmat[j,i] = crossbandcov_facts[np.abs(i-j)-1] 
+            crossband_covmatr[j,i] = -crossbandcov_facts[np.abs(i-j)-1] 
+
 exptname = os.getenv('exptname','test')
 threads = int(os.getenv('OMP_NUM_THREADS','1'))
 
@@ -102,7 +113,7 @@ if read_restart: ncinit.close()
 hcovlocal_scales_km = [lscale/1000. for lscale in hcovlocal_scales]
 print("# hcovlocal=%s diff_efold=%s nanals=%s" %\
      (repr(hcovlocal_scales_km),diff_efold,nanals))
-print('# band_cutoffs=%s crossbandcov_fact=%s' % (repr(band_cutoffs),crossbandcov_fact))
+print('# band_cutoffs=%s crossbandcov_facts=%s' % (repr(band_cutoffs),repr(crossbandcov_facts)))
 
 # each ob time nobs ob locations are randomly sampled (without
 # replacement) from the model grid
@@ -119,8 +130,6 @@ oberrvar = oberrstdev**2*np.ones(nobs,np.float32)
 pvob = np.empty(nobs,np.float32)
 covlocal = np.empty((ny,nx),np.float32)
 covlocal_tmp = np.empty((nlscales,nobs,nx*ny),np.float32)
-
-xens = np.empty((nanals,2,nx*ny),np.float32)
 
 obtimes = nc_truth.variables['t'][:]
 if read_restart:
@@ -270,10 +279,7 @@ for ntime in range(nassim):
             pvsum += pvens_filtered_lst[n]
         pvens_filtered_lst.append(pvpert-pvsum)
     pvens_filtered = np.asarray(pvens_filtered_lst)
-    pvprime = pvens_filtered.copy()
-    if nlscales == 2:
-        pvprime[0] += crossbandcov_fact*pvens_filtered[1]
-        pvprime[1] += crossbandcov_fact*pvens_filtered[0]
+    pvprime = np.dot(pvens_filtered.T,crossband_covmat).T
     pvens = pvensmean_b + pvprime
 
     if savedata is not None:
@@ -306,10 +312,7 @@ for ntime in range(nassim):
     pvensmean_a = pvens.mean(axis=0)
     pvens_filtered = pvens - pvensmean_a
     pvens_filtered = pvens_filtered.reshape(nlscales,nanals,2,ny,nx)
-    pvprime = pvens_filtered.copy()
-    if nlscales == 2:
-        pvprime[0] -= crossbandcov_fact*pvens_filtered[1]
-        pvprime[1] -= crossbandcov_fact*pvens_filtered[0]
+    pvprime = np.dot(pvens_filtered.T,crossband_covmatr).T
     pvens = pvprime.sum(axis=0) + pvensmean_a
     t2 = time.time()
     if profile: print('cpu time for EnKF update',t2-t1)
