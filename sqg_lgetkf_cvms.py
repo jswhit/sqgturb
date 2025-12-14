@@ -269,12 +269,12 @@ for ntime in range(nassim):
         for n in range(nband_cutoffs):
             pvsum += pvens_filtered_lst[n]
         pvens_filtered_lst.append(pvpert-pvsum)
-    # concatenate along ensemble dimension (nanals*nlscales)
     pvens_filtered = np.asarray(pvens_filtered_lst)
+    pvprime = pvens_filtered.copy()
     if nlscales == 2:
-        pvens_filtered[0] += crossbandcov_fact*pvens_filtered[1]
-        pvens_filtered[1] += crossbandcov_fact*pvens_filtered[0]
-    pvens = pvensmean_b + pvens_filtered
+        pvprime[0] += crossbandcov_fact*pvens_filtered[1]
+        pvprime[1] += crossbandcov_fact*pvens_filtered[0]
+    pvens = pvensmean_b + pvprime
 
     if savedata is not None:
         if savedata == 'restart' and ntime != nassim-1:
@@ -288,6 +288,7 @@ for ntime in range(nassim):
 
     # EnKF update
     # create 1d state vector.
+    # concatenate along ensemble dimension (nanals*nlscales)
     xens = pvens.reshape(nlscales*nanals,2,nx*ny)
     xmean = xens.mean(axis=0)
     xprime = xens - xmean
@@ -305,10 +306,11 @@ for ntime in range(nassim):
     pvensmean_a = pvens.mean(axis=0)
     pvens_filtered = pvens - pvensmean_a
     pvens_filtered = pvens_filtered.reshape(nlscales,nanals,2,ny,nx)
+    pvprime = pvens_filtered.copy()
     if nlscales == 2:
-        pvens_filtered[0] -= crossbandcov_fact*pvens_filtered[1]
-        pvens_filtered[1] -= crossbandcov_fact*pvens_filtered[0]
-    pvens = pvens_filtered.sum(axis=0) + pvensmean_a
+        pvprime[0] -= crossbandcov_fact*pvens_filtered[1]
+        pvprime[1] -= crossbandcov_fact*pvens_filtered[0]
+    pvens = pvprime.sum(axis=0) + pvensmean_a
     t2 = time.time()
     if profile: print('cpu time for EnKF update',t2-t1)
 
