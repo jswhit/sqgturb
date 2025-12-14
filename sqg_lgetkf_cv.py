@@ -34,12 +34,13 @@ read_restart = False
 #savedata = 'restart'
 savedata = None
 #nassim = 101
-#nassim_spinup = 1
+#nassim_spinup = 100
 nassim = 600 # assimilation times to run
 nassim_spinup = 100
 
 nanals = 20 # ensemble members
 nerger = True # use Nerger regularization for R localization
+ngroups = 5  # number of groups for cross-validation (ngroups=nanals is "leave one out")
 
 oberrstdev = 1. # ob error standard deviation in K
 
@@ -258,7 +259,7 @@ for ntime in range(nassim):
     # update state vector.
 
     # hxens,pvob are in PV units, xens is not
-    xens = lgetkf(xens,hxens,pvob,oberrvar,covlocal_tmp,nerger=True)
+    xens = lgetkf(xens,hxens,pvob,oberrvar,covlocal_tmp,nerger=nerger,ngroups=ngroups)
 
     # back to 3d state vector
     pvens = xens.reshape((nanals,2,ny,nx))

@@ -37,7 +37,7 @@ def gaspcohn(r):
 
 def lgetkf(xens, hxens, obs, oberrs, covlocal, nerger=True, ngroups=None):
 
-    """returns ensemble updated by LGETKF with 'leave one out' cross-validation"""
+    """returns ensemble updated by LGETKF with cross-validation"""
 
     hxmean = hxens.mean(axis=0)
     hxprime = hxens - hxmean
@@ -137,12 +137,11 @@ def lgetkf(xens, hxens, obs, oberrs, covlocal, nerger=True, ngroups=None):
             wts_ensmean = calcwts_mean(hxprime_local, Rlocal, oberrvar_local, ominusf_local, nerger=nerger)
             for k in range(2):
                 xmean[k,n] += np.dot(wts_ensmean,xprime_b[:,k,n])
-            # update one member at a time, using cross validation.
+            # update sub-ensemble groups, using cross validation.
             for ngrp in range(ngroups):
                 nanal_cv = [na + ngrp*nanals_per_group for na in range(nanals_per_group)]
                 hxprime_cv = np.delete(hxprime_local,nanal_cv,axis=0); xprime_cv = np.delete(xprime_b[:,:,n],nanal_cv,axis=0)
-                hxprime_orig = hxprime_local[nanal_cv]
-                wts_ensperts_cv = calcwts_perts(hxprime_orig, hxprime_cv, Rlocal, oberrvar_local, nerger=nerger)
+                wts_ensperts_cv = calcwts_perts(hxprime_local[nanal_cv], hxprime_cv, Rlocal, oberrvar_local, nerger=nerger)
                 for k in range(2):
                     xprime[nanal_cv,k,n] += np.dot(wts_ensperts_cv,xprime_cv[:,k])
             xprime_mean = xprime[:,:,n].mean(axis=0) 
