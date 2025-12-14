@@ -27,7 +27,7 @@ band_cutoffs = eval(sys.argv[2])
 nband_cutoffs = len(band_cutoffs)
 if nband_cutoffs != nlscales-1:
     raise SystemExit('band_cutoffs should be one less than hcovlocal_scales')
-crossbandcov_fact=0.15 # only used if nband_cutoffs=1 (cross-band cov)
+crossbandcov_fact=float(sys.argv[3]) # only used if nband_cutoffs=1 (cross-band cov)
 exptname = os.getenv('exptname','test')
 threads = int(os.getenv('OMP_NUM_THREADS','1'))
 
@@ -102,7 +102,7 @@ if read_restart: ncinit.close()
 hcovlocal_scales_km = [lscale/1000. for lscale in hcovlocal_scales]
 print("# hcovlocal=%s diff_efold=%s nanals=%s" %\
      (repr(hcovlocal_scales_km),diff_efold,nanals))
-print('# band_cutoffs=%s' % repr(band_cutoffs))
+print('# band_cutoffs=%s crossbandcov_fact=%s' % (repr(band_cutoffs),crossbandcov_fact))
 
 # each ob time nobs ob locations are randomly sampled (without
 # replacement) from the model grid
@@ -274,7 +274,6 @@ for ntime in range(nassim):
     if nlscales == 2:
         pvens_filtered[0] += crossbandcov_fact*pvens_filtered[1]
         pvens_filtered[1] += crossbandcov_fact*pvens_filtered[0]
-        pvens_filtered = np.vstack([pvens_filtered[0],pvens_filtered[1]])
     pvens = pvensmean_b + pvens_filtered
 
     if savedata is not None:
