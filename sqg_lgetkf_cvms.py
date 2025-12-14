@@ -9,7 +9,7 @@ from sqgturb import SQG, rfft2, irfft2, cartdist, lgetkf_ms, gaspcohn
 # LGETKF cycling for SQG turbulence model with boundary temp obs,
 # ob space horizontal localization, no vertical localization.
 # cross-validation update (no inflation).
-# Random or fixed observing network.
+# Random observing network.
 # multi-scale version
 
 if len(sys.argv) == 1:
@@ -27,7 +27,7 @@ band_cutoffs = eval(sys.argv[2])
 nband_cutoffs = len(band_cutoffs)
 if nband_cutoffs != nlscales-1:
     raise SystemExit('band_cutoffs should be one less than hcovlocal_scales')
-crossbandcov_fact=0.0 # only used if nband_cutoffs=1 (cross-band cov)
+crossbandcov_fact=0.15 # only used if nband_cutoffs=1 (cross-band cov)
 exptname = os.getenv('exptname','test')
 threads = int(os.getenv('OMP_NUM_THREADS','1'))
 
