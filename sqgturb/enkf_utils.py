@@ -204,9 +204,6 @@ def lgetkf_vloc(xens, xens2, hxens, hxens2, obs, oberrs, covlocal, nanal_index, 
         else:
             a = np.dot(YbsqrtRinv.T,YbsqrtRinv)
             evals, evecs, info = lapack.dsyevd(a)
-            #print(nobs,nens)
-            #print(info,evals)
-            #raise SystemExit
             evals = evals.clip(min=np.finfo(evals.dtype).eps)
             evecs = np.dot(YbsqrtRinv,evecs/np.sqrt(evals))
         # gammapI used in calculation of posterior cov in ensemble space
@@ -268,7 +265,7 @@ def lgetkf_vloc(xens, xens2, hxens, hxens2, obs, oberrs, covlocal, nanal_index, 
                 nanal_cv = [na + ngrp*nanals_per_group for na in range(nanals_per_group)]
                 nanals_sub = np.nonzero(np.isin(nanal_index,nanal_cv))
                 hxprime_cv = np.delete(hxprime2_local,nanals_sub,axis=0); xprime_cv = np.delete(xprime2[:,:,n],nanals_sub,axis=0)
-                wts_ensperts_cv = calcwts_perts(nanals, hxprime_local[nanal_cv], hxprime_cv, Rlocal, oberrvar_local, nerger=nerger)
+                wts_ensperts_cv = calcwts_perts(nanals-nanals//ngroups, hxprime_local[nanal_cv], hxprime_cv, Rlocal, oberrvar_local, nerger=nerger)
                 for k in range(2):
                     xprime[nanal_cv,k,n] += np.dot(wts_ensperts_cv,xprime_cv[:,k])
             xprime_mean = xprime[:,:,n].mean(axis=0) 
