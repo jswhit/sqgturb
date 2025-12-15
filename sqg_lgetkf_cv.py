@@ -40,7 +40,7 @@ nassim_spinup = 100
 
 nanals = 20 # ensemble members
 nerger = True # use Nerger regularization for R localization
-ngroups = 5  # number of groups for cross-validation (ngroups=nanals is "leave one out")
+ngroups = nanals  # number of groups for cross-validation (ngroups=nanals is "leave one out")
 
 oberrstdev = 1. # ob error standard deviation in K
 
@@ -94,7 +94,7 @@ for nanal in range(nanals):
 if read_restart: ncinit.close()
 
 hcovlocal_km = int(hcovlocal_scale/1000.)
-print("# hcovlocal=%g diff_efold=%s nanals=%s ngroupds=%s" %\
+print("# hcovlocal=%g diff_efold=%s nanals=%s ngroups=%s" %\
      (hcovlocal_km,diff_efold,nanals,ngroups))
 
 # each ob time nobs ob locations are randomly sampled (without
