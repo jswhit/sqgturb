@@ -217,7 +217,7 @@ def lgetkf_vloc(xens, xens2, hxens, hxens2, obs, oberrs, covlocal, nanal_index, 
         pa = np.dot(evecs/gammapI[np.newaxis,:],evecs.T)
         return np.dot(pa, np.dot(YbRinv,ominusf))/normfact
 
-    def calcwts_perts(nens,hx_orig, hx, Rlocal, oberrvar,nerger=True):
+    def calcwts_perts(nens, hx_orig, hx, Rlocal, oberrvar,nerger=True):
         # hx_orig contains the ensemble for the witheld member
         # nens is the original (unmodulated) ens size
         nobs = hx.shape[1]
