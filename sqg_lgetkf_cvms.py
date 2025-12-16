@@ -58,6 +58,7 @@ nassim = 600 # assimilation times to run
 nassim_spinup = 100
 
 nanals = 20 # ensemble members
+ngroups = nanals  # number of groups for cross-validation (ngroups=nanals is "leave one out")
 
 oberrstdev = 1. # ob error standard deviation in K
 
@@ -111,8 +112,8 @@ for nanal in range(nanals):
 if read_restart: ncinit.close()
 
 hcovlocal_scales_km = [lscale/1000. for lscale in hcovlocal_scales]
-print("# hcovlocal=%s diff_efold=%s nanals=%s" %\
-     (repr(hcovlocal_scales_km),diff_efold,nanals))
+print("# hcovlocal=%s diff_efold=%s nanals=%s ngroups=%s" %\
+     (repr(hcovlocal_scales_km),diff_efold,nanals,ngroups))
 print('# band_cutoffs=%s crossbandcov_facts=%s' % (repr(band_cutoffs),repr(crossbandcov_facts)))
 
 # each ob time nobs ob locations are randomly sampled (without
@@ -159,6 +160,7 @@ if savedata is not None:
    nc.nanals = nanals
    nc.hcovlocal_scales = hcovlocal_scales
    nc.band_cutoffs = band_cutoffs
+   nc.crossbandcov_facts = crossband_covfacts
    nc.oberrstdev = oberrstdev
    nc.g = nc_climo.g; nc.theta0 = nc_climo.theta0
    nc.nsq = models[0].nsq
@@ -260,9 +262,9 @@ for ntime in range(nassim):
     pvensmean_b = pvens.mean(axis=0).copy()
     pvpert = pvens-pvensmean_b
     pverr_b = (scalefact*(pvensmean_b-pv_truth[ntime+ntstart]))**2
-    pvsprd_b = ((scalefact*(pvensmean_b-pvens))**2).sum(axis=0)/(nanals-1)
+    pvsprd_b = ((scalefact*pvpert)**2).sum(axis=0)/(nanals-1)
 
-    # filter backgrounds into different scale bands
+    # filter background perturbations into different scale bands
     if nlscales == 1:
         pvens_filtered_lst=[pvpert]
     else:
@@ -274,13 +276,13 @@ for ntime in range(nassim):
             pvfilt = irfft2(pvfiltspec)
             pvens_filtered_lst.append(pvfilt-pvfilt_save)
             pvfilt_save=pvfilt
-        pvsum = np.zeros_like(pvens)
+        pvsum = np.zeros_like(pvpert)
         for n in range(nband_cutoffs):
             pvsum += pvens_filtered_lst[n]
         pvens_filtered_lst.append(pvpert-pvsum)
     pvens_filtered = np.asarray(pvens_filtered_lst)
-    pvprime = np.dot(pvens_filtered.T,crossband_covmat).T
-    pvens = pvensmean_b + pvprime
+    pvens = np.dot(pvens_filtered.T,crossband_covmat).T
+    pvens += pvensmean_b  # mean added back to all scales.
 
     if savedata is not None:
         if savedata == 'restart' and ntime != nassim-1:
@@ -305,11 +307,11 @@ for ntime in range(nassim):
     # update state vector.
 
     # hxens,pvob are in PV units, xens is not
-    xens = lgetkf_ms(nlscales,xens,hxprime,pvob-hxensmean_b,oberrvar,covlocal_tmp)
+    xens = lgetkf_ms(nlscales,xens,hxprime,pvob-hxensmean_b,oberrvar,covlocal_tmp,ngroups=ngroups)
 
     # back to 3d state vector
     pvens = xens.reshape((nlscales*nanals,2,ny,nx))
-    pvensmean_a = pvens.mean(axis=0)
+    pvensmean_a = pvens.mean(axis=0) # ens mean is mean of means for all scales??
     pvens_filtered = pvens - pvensmean_a
     pvens_filtered = pvens_filtered.reshape(nlscales,nanals,2,ny,nx)
     pvprime = np.dot(pvens_filtered.T,crossband_covmatr).T
