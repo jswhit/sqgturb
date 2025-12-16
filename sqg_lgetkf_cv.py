@@ -112,8 +112,6 @@ oberrvar = oberrstdev**2*np.ones(nobs,np.float32)
 covlocal = np.empty((ny,nx),np.float32)
 covlocal_tmp = np.empty((nobs,nx*ny),np.float32)
 
-xens = np.empty((nanals,2,nx*ny),np.float32)
-
 obtimes = nc_truth.variables['t'][:]
 if read_restart:
     timeslist = obtimes.tolist()
