@@ -311,7 +311,7 @@ for ntime in range(nassim):
 
     # back to 3d state vector
     pvens = xens.reshape((nlscales*nanals,2,ny,nx))
-    pvensmean_a = pvens.mean(axis=0) # ens mean is mean of means for all scales??
+    pvensmean_a = pvens.mean(axis=0) 
     pvens_filtered = pvens - pvensmean_a
     pvens_filtered = pvens_filtered.reshape(nlscales,nanals,2,ny,nx)
     pvprime = np.dot(pvens_filtered.T,crossband_covmatr).T
@@ -319,7 +319,6 @@ for ntime in range(nassim):
     t2 = time.time()
     if profile: print('cpu time for EnKF update',t2-t1)
 
-    pvprime = pvens-pvensmean_a
     asprd = (pvprime**2).sum(axis=0)/(nanals-1)
     asprd_over_fsprd = asprd.mean()/fsprd.mean()
 
