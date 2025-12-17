@@ -7,10 +7,9 @@ import sys, time, os
 from sqgturb import SQG, rfft2, irfft2, cartdist, lgetkf_ms, gaspcohn
 
 # LGETKF cycling for SQG turbulence model with boundary temp obs,
-# ob space horizontal localization, no vertical localization.
+# multi-scale ob space horizontal localization, no vertical localization.
 # cross-validation update (no inflation).
 # Random observing network.
-# multi-scale version
 
 if len(sys.argv) == 1:
    msg="""
@@ -57,8 +56,8 @@ savedata = None
 nassim = 600 # assimilation times to run
 nassim_spinup = 100
 
-nanals = 20 # ensemble members
-ngroups = nanals  # number of groups for cross-validation (ngroups=nanals is "leave one out")
+nanals = 16 # ensemble members
+ngroups = 8  # number of groups for cross-validation (ngroups=nanals is "leave one out")
 
 oberrstdev = 1. # ob error standard deviation in K
 
@@ -241,8 +240,8 @@ for ntime in range(nassim):
             covlocal_tmp[nl,nob,...] = covlocal.ravel()
 
     # first-guess spread
-    pvensmean = pvens.mean(axis=0)
-    pvprime = pvens - pvensmean
+    pvensmean_b = pvens.mean(axis=0)
+    pvprime = pvens - pvensmean_b
 
     fsprd = (pvprime**2).sum(axis=0)/(nanals-1)
 
@@ -259,7 +258,6 @@ for ntime in range(nassim):
     obfits_b = (obfits**2).mean()
     obbias_b = obfits.mean()
     obsprd_b = obsprd.mean()
-    pvensmean_b = pvens.mean(axis=0).copy()
     pvpert = pvens-pvensmean_b
     pverr_b = (scalefact*(pvensmean_b-pv_truth[ntime+ntstart]))**2
     pvsprd_b = ((scalefact*pvpert)**2).sum(axis=0)/(nanals-1)
@@ -319,6 +317,8 @@ for ntime in range(nassim):
     t2 = time.time()
     if profile: print('cpu time for EnKF update',t2-t1)
 
+    pvensmean_a = pvens.mean(axis=0)
+    pvprime = pvens - pvensmean_a
     asprd = (pvprime**2).sum(axis=0)/(nanals-1)
     asprd_over_fsprd = asprd.mean()/fsprd.mean()
 
