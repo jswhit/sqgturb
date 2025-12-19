@@ -304,20 +304,16 @@ for ntime in range(nassim):
         nlscales = vcovlocal_sqrt.shape[0]
         neig = vcovlocal_sqrt.shape[2]
         pvprime2 = np.empty((nlscales,neig*nanals,2,ny,nx),pvprime.dtype)
-        nanal2 = 0
-        nanal_index = np.empty((nlscales*nanals*neig),np.int32)
         for nl in range(nlscales):
-            nanal1 = 0
+            nanal2 = 0
             for j in range(neig):
                 for nanal in range(nanals):
                     for k in range(2):
-                        pvprime2[nl,nanal1,k,...] =\
+                        pvprime2[nl,nanal2,k,...] =\
                         pvprime[nl,nanal,k,...]*vcovlocal_sqrt[nl,k,neig-j-1]
-                    nanal_index[nanal2]=nanal
-                    nanal1 += 1
                     nanal2 += 1
-        return nanal_index,pvprime2
-    nanal_index,pvprime2 = modens(pvprime, vcovlocal_sqrt)
+        return pvprime2
+    pvprime2 = modens(pvprime, vcovlocal_sqrt)
     nanals2 = pvprime2.shape[1]
     ## check modulation works
     #for nl in range(nlscales):
@@ -357,7 +353,7 @@ for ntime in range(nassim):
     # update state vector.
 
     # hxens,pvob are in PV units, xens is not
-    xens = lgetkf_ms_vloc(nlscales,xens,xens2,hxprime,hxprime2,pvob-hxensmean_b,oberrvar,covlocal_tmp,nanal_index,ngroups=ngroups)
+    xens = lgetkf_ms_vloc(nlscales,xens,xens2,hxprime,hxprime2,pvob-hxensmean_b,oberrvar,covlocal_tmp,ngroups=ngroups)
 
     # back to 3d state vector
     pvens = xens.reshape((nlscales*nanals,2,ny,nx))
