@@ -8,7 +8,7 @@ from sqgturb import SQG, rfft2, irfft2, cartdist, lgetkf_ms_vloc, gaspcohn
 from scipy.linalg import eigh
 
 # LGETKF cycling for SQG turbulence model with boundary temp obs,
-# multi-scale ob space horizontal localization, no vertical localization.
+# multi-scale ob space horizontal localization with separate vertical localization for each horiz scale.
 # cross-validation update (no inflation).
 # Random observing network.
 
