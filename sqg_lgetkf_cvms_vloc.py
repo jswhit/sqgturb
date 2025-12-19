@@ -315,6 +315,7 @@ for ntime in range(nassim):
         return pvprime2
     pvprime2 = modens(pvprime, vcovlocal_sqrt)
     nanals2 = pvprime2.shape[1]
+    pvens2 = pvprime2 + pvensmean_b 
     ## check modulation works
     #for nl in range(nlscales):
     #    nlp1 = nl+1
@@ -323,7 +324,6 @@ for ntime in range(nassim):
     #    crosscov2 = (pvprime2[nl,:,0,...]*pvprime2[nl,:,1,...]).sum(axis=0)/(nanals-1)
     #    print(vcovlocal_facts[nl],(crosscov2/crosscov1).mean()) # should be the same
     #raise SystemExit
-    pvens2 = pvprime2 + pvensmean_b 
 
     if savedata is not None:
         if savedata == 'restart' and ntime != nassim-1:
