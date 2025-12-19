@@ -320,9 +320,13 @@ for ntime in range(nassim):
     nanal_index,pvprime2 = modens(pvprime, vcovlocal_sqrt)
     nanals2 = pvprime2.shape[1]
     ## check modulation works
-    ##crosscov1 = (pvprime[:,0,...]*pvprime[:,1,...]).sum(axis=0)/(nanals-1)
-    ##crosscov2 = (pvprime2[:,0,...]*pvprime2[:,1,...]).sum(axis=0)/(nanals-1)
-    ##print(nanals2,vcovlocal_fact,(crosscov2/crosscov1).mean()) # should be the same
+    #for nl in range(nlscales):
+    #    nlp1 = nl+1
+    #    print('scale nl=%s' % nlp1)
+    #    crosscov1 = (pvprime[nl,:,0,...]*pvprime[nl,:,1,...]).sum(axis=0)/(nanals-1)
+    #    crosscov2 = (pvprime2[nl,:,0,...]*pvprime2[nl,:,1,...]).sum(axis=0)/(nanals-1)
+    #    print(vcovlocal_facts[nl],(crosscov2/crosscov1).mean()) # should be the same
+    #raise SystemExit
     pvens2 = pvprime2 + pvensmean_b 
 
     if savedata is not None:
