@@ -269,15 +269,26 @@ for ntime in range(nassim):
         pvens_filtered_lst=[]
         pvfilt_save = np.zeros_like(pvpert)
         pvspec = rfft2(pvpert)
+        wavenums = models[0].wavenums[np.newaxis,np.newaxis,...]
         for n,cutoff in enumerate(band_cutoffs):
-            pvfiltspec = np.where(models[0].wavenums[np.newaxis,np.newaxis,...] < cutoff, pvspec, 0.+0.j)
+            filtfact = np.exp(-(wavenums/cutoff)**4)
+            pvfiltspec = filtfact*pvspec
+            #pvfiltspec = np.where(wavenums < cutoff, pvspec, 0.+0.j)
             pvfilt = irfft2(pvfiltspec)
             pvens_filtered_lst.append(pvfilt-pvfilt_save)
+            #plt.figure()
+            #plt.imshow((pvfilt-pvfilt_save)[0,0,...],cmap=plt.cm.bwr)
+            #plt.title('scale = %s' % n)
             pvfilt_save=pvfilt
         pvsum = np.zeros_like(pvpert)
         for n in range(nband_cutoffs):
             pvsum += pvens_filtered_lst[n]
+        #plt.figure()
+        #plt.imshow((pvpert-pvsum)[0,0,...],cmap=plt.cm.bwr)
+        #plt.title('scale = %s' % nlscales)
         pvens_filtered_lst.append(pvpert-pvsum)
+        #plt.show()
+        #raise SystemExit
     pvens_filtered = np.asarray(pvens_filtered_lst)
     pvens = np.dot(pvens_filtered.T,crossband_covmat).T
     pvens += pvensmean_b  # mean added back to all scales.
