@@ -57,14 +57,14 @@ nassim = 600 # assimilation times to run
 nassim_spinup = 100
 
 nanals = 16 # ensemble members
-ngroups = 8  # number of groups for cross-validation (ngroups=nanals is "leave one out")
+ngroups = nanals  # number of groups for cross-validation (ngroups=nanals//N is "leave N out")
 
 oberrstdev = 1. # ob error standard deviation in K
 
 # nature run created using sqg_run.py.
-filename_climo = 'sqgu20_N96_6hrly.nc' # file name for forecast model climo
+filename_climo = 'sqgu20_N96_dek25_6hrly.nc' # file name for forecast model climo
 # perfect model
-filename_truth = 'sqgu20_N96_6hrly.nc' # file name for nature run to draw obs
+filename_truth = 'sqgu20_N96_dek25_6hrly.nc' # file name for nature run to draw obs
 #filename_truth = 'sqg_N256_N96_12hrly.nc' # file name for nature run to draw obs
 
 print('# filename_modelclimo=%s' % filename_climo)
@@ -106,7 +106,7 @@ for nanal in range(nanals):
     models.append(\
     SQG(pvens[nanal],
     nsq=nc_climo.nsq,f=nc_climo.f,dt=dt,U=nc_climo.U,H=nc_climo.H,\
-    r=nc_climo.r,tdiab=nc_climo.tdiab,symmetric=nc_climo.symmetric,\
+    r=nc_climo.r,tdiab=nc_climo.tdiab,\
     diff_order=nc_climo.diff_order,diff_efold=diff_efold,threads=threads))
 if read_restart: ncinit.close()
 
@@ -118,7 +118,10 @@ print('# band_cutoffs=%s crossbandcov_facts=%s' % (repr(band_cutoffs),repr(cross
 # each ob time nobs ob locations are randomly sampled (without
 # replacement) from the model grid
 #nobs = nx*ny//6 # number of obs to assimilate (randomly distributed)
-nobs = 1024
+nobs = 2*nx*ny//24 # 768
+#nobs = 2*nx*ny//18 # 1024
+#nobs = 2*nx*ny//12 # 1536
+#nobs = 2*nx*ny//9 # 2048
 
 # nature run
 nc_truth = Dataset(filename_truth)
@@ -146,7 +149,6 @@ print('# ntime,pverr_a,pvsprd_a,pverr_b,pvsprd_b,obfits_b,osprd_b+R,obbias_b,tr(
 # initialize model clock
 for nanal in range(nanals):
     models[nanal].t = obtimes[ntstart]
-    models[nanal].timesteps = assim_timesteps
 
 # initialize output file.
 if savedata is not None:
@@ -169,7 +171,6 @@ if savedata is not None:
    nc.diff_order = models[0].diff_order
    nc.filename_climo = filename_climo
    nc.filename_truth = filename_truth
-   nc.symmetric = models[0].symmetric
    xdim = nc.createDimension('x',models[0].N)
    ydim = nc.createDimension('y',models[0].N)
    z = nc.createDimension('z',2)
@@ -271,9 +272,9 @@ for ntime in range(nassim):
         pvspec = rfft2(pvpert)
         wavenums = models[0].wavenums[np.newaxis,np.newaxis,...]
         for n,cutoff in enumerate(band_cutoffs):
-            filtfact = np.exp(-(wavenums/cutoff)**4)
-            pvfiltspec = filtfact*pvspec
-            #pvfiltspec = np.where(wavenums < cutoff, pvspec, 0.+0.j)
+            #filtfact = np.exp(-(wavenums/cutoff)**8)
+            #pvfiltspec = filtfact*pvspec
+            pvfiltspec = np.where(wavenums < cutoff, pvspec, 0.+0.j)
             pvfilt = irfft2(pvfiltspec)
             pvens_filtered_lst.append(pvfilt-pvfilt_save)
             #plt.figure()
@@ -354,7 +355,7 @@ for ntime in range(nassim):
     # run forecast ensemble to next analysis time
     t1 = time.time()
     for nanal in range(nanals):
-        pvens[nanal] = models[nanal].advance(pvens[nanal])
+        pvens[nanal] = models[nanal].advance(timesteps=assim_timesteps,pv=pvens[nanal])
     t2 = time.time()
     if profile: print('cpu time for ens forecast',t2-t1)
     if not np.all(np.isfinite(pvens)):
@@ -399,7 +400,8 @@ if ncount:
     wavenums = np.arange(ktotmax,dtype=np.float32)
     for n in range(1,ktotmax):
         print('# ',wavenums[n],pvspec_err[n],pvspec_sprd[n])
-    plt.loglog(wavenums[1:-1],pvspec_err[1:-1],color='r')
-    plt.loglog(wavenums[1:-1],pvspec_sprd[1:-1],color='b')
-    plt.title('error (red) and spread (blue)')
+    plt.loglog(wavenums[1:-1],pvspec_err[1:-1],color='r',label='error')
+    plt.loglog(wavenums[1:-1],pvspec_sprd[1:-1],color='b',label='spread')
+    plt.title('expt=%s' % exptname)
+    plt.legend()
     plt.savefig('errorspread_spectra_cv_%s.png' % exptname)

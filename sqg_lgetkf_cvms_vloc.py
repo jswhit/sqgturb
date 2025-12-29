@@ -62,7 +62,7 @@ nassim = 600 # assimilation times to run
 nassim_spinup = 100
 
 nanals = 16 # ensemble members
-ngroups = 8  # number of groups for cross-validation (ngroups=nanals is "leave one out")
+ngroups = nanals  # number of groups for cross-validation (ngroups=nanals//N is "leave N out")
 
 oberrstdev = 1. # ob error standard deviation in K
 
@@ -111,7 +111,7 @@ for nanal in range(nanals):
     models.append(\
     SQG(pvens[nanal],
     nsq=nc_climo.nsq,f=nc_climo.f,dt=dt,U=nc_climo.U,H=nc_climo.H,\
-    r=nc_climo.r,tdiab=nc_climo.tdiab,symmetric=nc_climo.symmetric,\
+    r=nc_climo.r,tdiab=nc_climo.tdiab,\
     diff_order=nc_climo.diff_order,diff_efold=diff_efold,threads=threads))
 if read_restart: ncinit.close()
 
@@ -163,7 +163,6 @@ print('# ntime,pverr_a,pvsprd_a,pverr_b,pvsprd_b,obfits_b,osprd_b+R,obbias_b,tr(
 # initialize model clock
 for nanal in range(nanals):
     models[nanal].t = obtimes[ntstart]
-    models[nanal].timesteps = assim_timesteps
 
 # initialize output file.
 if savedata is not None:
@@ -186,7 +185,6 @@ if savedata is not None:
    nc.diff_order = models[0].diff_order
    nc.filename_climo = filename_climo
    nc.filename_truth = filename_truth
-   nc.symmetric = models[0].symmetric
    xdim = nc.createDimension('x',models[0].N)
    ydim = nc.createDimension('y',models[0].N)
    z = nc.createDimension('z',2)
@@ -286,7 +284,10 @@ for ntime in range(nassim):
         pvens_filtered_lst=[]
         pvfilt_save = np.zeros_like(pvpert)
         pvspec = rfft2(pvpert)
+        wavenums = models[0].wavenums[np.newaxis,np.newaxis,...]
         for n,cutoff in enumerate(band_cutoffs):
+            #filtfact = np.exp(-(wavenums/cutoff)**8)
+            #pvfiltspec = filtfact*pvspec
             pvfiltspec = np.where(models[0].wavenums[np.newaxis,np.newaxis,...] < cutoff, pvspec, 0.+0.j)
             pvfilt = irfft2(pvfiltspec)
             pvens_filtered_lst.append(pvfilt-pvfilt_save)
@@ -392,7 +393,7 @@ for ntime in range(nassim):
     # run forecast ensemble to next analysis time
     t1 = time.time()
     for nanal in range(nanals):
-        pvens[nanal] = models[nanal].advance(pvens[nanal])
+        pvens[nanal] = models[nanal].advance(timesteps=assim_timesteps,pv=pvens[nanal])
     t2 = time.time()
     if profile: print('cpu time for ens forecast',t2-t1)
     if not np.all(np.isfinite(pvens)):

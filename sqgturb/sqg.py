@@ -1,24 +1,9 @@
-from __future__ import print_function
 import numpy as np
 
-try:  # pyfftw is *much* faster
-    from pyfftw.interfaces import numpy_fft, cache
-
-    # print('# using pyfftw...')
-    cache.enable()
-    rfft2 = numpy_fft.rfft2
-    irfft2 = numpy_fft.irfft2
-except ImportError:  # fall back on numpy fft.
-    print("# WARNING: using numpy fft (install pyfftw for better performance)...")
-
-    def rfft2(*args, **kwargs):
-        kwargs.pop("threads", None)
-        return np.fft.rfft2(*args, **kwargs)
-
-    def irfft2(*args, **kwargs):
-        kwargs.pop("threads", None)
-        return np.fft.irfft2(*args, **kwargs)
-
+from pyfftw.interfaces import numpy_fft, cache
+cache.enable()
+rfft2 = numpy_fft.rfft2
+irfft2 = numpy_fft.irfft2
 
 class SQG:
     def __init__(
@@ -35,9 +20,7 @@ class SQG:
         diff_efold=None,
         theta0=300,
         g=9.8,
-        symmetric=True,
         dt=None,
-        dealias=True,
         threads=1,
         precision="single",
         tstart=0,
@@ -69,50 +52,35 @@ class SQG:
         self.nsq = np.array(nsq, dtype)  # Brunt-Vaisalla (buoyancy) freq squared
         self.f = np.array(f, dtype)  # coriolis
         self.H = np.array(H, dtype)  # height of upper boundary
-        self.U = np.array(U, dtype)  # basic state velocity at z = H
-        self.L = np.array(L, dtype)  # size of square domain.
+        self.U = np.array(U, dtype)  # basic state velocity 
+        self.L = np.array(L, dtype)  # size of square domain
         # theta0,g only used to convert pv to temp units (K).
         self.theta0 = np.array(theta0, dtype) # mean temp
         self.g = np.array(g, dtype) # gravity
         self.dt = np.array(dt, dtype)  # time step (seconds)
-        self.dealias = dealias  # if True, dealiasing applied using 2/3 rule.
-        if r < 1.0e-10:
-            self.ekman = False
-        else:
-            self.ekman = True
-        self.r = np.array(r, dtype)  # Ekman damping (at z=0)
+        self.r = np.empty((2,1,1), dtype)
+        self.r[0]=r; self.r[1]=-r  # Ekman damping 
         self.tdiab = np.array(tdiab, dtype)  # thermal relaxation damping.
         self.t = tstart  # initialize time counter
         # setup basic state pv (for thermal relaxation)
-        self.symmetric = symmetric  # symmetric jet, or jet with U=0 at sfc.
         y = np.arange(0, L, L / N, dtype=dtype)
         pvbar = np.zeros((2, N), dtype)
         pi = np.array(np.pi, dtype)
         l = 2.0 * pi / L
         mu = l * np.sqrt(nsq) * H / f
-        if symmetric:
-            # symmetric version, no difference between upper and lower
-            # boundary.
-            # l = 2.*pi/L and mu = l*N*H/f
-            # u = -0.5*U*np.sin(l*y)*np.sinh(mu*(z-0.5*H)/H)*np.sin(l*y)/np.sinh(0.5*mu)
-            # theta = (f*theta0/g)*(0.5*U*mu/(l*H))*np.cosh(mu*(z-0.5*H)/H)*
-            # np.cos(l*y)/np.sinh(0.5*mu)
-            # + theta0 + (theta0*nsq*z/g)
-            pvbar[:] = (
-                -(mu * 0.5 * U / (l * H))
-                * np.cosh(0.5 * mu)
-                * np.cos(l * y)
-                / np.sinh(0.5 * mu)
-            )
-        else:
-            # asymmetric version, equilibrium state has no flow at surface and
-            # temp gradient slightly weaker at sfc.
-            # u = U*np.sin(l*y)*np.sinh(mu*z/H)*np.sin(l*y)/np.sinh(mu)
-            # theta = (f*theta0/g)*(U*mu/(l*H))*np.cosh(mu*z/H)*
-            # np.cos(l*y)/np.sinh(mu)
-            # + theta0 + (theta0*nsq*z/g)
-            pvbar[:] = -(mu * U / (l * H)) * np.cos(l * y) / np.sinh(mu)
-            pvbar[1, :] = pvbar[0, :] * np.cosh(mu)
+        # symmetric state, no difference between upper and lower
+        # boundary.
+        # l = 2.*pi/L and mu = l*N*H/f
+        # u = -0.5*U*np.sin(l*y)*np.sinh(mu*(z-0.5*H)/H)*np.sin(l*y)/np.sinh(0.5*mu)
+        # theta = (f*theta0/g)*(0.5*U*mu/(l*H))*np.cosh(mu*(z-0.5*H)/H)*
+        # np.cos(l*y)/np.sinh(0.5*mu)
+        # + theta0 + (theta0*nsq*z/g)
+        pvbar[:] = (
+            -(mu * 0.5 * U / (l * H))
+            * np.cosh(0.5 * mu)
+            * np.cos(l * y)
+            / np.sinh(0.5 * mu)
+        )
         pvbar.shape = (2, N, 1)
         pvbar = pvbar * np.ones((2, N, N), dtype)
         self.pvbar = pvbar
@@ -134,16 +102,15 @@ class SQG:
         self.ik = (1.0j * k).astype(np.complex64)
         self.il = (1.0j * l).astype(np.complex64)
         self.wavenums = np.sqrt(kk**2+ll**2)
-        if dealias:  # arrays needed for dealiasing nonlinear Jacobian
-            k_pad = ((3 * N // 2) * np.fft.fftfreq(3 * N // 2))[0 : (3 * N // 4) + 1]
-            l_pad = (3 * N // 2) * np.fft.fftfreq(3 * N // 2)
-            k_pad, l_pad = np.meshgrid(k_pad, l_pad)
-            k_pad = k_pad.astype(dtype)
-            l_pad = l_pad.astype(dtype)
-            k_pad = 2.0 * pi * k_pad / self.L
-            l_pad = 2.0 * pi * l_pad / self.L
-            self.ik_pad = (1.0j * k_pad).astype(np.complex64)
-            self.il_pad = (1.0j * l_pad).astype(np.complex64)
+        k_pad = ((3 * N // 2) * np.fft.fftfreq(3 * N // 2))[0 : (3 * N // 4) + 1]
+        l_pad = (3 * N // 2) * np.fft.fftfreq(3 * N // 2)
+        k_pad, l_pad = np.meshgrid(k_pad, l_pad)
+        k_pad = k_pad.astype(dtype)
+        l_pad = l_pad.astype(dtype)
+        k_pad = 2.0 * pi * k_pad / self.L
+        l_pad = 2.0 * pi * l_pad / self.L
+        self.ik_pad = (1.0j * k_pad).astype(np.complex64)
+        self.il_pad = (1.0j * l_pad).astype(np.complex64)
         mu = np.sqrt(ksqlsq) * np.sqrt(self.nsq) * self.H / self.f
         mu = mu.clip(np.finfo(mu.dtype).eps)  # clip to avoid NaN
         self.Hovermu = self.H / mu
@@ -159,8 +126,6 @@ class SQG:
         self.hyperdiff = np.exp(
             (-self.dt / self.diff_efold) * (ktot / ktotcutoff) ** self.diff_order
         )
-        # number of timesteps to advance each call to 'advance' method.
-        self.timesteps = 1
 
     def invert(self, pvspec=None):
         if pvspec is None:
@@ -175,42 +140,12 @@ class SQG:
         )
         return psispec
 
-    def meantemp(self, pvspec=None):
-        # vertical integral from 0 to H of d/dz(eqn 4) in
-        # https://doi.org/10.1175/2008JAS2921.1,
-        # divided by H.
-        # Since the vertical integral of d/dz(psi eqn) is simply the
-        # psi eqn (eqn 4) - this boils down to evaluating psi at top
-        # minus psi at bottom and dividing by H.
-        # This is not the same as average of temperature at top and bottom!
-        if pvspec is None:
-            pvspec = self.pvspec
-        psispec = self.invert(pvspec=pvspec)
-        pvavspec = (psispec[1]-psispec[0])/self.H
-        return pvavspec
-
-    def invert_inverse(self, psispec=None):
-        if psispec is None:
-            psispec = self.invert(self.pvspec)
-        # given streamfunction, return PV
-        pvspec = np.empty((2, self.N, self.N // 2 + 1), dtype=psispec.dtype)
-        alpha = self.Hovermu
-        th = self.tanhmu
-        sh = self.sinhmu
-        tmp1 = 1.0 / sh ** 2 - 1.0 / th ** 2
-        tmp1[0, 0] = 1.0
-        pvspec[0] = ((psispec[0] / th) - (psispec[1] / sh)) / (alpha * tmp1)
-        pvspec[1] = ((psispec[0] / sh) - (psispec[1] / th)) / (alpha * tmp1)
-        pvspec[:, 0, 0] = 0.0  # area mean PV not determined by streamfunction
-        return pvspec
-
-    def advance(self, pv=None):
-        # given total pv on grid, advance forward
-        # number of timesteps given by 'timesteps' instance var.
+    def advance(self, timesteps=1, pv=None):
+        # given total pv on grid, advance forward timesteps time steps.
         # if pv not specified, use pvspec instance variable.
         if pv is not None:
             self.pvspec = rfft2(pv, threads=self.threads)
-        for n in range(self.timesteps):
+        for n in range(timesteps):
             self.timestep()
         return irfft2(self.pvspec, threads=self.threads)
 
@@ -246,13 +181,10 @@ class SQG:
         return specarr_trunc
 
     def xyderiv(self, specarr):
-        if not self.dealias:
-            xderiv = irfft2(self.ik * specarr, threads=self.threads)
-            yderiv = irfft2(self.il * specarr, threads=self.threads)
-        else:  # pad spectral coeffs with zeros for dealiased jacobian
-            specarr_pad = self.specpad(specarr)
-            xderiv = irfft2(self.ik_pad * specarr_pad, threads=self.threads)
-            yderiv = irfft2(self.il_pad * specarr_pad, threads=self.threads)
+        # pad spectral coeffs with zeros for dealiased jacobian
+        specarr_pad = self.specpad(specarr)
+        xderiv = irfft2(self.ik_pad * specarr_pad, threads=self.threads)
+        yderiv = irfft2(self.il_pad * specarr_pad, threads=self.threads)
         return xderiv, yderiv
 
     def gettend(self, pvspec=None):
@@ -266,15 +198,9 @@ class SQG:
         pvx, pvy = self.xyderiv(pvspec)
         jacobian = psix * pvy - psiy * pvx
         jacobianspec = rfft2(jacobian, threads=self.threads)
-        if self.dealias:  # 2/3 rule: truncate spectral coefficients of jacobian
-            jacobianspec = self.spectrunc(jacobianspec)
-        dpvspecdt = (1.0 / self.tdiab) * (self.pvspec_eq - pvspec) - jacobianspec
-        # Ekman damping at boundaries.
-        if self.ekman:
-            dpvspecdt[0] += self.r * self.ksqlsq * psispec[0]
-            # for asymmetric jet (U=0 at sfc), no Ekman layer at lid
-            if self.symmetric:
-                dpvspecdt[1] -= self.r * self.ksqlsq * psispec[1]
+        # 2/3 rule: truncate spectral coefficients of jacobian
+        jacobianspec = self.spectrunc(jacobianspec)
+        dpvspecdt = (1.0 / self.tdiab) * (self.pvspec_eq - pvspec) - jacobianspec + self.r * self.ksqlsq * psispec
         # save wind field
         self.u = -psiy
         self.v = psix
@@ -294,3 +220,84 @@ class SQG:
         pvspecnew = self.pvspec + (k1 + 2.0 * k2 + 2.0 * k3 + k4) / 6.0
         self.pvspec = self.hyperdiff * pvspecnew
         self.t += self.dt  # increment time
+
+if __name__ == "__main__":
+    import matplotlib, os
+    matplotlib.use('qtagg')
+    import matplotlib.pyplot as plt
+    import matplotlib.animation as animation
+    
+    N = 96 # size of domain 
+    dt = 900 # time step in seconds
+    diff_efold = 86400./2. # hyperdiffusion dampling time scale on shortest wave
+    norder = 8 # order of hyperdiffusion
+    r = 0 # Ekman damping 
+    nsq = 1.e-4; f=1.e-4; g = 9.8; theta0 = 300
+    H = 10.e3 # lid height
+    U = 20 # jet speed
+    # thermal relaxation time scale
+    tdiab = 10.*86400 # in seconds
+    # parameter used to scale PV to temperature units.
+    scalefact = f*theta0/g
+    
+    # create random noise
+    pv = np.random.normal(0,100.,size=(2,N,N)).astype(np.float32)
+    # add isolated blob on lid
+    nexp = 20
+    x = np.arange(0,2.*np.pi,2.*np.pi/N); y = np.arange(0.,2.*np.pi,2.*np.pi/N)
+    x,y = np.meshgrid(x,y)
+    pv[1] = pv[1]+2000.*(np.sin(x/2)**(2*nexp)*np.sin(y)**nexp)
+    # remove area mean from each level.
+    for k in range(2):
+        pv[k] = pv[k] - pv[k].mean()
+    
+    # get OMP_NUM_THREADS (threads to use) from environment.
+    threads = int(os.getenv('OMP_NUM_THREADS','1'))
+    
+    # single or double precision
+    precision='single' # pyfftw FFTs twice as fast as double
+    
+    # initialize qg model instance
+    model = SQG(pv,nsq=nsq,f=f,U=U,H=H,r=r,tdiab=tdiab,dt=dt,
+                diff_order=norder,diff_efold=diff_efold,
+                threads=threads,
+                precision=precision,tstart=0)
+    
+    #  initialize figure.
+    outputinterval = 6.*3600. # interval between frames in seconds
+    tmax = 300.*86400. # time to stop (in days)
+    nsteps = int(tmax/outputinterval) # number of time steps to animate
+    # set number of timesteps to integrate for each call to model.advance
+    ntimesteps = int(outputinterval/model.dt)
+    
+    nout = 0 
+    fig = plt.figure(figsize=(14,8))
+    fig.subplots_adjust(left=0.05, bottom=0.05, top=0.95, right=0.95)
+    vmin = scalefact*model.pvbar.min()
+    vmax = scalefact*model.pvbar.max()
+    def initfig():
+        global im1,im2
+        ax1 = fig.add_subplot(121)
+        ax1.axis('off')
+        pv = irfft2(model.pvspec[0])  # spectral to grid
+        im1 = ax1.imshow(scalefact*pv,cmap=plt.cm.jet,interpolation='nearest',origin='lower',vmin=vmin,vmax=vmax)
+        ax2 = fig.add_subplot(122)
+        ax2.axis('off')
+        pv = irfft2(model.pvspec[1])  
+        im2 = ax2.imshow(scalefact*pv,cmap=plt.cm.jet,interpolation='nearest',origin='lower',vmin=vmin,vmax=vmax)
+        return im1,im2,
+    def updatefig(*args):
+        global nout
+        model.advance(timesteps=ntimesteps)
+        spd = np.sqrt(model.u**2+model.v**2)
+        print(model.t/3600.,spd.max())
+        pv = irfft2(model.pvspec[0])
+        im1.set_data(scalefact*pv)
+        pv = irfft2(model.pvspec[1]) 
+        im2.set_data(scalefact*pv)
+        return im1,im2,
+    
+    # interval=0 means draw as fast as possible
+    ani = animation.FuncAnimation(fig, updatefig, frames=nsteps, repeat=False,\
+          init_func=initfig,interval=0,blit=True)
+    plt.show()
