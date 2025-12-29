@@ -18,7 +18,7 @@ import os
 #N = 192
 #dt = 300
 #diff_efold = 86400./8.
-#
+ 
 #N = 128
 #dt = 600
 #diff_efold = 86400./3.
@@ -32,7 +32,6 @@ diff_efold = 86400./2.
 #diff_efold = 86400./2.
 
 norder = 8 # order of hyperdiffusion
-dealias = True # dealiased with 2/3 rule?
 
 # Ekman damping coefficient r=dek*N**2/f, dek = ekman depth = sqrt(2.*Av/f))
 # Av (turb viscosity) = 2.5 gives dek = sqrt(5/f) = 223
@@ -44,12 +43,11 @@ dek = 0 # applied only at surface if symmetric=False
 nsq = 1.e-4; f=1.e-4; g = 9.8; theta0 = 300
 H = 10.e3 # lid height
 r = dek*nsq/f
-U = 20 # jet speed
+U = 15 # jet speed
 Lr = np.sqrt(nsq)*H/f # Rossby radius
 L = 20.*Lr
 # thermal relaxation time scale
 tdiab = 10.*86400 # in seconds
-symmetric = True # (if False, asymmetric equilibrium jet with zero wind at sfc)
 # parameter used to scale PV to temperature units.
 scalefact = f*theta0/g
 
@@ -74,8 +72,7 @@ precision='single' # pyfftw FFTs twice as fast as double
 # initialize qg model instance
 model = SQG(pv,nsq=nsq,f=f,U=U,H=H,r=r,tdiab=tdiab,dt=dt,
             diff_order=norder,diff_efold=diff_efold,
-            dealias=dealias,symmetric=symmetric,threads=threads,
-            precision=precision,tstart=0)
+            threads=threads,precision=precision,tstart=0)
 
 #  initialize figure.
 outputinterval = 6.*3600. # interval between frames in seconds
@@ -83,15 +80,15 @@ tmin = 100.*86400. # time to start saving data (in days)
 tmax = 300.*86400. # time to stop (in days)
 nsteps = int(tmax/outputinterval) # number of time steps to animate
 # set number of timesteps to integrate for each call to model.advance
-model.timesteps = int(outputinterval/model.dt)
-savedata = 'sqgu20_N%s_6hrly.nc' % N # save data plotted in a netcdf file.
+ntimesteps = int(outputinterval/model.dt)
+savedata = 'sqgu%s_N%s_6hrly.nc' % (U,N) # save data plotted in a netcdf file.
 #savedata = None # don't save data
 plot = True # animate data as model is running?
 
 if savedata is not None:
     from netCDF4 import Dataset
     nc = Dataset(savedata, mode='w', format='NETCDF4_CLASSIC')
-    nc.r = model.r
+    nc.r = model.r[:,0,0]
     nc.f = model.f
     nc.U = model.U
     nc.L = model.L
@@ -102,8 +99,6 @@ if savedata is not None:
     nc.dt = model.dt
     nc.diff_efold = model.diff_efold
     nc.diff_order = model.diff_order
-    nc.symmetric = int(model.symmetric)
-    nc.dealias = int(model.dealias)
     x = nc.createDimension('x',N)
     y = nc.createDimension('y',N)
     z = nc.createDimension('z',2)
@@ -124,37 +119,33 @@ if savedata is not None:
     yvar[:] = np.arange(0,model.L,model.L/N)
     zvar[0] = 0; zvar[1] = model.H
 
-levplot = 1; nout = 0 # levplot < 0 is vertical mean PV
+nout = 0 
 if plot:
     fig = plt.figure(figsize=(14,8))
     fig.subplots_adjust(left=0.05, bottom=0.05, top=0.95, right=0.95)
-    vmin = scalefact*model.pvbar[levplot].min()
-    vmax = scalefact*model.pvbar[levplot].max()
-    if levplot < 0:
-        vmin=0.8*vmin; vmax=0.8*vmax
+    vmin = scalefact*model.pvbar[1].min()
+    vmax = scalefact*model.pvbar[1].max()
     def initfig():
         global im1,im2
         ax1 = fig.add_subplot(121)
         ax1.axis('off')
-        pv = irfft2(model.pvspec[levplot])  # spectral to grid
+        pv = irfft2(model.pvspec[0])  # spectral to grid
         im1 = ax1.imshow(scalefact*pv,cmap=plt.cm.jet,interpolation='nearest',origin='lower',vmin=vmin,vmax=vmax)
         ax2 = fig.add_subplot(122)
         ax2.axis('off')
-        pvspec_mean = model.meantemp()
-        pv = irfft2(pvspec_mean)  # mean pv
+        pv = irfft2(model.pvspec[1])  # spectral to grid
         im2 = ax2.imshow(scalefact*pv,cmap=plt.cm.jet,interpolation='nearest',origin='lower',vmin=vmin,vmax=vmax)
         return im1,im2,
     def updatefig(*args):
         global nout
-        model.advance()
+        model.advance(timesteps=ntimesteps)
         t = model.t
-        pv = irfft2(model.pvspec[levplot])
+        pv = irfft2(model.pvspec[0])
         hr = t/3600.
-        spd = np.sqrt(model.u[levplot]**2+model.v[levplot]**2)
+        spd = np.sqrt(model.u[1]**2+model.v[1]**2)
         print(hr,spd.max(),scalefact*pv.min(),scalefact*pv.max())
         im1.set_data(scalefact*pv)
-        pvspec_mean = model.meantemp()
-        pv = irfft2(pvspec_mean)  # mean pv
+        pv = irfft2(model.pvspec[1])
         im2.set_data(scalefact*pv)
         if savedata is not None and t >= tmin:
             print('saving data at t = t = %g hours' % hr)
@@ -172,11 +163,11 @@ if plot:
 else:
     t = 0.0
     while t < tmax:
-        model.advance()
+        model.advance(timesteps=ntimesteps)
         t = model.t
         pv = irfft2(model.pvspec)
         hr = t/3600.
-        spd = np.sqrt(model.u[levplot]**2+model.v[levplot]**2)
+        spd = np.sqrt(model.u[1]**2+model.v[1]**2)
         print(hr,spd.max(),scalefact*pv.min(),scalefact*pv.max())
         if savedata is not None and t >= tmin:
             print('saving data at t = t = %g hours' % hr)
