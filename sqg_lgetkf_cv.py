@@ -34,12 +34,13 @@ read_restart = False
 #savedata = 'restart'
 savedata = None
 #nassim = 101
-#nassim_spinup = 1
+#nassim_spinup = 100
 nassim = 600 # assimilation times to run
 nassim_spinup = 100
 
-nanals = 20 # ensemble members
+nanals = 16 # ensemble members
 nerger = True # use Nerger regularization for R localization
+ngroups = nanals  # number of groups for cross-validation (ngroups=nanals//n is "leave n out")
 
 oberrstdev = 1. # ob error standard deviation in K
 
@@ -93,13 +94,17 @@ for nanal in range(nanals):
 if read_restart: ncinit.close()
 
 hcovlocal_km = int(hcovlocal_scale/1000.)
-print("# hcovlocal=%g diff_efold=%s nanals=%s" %\
-     (hcovlocal_km,diff_efold,nanals))
+print("# hcovlocal=%g diff_efold=%s nanals=%s ngroups=%s" %\
+     (hcovlocal_km,diff_efold,nanals,ngroups))
 
 # each ob time nobs ob locations are randomly sampled (without
 # replacement) from the model grid
 #nobs = nx*ny//6 # number of obs to assimilate (randomly distributed)
-nobs = 1024 # nobs//2 obs on each boundary
+#nobs = nx*ny//6 # number of obs to assimilate (randomly distributed)
+nobs = 2*nx*ny//24 # 768
+#nobs = 2*nx*ny//18 # 1024
+#nobs = 2*nx*ny//12 # 1536
+#nobs = 2*nx*ny//9 # 2048
 
 # nature run
 nc_truth = Dataset(filename_truth)
@@ -110,8 +115,6 @@ print('# random network nobs = %s' % nobs)
 oberrvar = oberrstdev**2*np.ones(nobs,np.float32)
 covlocal = np.empty((ny,nx),np.float32)
 covlocal_tmp = np.empty((nobs,nx*ny),np.float32)
-
-xens = np.empty((nanals,2,nx*ny),np.float32)
 
 obtimes = nc_truth.variables['t'][:]
 if read_restart:
@@ -206,30 +209,11 @@ for ntime in range(nassim):
         (models[0].t, obtimes[ntime+ntstart]))
 
     t1 = time.time()
-
-    # lower boundary obs
-    #indxob1 = np.sort(rsobs.choice(nx*ny,nobs//2,replace=False))
-    #pvob1 = scalefact*pv_truth[ntime+ntstart,0,...].reshape(nx*ny)[indxob1]
-    #pvob1 += rsobs.normal(scale=oberrstdev,size=nobs//2) 
-    #xob1 = x.ravel()[indxob1]
-    #yob1 = y.ravel()[indxob1]
-    ## upper boundary obs
-    #indxob2 = np.sort(rsobs.choice(nx*ny,nobs//2,replace=False))
-    #pvob2 = scalefact*pv_truth[ntime+ntstart,1,...].reshape(nx*ny)[indxob2]
-    #pvob2 += rsobs.normal(scale=oberrstdev,size=nobs//2) # add ob errors
-    #xob2 = x.ravel()[indxob2]
-    #yob2 = y.ravel()[indxob2]
-    #pvob = np.concatenate((pvob1,pvob2))
-    #xob = np.concatenate((xob1,xob2))
-    #yob = np.concatenate((yob1,yob2))
-    #indxob = np.concatenate((indxob1,indxob2+nx*ny))
-    # sample both at once
     indxob = np.sort(rsobs.choice(2*nx*ny,nobs,replace=False))
     pvob = scalefact*pv_truth[ntime+ntstart,...].reshape(2*nx*ny)[indxob]
     pvob += rsobs.normal(scale=oberrstdev,size=nobs) # add ob errors
     xob = np.concatenate((x.ravel(),x.ravel()))[indxob]
     yob = np.concatenate((y.ravel(),y.ravel()))[indxob]
-
     # compute covariance localization function for each ob
     for nob in range(nobs):
         dist = cartdist(xob[nob],yob[nob],x,y,nc_climo.L,nc_climo.L)
@@ -277,7 +261,7 @@ for ntime in range(nassim):
     # update state vector.
 
     # hxens,pvob are in PV units, xens is not
-    xens = lgetkf(xens,hxens,pvob,oberrvar,covlocal_tmp,nerger=True)
+    xens = lgetkf(xens,hxens,pvob,oberrvar,covlocal_tmp,nerger=nerger,ngroups=ngroups)
 
     # back to 3d state vector
     pvens = xens.reshape((nanals,2,ny,nx))
