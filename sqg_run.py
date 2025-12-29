@@ -88,7 +88,7 @@ plot = True # animate data as model is running?
 if savedata is not None:
     from netCDF4 import Dataset
     nc = Dataset(savedata, mode='w', format='NETCDF4_CLASSIC')
-    nc.r = model.r[:,0,0]
+    nc.r = model.r
     nc.f = model.f
     nc.U = model.U
     nc.L = model.L

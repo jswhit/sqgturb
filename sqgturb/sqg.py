@@ -58,7 +58,7 @@ class SQG:
         self.theta0 = np.array(theta0, dtype) # mean temp
         self.g = np.array(g, dtype) # gravity
         self.dt = np.array(dt, dtype)  # time step (seconds)
-        self.r = np.empty((2,1,1), dtype)
+        self.r = np.empty(2, dtype)
         self.r[0]=r; self.r[1]=-r  # Ekman damping 
         self.tdiab = np.array(tdiab, dtype)  # thermal relaxation damping.
         self.t = tstart  # initialize time counter
@@ -200,7 +200,7 @@ class SQG:
         jacobianspec = rfft2(jacobian, threads=self.threads)
         # 2/3 rule: truncate spectral coefficients of jacobian
         jacobianspec = self.spectrunc(jacobianspec)
-        dpvspecdt = (1.0 / self.tdiab) * (self.pvspec_eq - pvspec) - jacobianspec + self.r * self.ksqlsq * psispec
+        dpvspecdt = (1.0 / self.tdiab) * (self.pvspec_eq - pvspec) - jacobianspec + self.r[:,np.newaxis,np.newaxis] * self.ksqlsq * psispec
         # save wind field
         self.u = -psiy
         self.v = psix
