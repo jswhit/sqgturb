@@ -35,7 +35,7 @@ print('Nout, blockmean = ',Nout,blockmean)
 
 ncin = Dataset(filenamein)
 nc = Dataset(filenameout, mode='w', format='NETCDF4_CLASSIC')
-nc.r = ncin.r
+nc.r = ncin.r[0]
 nc.f = ncin.f
 nc.U = ncin.U
 nc.L = ncin.L
@@ -46,7 +46,6 @@ nc.tdiab = ncin.tdiab
 nc.dt = ncin.dt
 nc.diff_efold = ncin.diff_efold
 nc.diff_order = ncin.diff_order
-nc.symmetric = ncin.symmetric
 nc.dealias = ncin.dealias
 x = nc.createDimension('x',Nout)
 y = nc.createDimension('y',Nout)

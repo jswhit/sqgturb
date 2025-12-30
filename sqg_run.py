@@ -39,7 +39,7 @@ norder = 8 # order of hyperdiffusion
 # corresponding to ekman depth of 141-316 m over ocean.
 # spindown time of a barotropic vortex is tau = H/(f*dek), 10 days for
 # H=10km, f=0.0001, dek=100m.
-dek = 20 # applied only at surface if symmetric=False
+dek = 0 # applied only at surface if symmetric=False
 nsq = 1.e-4; f=1.e-4; g = 9.8; theta0 = 300
 H = 10.e3 # lid height
 r = dek*nsq/f
@@ -83,12 +83,12 @@ nsteps = int(tmax/outputinterval) # number of time steps to animate
 ntimesteps = int(outputinterval/model.dt)
 savedata = 'sqgu%s_dek%s_N%s_6hrly.nc' % (U,dek,N) # save data plotted in a netcdf file.
 #savedata = None # don't save data
-plot = True # animate data as model is running?
+plot = False # animate data as model is running?
 
 if savedata is not None:
     from netCDF4 import Dataset
     nc = Dataset(savedata, mode='w', format='NETCDF4_CLASSIC')
-    nc.r = model.r
+    nc.r = model.r[0]
     nc.f = model.f
     nc.U = model.U
     nc.L = model.L

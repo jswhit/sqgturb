@@ -167,7 +167,7 @@ for nanal in range(nanals):
 # initialize output file.
 if savedata is not None:
    nc = Dataset('%s.nc' % exptname, mode='w', format='NETCDF4_CLASSIC')
-   nc.r = models[0].r
+   nc.r = models[0].r[0]
    nc.f = models[0].f
    nc.U = models[0].U
    nc.L = models[0].L
