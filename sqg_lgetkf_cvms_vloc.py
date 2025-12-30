@@ -67,9 +67,9 @@ ngroups = nanals  # number of groups for cross-validation (ngroups=nanals//N is 
 oberrstdev = 1. # ob error standard deviation in K
 
 # nature run created using sqg_run.py.
-filename_climo = 'sqgu20_N96_6hrly.nc' # file name for forecast model climo
+filename_climo = 'sqgu16_dek0_N96_6hrly.nc' # file name for forecast model climo
 # perfect model
-filename_truth = 'sqgu20_N96_6hrly.nc' # file name for nature run to draw obs
+filename_truth = 'sqgu16_dek0_N96_6hrly.nc' # file name for nature run to draw obs
 #filename_truth = 'sqg_N256_N96_12hrly.nc' # file name for nature run to draw obs
 
 print('# filename_modelclimo=%s' % filename_climo)
@@ -123,7 +123,10 @@ print('# band_cutoffs=%s crossbandcov_facts=%s' % (repr(band_cutoffs),repr(cross
 # each ob time nobs ob locations are randomly sampled (without
 # replacement) from the model grid
 #nobs = nx*ny//6 # number of obs to assimilate (randomly distributed)
-nobs = 1024
+#nobs = 2*nx*ny//24 # 768
+nobs = 2*nx*ny//18 # 1024
+#nobs = 2*nx*ny//12 # 1536
+#nobs = 2*nx*ny//9 # 2048
 
 # nature run
 nc_truth = Dataset(filename_truth)
