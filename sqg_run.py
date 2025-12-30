@@ -43,7 +43,7 @@ dek = 0 # applied only at surface if symmetric=False
 nsq = 1.e-4; f=1.e-4; g = 9.8; theta0 = 300
 H = 10.e3 # lid height
 r = dek*nsq/f
-U = 20 # jet speed
+U = 16 # jet speed
 Lr = np.sqrt(nsq)*H/f # Rossby radius
 L = 20.*Lr
 # thermal relaxation time scale
@@ -83,7 +83,7 @@ nsteps = int(tmax/outputinterval) # number of time steps to animate
 ntimesteps = int(outputinterval/model.dt)
 savedata = 'sqgu%s_dek%s_N%s_6hrly.nc' % (U,dek,N) # save data plotted in a netcdf file.
 #savedata = None # don't save data
-plot = False # animate data as model is running?
+plot = True # animate data as model is running?
 
 if savedata is not None:
     from netCDF4 import Dataset
