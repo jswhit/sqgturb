@@ -87,7 +87,7 @@ class SQG:
         self.pvspec_eq = rfft2(pvbar)  # state to relax to with timescale tdiab
         self.pvspec = rfft2(pv)  # initial pv field (spectral)
         # spectral stuff
-        k = (N * np.fft.fftfreq(N))[0 : (N // 2) + 1]
+        k = N * np.fft.rfftfreq(N)
         l = N * np.fft.fftfreq(N)
         kk, ll = np.meshgrid(k, l)
         k = kk.astype(dtype)
