@@ -60,13 +60,13 @@ class SQG:
         if precision == 'single':
             # ffts in single precision (faster)
             dtype = np.float32
-            self.FFT = PFFT(comm, [N,N], dtype=dtype, collapse=False, axes=(0,1), backend=backend)
-            self.FFT_pad = PFFT(comm, [N,N], dtype=dtype, padding=[1.5,1.5], axes=(0,1), backend=backend)
+            self.FFT = PFFT(MPI.COMM_WORLD, [N,N], dtype=dtype, collapse=False, axes=(0,1), backend=backend)
+            self.FFT_pad = PFFT(MPI.COMM_WORLD, [N,N], dtype=dtype, padding=[1.5,1.5], axes=(0,1), backend=backend)
         elif precision == 'double':
             # ffts in double precision
             dtype = np.float64
-            self.FFT = PFFT(comm, [N,N], dtype=dtype, collapse=False, axes=(0,1), backend=backend)
-            self.FFT_pad = PFFT(comm, [N,N], dtype=dtype, padding=[1.5,1.5], axes=(0,1), backend=backend)
+            self.FFT = PFFT(MPI.COMM_WORLD, [N,N], dtype=dtype, collapse=False, axes=(0,1), backend=backend)
+            self.FFT_pad = PFFT(MPI.COMM_WORLD, [N,N], dtype=dtype, padding=[1.5,1.5], axes=(0,1), backend=backend)
         else:
             msg = "precision must be 'single' or 'double'"
             raise ValueError(msg)
