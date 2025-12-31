@@ -1,9 +1,29 @@
 import numpy as np
 
-from pyfftw.interfaces import numpy_fft, cache
-cache.enable()
-rfft2 = numpy_fft.rfft2
-irfft2 = numpy_fft.irfft2
+from mpi4py import MPI
+from mpi4py_fft import PFFT, newDistArray
+
+def newDistArrayGrid(FFT):
+    distarr = newDistArray(FFT, False) 
+    distarr = np.tile(distarr, (2,1,1))
+    return distarr
+
+def newDistArraySpec(FFT):
+    distarr = newDistArray(FFT, True) 
+    distarr = np.tile(distarr, (2,1,1))
+    return distarr
+
+def fft_forward(FFT, distarr):
+    distarr_spec = newDistArraySpec(FFT)
+    for k in range(2):
+        distarr_spec[k] = FFT.forward(distarr[k], distarr_spec[k])
+    return distarr_spec
+
+def fft_backward(FFT, distarr_spec):
+    distarr = newDistArrayGrid(FFT)
+    for k in range(2):
+        distarr[k] = FFT.backward(distarr_spec[k])
+    return distarr
 
 class SQG:
     def __init__(
@@ -21,8 +41,8 @@ class SQG:
         theta0=300,
         g=9.8,
         dt=None,
-        threads=1,
         precision="single",
+        backend="fftw",
         tstart=0,
     ):
         # initialize SQG model.
@@ -36,19 +56,20 @@ class SQG:
             raise ValueError("must specify time step")
         if diff_efold is None:  # efolding time scale for diffusion must be specified
             raise ValueError("must specify efolding time scale for diffusion")
-        # number of openmp threads to use for FFTs (only for pyfftw)
-        self.threads = threads
         self.N = N
-        if precision == "single":
+        if precision == 'single':
             # ffts in single precision (faster)
             dtype = np.float32
-        elif precision == "double":
+            self.FFT = PFFT(comm, [N,N], dtype=dtype, collapse=False, axes=(0,1), backend=backend)
+            self.FFT_pad = PFFT(comm, [N,N], dtype=dtype, padding=[1.5,1.5], axes=(0,1), backend=backend)
+        elif precision == 'double':
             # ffts in double precision
             dtype = np.float64
+            self.FFT = PFFT(comm, [N,N], dtype=dtype, collapse=False, axes=(0,1), backend=backend)
+            self.FFT_pad = PFFT(comm, [N,N], dtype=dtype, padding=[1.5,1.5], axes=(0,1), backend=backend)
         else:
             msg = "precision must be 'single' or 'double'"
             raise ValueError(msg)
-        # force arrays to be float32 for precision='single' (ffts are twice as fast)
         self.nsq = np.array(nsq, dtype)  # Brunt-Vaisalla (buoyancy) freq squared
         self.f = np.array(f, dtype)  # coriolis
         self.H = np.array(H, dtype)  # height of upper boundary
@@ -83,11 +104,20 @@ class SQG:
         )
         pvbar.shape = (2, N, 1)
         pvbar = pvbar * np.ones((2, N, N), dtype)
-        self.pvbar = pvbar
-        self.pvspec_eq = rfft2(pvbar)  # state to relax to with timescale tdiab
-        self.pvspec = rfft2(pv)  # initial pv field (spectral)
+
+        # distributed pv on grid.
+        pv_dist = newDistArrayGrid(self.FFT) 
+        for k in range(2):
+            pv_dist[k,...] = pv[k][pv_dist.local_slice()]
+        self.pvspec = fft_forward(self.FFT, pv_dist)
+
+        self.pvbar = newDistArrayGrid(self.FFT) 
+        for k in range(2):
+            self.pvbar[k,...] = pvbar[k][self.pvbar.local_slice()]
+        self.pvspec_eq = fft_forward(self.FFT, self.pvbar)
+
         # spectral stuff
-        k = (N * np.fft.fftfreq(N))[0 : (N // 2) + 1]
+        k = N * np.fft.rfftfreq(N)
         l = N * np.fft.fftfreq(N)
         kk, ll = np.meshgrid(k, l)
         k = kk.astype(dtype)
@@ -96,22 +126,15 @@ class SQG:
         k = 2.0 * pi * k / self.L
         l = 2.0 * pi * l / self.L
         ksqlsq = k ** 2 + l ** 2
-        self.k = k
-        self.l = l
-        self.ksqlsq = ksqlsq
-        self.ik = (1.0j * k).astype(np.complex64)
-        self.il = (1.0j * l).astype(np.complex64)
-        self.wavenums = np.sqrt(kk**2+ll**2)
-        k_pad = ((3 * N // 2) * np.fft.fftfreq(3 * N // 2))[0 : (3 * N // 4) + 1]
-        l_pad = (3 * N // 2) * np.fft.fftfreq(3 * N // 2)
-        k_pad, l_pad = np.meshgrid(k_pad, l_pad)
-        k_pad = k_pad.astype(dtype)
-        l_pad = l_pad.astype(dtype)
-        k_pad = 2.0 * pi * k_pad / self.L
-        l_pad = 2.0 * pi * l_pad / self.L
-        self.ik_pad = (1.0j * k_pad).astype(np.complex64)
-        self.il_pad = (1.0j * l_pad).astype(np.complex64)
-        mu = np.sqrt(ksqlsq) * np.sqrt(self.nsq) * self.H / self.f
+
+        self.k = k[self.pvspec.local_slice()]
+        self.l = l[self.pvspec.local_slice()]
+
+        self.ksqlsq = ksqlsq[self.pvspec.local_slice()]
+        self.ik = (1.0j * self.k).astype(np.complex64)
+        self.il = (1.0j * self.l).astype(np.complex64)
+
+        mu = np.sqrt(self.ksqlsq) * np.sqrt(self.nsq) * self.H / self.f
         mu = mu.clip(np.finfo(mu.dtype).eps)  # clip to avoid NaN
         self.Hovermu = self.H / mu
         mu = mu.astype(np.float64)  # cast to avoid overflow in sinh
@@ -119,7 +142,7 @@ class SQG:
         self.sinhmu = np.sinh(mu).astype(dtype)
         self.diff_order = np.array(diff_order, dtype)  # hyperdiffusion order
         self.diff_efold = np.array(diff_efold, dtype)  # hyperdiff time scale
-        ktot = np.sqrt(ksqlsq)
+        ktot = np.sqrt(self.ksqlsq)
         ktotcutoff = np.array(pi * N / self.L, dtype)
         # integrating factor for hyperdiffusion
         # with efolding time scale for diffusion of shortest wave (N/2)
@@ -127,11 +150,11 @@ class SQG:
             (-self.dt / self.diff_efold) * (ktot / ktotcutoff) ** self.diff_order
         )
 
-    def invert(self, pvspec=None):
+    def invert(self,pvspec=None):
+        # invert boundary pv to get streamfunction
         if pvspec is None:
             pvspec = self.pvspec
-        # invert boundary pv to get streamfunction
-        psispec = np.empty((2, self.N, self.N // 2 + 1), dtype=pvspec.dtype)
+        psispec = np.empty_like(pvspec)
         psispec[0] = self.Hovermu * (
             (pvspec[1] / self.sinhmu) - (pvspec[0] / self.tanhmu)
         )
@@ -141,69 +164,48 @@ class SQG:
         return psispec
 
     def advance(self, timesteps=1, pv=None):
-        # given total pv on grid, advance forward timesteps time steps.
+        # given pv on global grid, advance forward timesteps time steps.
         # if pv not specified, use pvspec instance variable.
+        # return updated PV on global grid (on all ranks)
         if pv is not None:
-            self.pvspec = rfft2(pv, threads=self.threads)
+            pv_dist = newDistArrayGrid(self.FFT) 
+            for k in range(2):
+                pv_dist[k,...] = pv[k][pv_dist.local_slice()]
+            # distributed pv spectal coeffs.
+            self.pvspec = fft_forward(self.FFT, pv_dist)
         for n in range(timesteps):
             self.timestep()
-        return irfft2(self.pvspec, threads=self.threads)
+        return self.pv()
 
-    def specpad(self, specarr):
-        # pad spectral arrays with zeros to get
-        # interpolation to 3/2 larger grid using inverse fft.
-        # take care of normalization factor for inverse transform.
-        specarr_pad = np.zeros((2, 3 * self.N // 2, 3 * self.N // 4 + 1), specarr.dtype)
-        specarr_pad[:, 0 : self.N // 2, 0 : self.N // 2] = (
-            2.25 * specarr[:, 0 : self.N // 2, 0 : self.N // 2]
-        )
-        specarr_pad[:, -self.N // 2 :, 0 : self.N // 2] = (
-            2.25 * specarr[:, -self.N // 2 :, 0 : self.N // 2]
-        )
-        # include negative Nyquist frequency.
-        specarr_pad[:, 0 : self.N // 2, self.N // 2] = np.conjugate(
-            2.25 * specarr[:, 0 : self.N // 2, -1]
-        )
-        specarr_pad[:, -self.N // 2 :, self.N // 2] = np.conjugate(
-            2.25 * specarr[:, -self.N // 2 :, -1]
-        )
-        return specarr_pad
-
-    def spectrunc(self, specarr):
-        # truncate spectral array using 2/3 rule.
-        specarr_trunc = np.zeros((2, self.N, self.N // 2 + 1), specarr.dtype)
-        specarr_trunc[:, 0 : self.N // 2, 0 : self.N // 2] = specarr[
-            :, 0 : self.N // 2, 0 : self.N // 2
-        ]
-        specarr_trunc[:, -self.N // 2 :, 0 : self.N // 2] = specarr[
-            :, -self.N // 2 :, 0 : self.N // 2
-        ]
-        return specarr_trunc
+    def pv(self):
+        # return global pv grid on all tasks
+        pv = np.zeros((2,self.N,self.N),self.pvbar.dtype)
+        pv_dist = fft_backward(self.FFT, self.pvspec)
+        for k in range(2):
+            pv[k][pv_dist.local_slice()] = pv_dist[k,...]
+        MPI.COMM_WORLD.Allreduce(MPI.IN_PLACE,pv,op=MPI.SUM)
+        return pv
 
     def xyderiv(self, specarr):
-        # pad spectral coeffs with zeros for dealiased jacobian
-        specarr_pad = self.specpad(specarr)
-        xderiv = irfft2(self.ik_pad * specarr_pad, threads=self.threads)
-        yderiv = irfft2(self.il_pad * specarr_pad, threads=self.threads)
+        xderiv_spec = self.ik * specarr
+        yderiv_spec = self.il * specarr
+        xderiv = fft_backward(self.FFT_pad, xderiv_spec)
+        yderiv = fft_backward(self.FFT_pad, yderiv_spec)
         return xderiv, yderiv
 
-    def gettend(self, pvspec=None):
-        # compute tendencies of pv on z=0,H
-        # invert pv to get streamfunction
+    def gettend(self,pvspec=None):
         if pvspec is None:
             pvspec = self.pvspec
+        # compute tendencies of pv on z=0,H
+        # invert pv to get streamfunction
         psispec = self.invert(pvspec)
         # nonlinear jacobian and thermal relaxation
         psix, psiy = self.xyderiv(psispec)
         pvx, pvy = self.xyderiv(pvspec)
         jacobian = psix * pvy - psiy * pvx
-        jacobianspec = rfft2(jacobian, threads=self.threads)
-        # 2/3 rule: truncate spectral coefficients of jacobian
-        jacobianspec = self.spectrunc(jacobianspec)
+        jacobianspec = fft_forward(self.FFT_pad, jacobian)
         dpvspecdt = (1.0 / self.tdiab) * (self.pvspec_eq - pvspec) - jacobianspec + self.r[:,np.newaxis,np.newaxis] * self.ksqlsq * psispec
-        # save wind field
-        self.u = -psiy
-        self.v = psix
+        dpvdt = fft_backward(self.FFT, dpvspecdt)
         return dpvspecdt
 
     def timestep(self):
@@ -226,6 +228,10 @@ if __name__ == "__main__":
     matplotlib.use('qtagg')
     import matplotlib.pyplot as plt
     import matplotlib.animation as animation
+
+    comm = MPI.COMM_WORLD
+    num_processes = comm.Get_size()
+    rank = comm.Get_rank()
     
     N = 96 # size of domain 
     dt = 900 # time step in seconds
@@ -234,70 +240,74 @@ if __name__ == "__main__":
     r = 0 # Ekman damping 
     nsq = 1.e-4; f=1.e-4; g = 9.8; theta0 = 300
     H = 10.e3 # lid height
-    U = 20 # jet speed
+    U = 16 # jet speed
+    L = 20.e6
     # thermal relaxation time scale
     tdiab = 10.*86400 # in seconds
     # parameter used to scale PV to temperature units.
     scalefact = f*theta0/g
     
-    # create random noise
-    pv = np.random.normal(0,100.,size=(2,N,N)).astype(np.float32)
-    # add isolated blob on lid
-    nexp = 20
-    x = np.arange(0,2.*np.pi,2.*np.pi/N); y = np.arange(0.,2.*np.pi,2.*np.pi/N)
-    x,y = np.meshgrid(x,y)
-    pv[1] = pv[1]+2000.*(np.sin(x/2)**(2*nexp)*np.sin(y)**nexp)
-    # remove area mean from each level.
-    for k in range(2):
-        pv[k] = pv[k] - pv[k].mean()
-    
-    # get OMP_NUM_THREADS (threads to use) from environment.
-    threads = int(os.getenv('OMP_NUM_THREADS','1'))
-    
+    # create initial pv
+    if rank == 0:
+        rs = np.random.RandomState(42) # fixed seed
+        pv = rs.normal(0,100.,size=(2,N,N)).astype(np.float32)
+        # add isolated blob on lid
+        nexp = 20
+        x = np.arange(0,2.*np.pi,2.*np.pi/N); y = np.arange(0.,2.*np.pi,2.*np.pi/N)
+        x,y = np.meshgrid(x,y)
+        pv[1] = pv[1]+2000.*(np.sin(x/2)**(2*nexp)*np.sin(y)**nexp)
+        # remove area mean from each level.
+        for k in range(2):
+            pv[k] = pv[k] - pv[k].mean()
+    else:
+        pv = np.zeros((2,N,N),dtype=np.float32)
+    comm.Bcast(pv,root=0)
+
     # single or double precision
     precision='single' # pyfftw FFTs twice as fast as double
-    
+
     # initialize qg model instance
     model = SQG(pv,nsq=nsq,f=f,U=U,H=H,r=r,tdiab=tdiab,dt=dt,
                 diff_order=norder,diff_efold=diff_efold,
-                threads=threads,
                 precision=precision,tstart=0)
     
-    #  initialize figure.
     outputinterval = 6.*3600. # interval between frames in seconds
     tmax = 300.*86400. # time to stop (in days)
     nsteps = int(tmax/outputinterval) # number of time steps to animate
     # set number of timesteps to integrate for each call to model.advance
     ntimesteps = int(outputinterval/model.dt)
-    
-    nout = 0 
-    fig = plt.figure(figsize=(14,8))
-    fig.subplots_adjust(left=0.05, bottom=0.05, top=0.95, right=0.95)
-    vmin = scalefact*model.pvbar.min()
-    vmax = scalefact*model.pvbar.max()
-    def initfig():
-        global im1,im2
-        ax1 = fig.add_subplot(121)
-        ax1.axis('off')
-        pv = irfft2(model.pvspec[0])  # spectral to grid
-        im1 = ax1.imshow(scalefact*pv,cmap=plt.cm.jet,interpolation='nearest',origin='lower',vmin=vmin,vmax=vmax)
-        ax2 = fig.add_subplot(122)
-        ax2.axis('off')
-        pv = irfft2(model.pvspec[1])  
-        im2 = ax2.imshow(scalefact*pv,cmap=plt.cm.jet,interpolation='nearest',origin='lower',vmin=vmin,vmax=vmax)
-        return im1,im2,
-    def updatefig(*args):
-        global nout
-        model.advance(timesteps=ntimesteps)
-        spd = np.sqrt(model.u**2+model.v**2)
-        print(model.t/3600.,spd.max())
-        pv = irfft2(model.pvspec[0])
-        im1.set_data(scalefact*pv)
-        pv = irfft2(model.pvspec[1]) 
-        im2.set_data(scalefact*pv)
-        return im1,im2,
-    
-    # interval=0 means draw as fast as possible
-    ani = animation.FuncAnimation(fig, updatefig, frames=nsteps, repeat=False,\
-          init_func=initfig,interval=0,blit=True)
-    plt.show()
+
+    if num_processes > 1:
+        while model.t < tmax:
+            pv = model.advance(timesteps=ntimesteps)
+            if rank==0:
+                hr = model.t/3600.
+                print(hr,scalefact*pv.min(),scalefact*pv.max())
+    else:
+        nout = 0 
+        fig = plt.figure(figsize=(14,8))
+        fig.subplots_adjust(left=0.05, bottom=0.05, top=0.95, right=0.95)
+        vmin = comm.reduce(scalefact*model.pvbar.min(),op=MPI.MIN)
+        vmax = comm.reduce(scalefact*model.pvbar.max(),op=MPI.MAX)
+        def initfig():
+            global im1,im2
+            ax1 = fig.add_subplot(121)
+            ax1.axis('off')
+            pv = model.advance(timesteps=0)
+            im1 = ax1.imshow(scalefact*pv[0],cmap=plt.cm.jet,interpolation='nearest',origin='lower',vmin=vmin,vmax=vmax)
+            ax2 = fig.add_subplot(122)
+            ax2.axis('off')
+            im2 = ax2.imshow(scalefact*pv[1],cmap=plt.cm.jet,interpolation='nearest',origin='lower',vmin=vmin,vmax=vmax)
+            return im1,im2,
+        def updatefig(*args):
+            global nout
+            pv = model.advance(timesteps=ntimesteps)
+            print(model.t/3600.,scalefact*pv.min(),scalefact*pv.max())
+            im1.set_data(scalefact*pv[0])
+            im2.set_data(scalefact*pv[1])
+            return im1,im2,
+        
+        # interval=0 means draw as fast as possible
+        ani = animation.FuncAnimation(fig, updatefig, frames=nsteps, repeat=False,\
+              init_func=initfig,interval=0,blit=True)
+        plt.show()
