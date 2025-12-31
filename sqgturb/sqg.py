@@ -205,7 +205,6 @@ class SQG:
         jacobian = psix * pvy - psiy * pvx
         jacobianspec = fft_forward(self.FFT_pad, jacobian)
         dpvspecdt = (1.0 / self.tdiab) * (self.pvspec_eq - pvspec) - jacobianspec + self.r[:,np.newaxis,np.newaxis] * self.ksqlsq * psispec
-        dpvdt = fft_backward(self.FFT, dpvspecdt)
         return dpvspecdt
 
     def timestep(self):
@@ -224,8 +223,9 @@ class SQG:
         self.t += self.dt  # increment time
 
 if __name__ == "__main__":
+
     comm = MPI.COMM_WORLD
-    num_processes = comm.Get_size()
+    nranks = comm.Get_size()
     rank = comm.Get_rank()
     
     N = 96 # size of domain 
@@ -256,10 +256,10 @@ if __name__ == "__main__":
             pv[k] = pv[k] - pv[k].mean()
     else:
         pv = np.zeros((2,N,N),dtype=np.float32)
-    comm.Bcast(pv,root=0)
+    comm.Bcast(pv,root=0) # broadcast to all tasks
 
     # single or double precision
-    precision='single' # pyfftw FFTs twice as fast as double
+    precision='single' 
 
     # initialize qg model instance
     model = SQG(pv,nsq=nsq,f=f,U=U,H=H,r=r,tdiab=tdiab,dt=dt,
@@ -272,18 +272,19 @@ if __name__ == "__main__":
     # set number of timesteps to integrate for each call to model.advance
     ntimesteps = int(outputinterval/model.dt)
 
-    if num_processes > 1:
+    if nranks > 1:
+        # running on multiple tasks, loop through times and print min/max pv
         while model.t < tmax:
             pv = model.advance(timesteps=ntimesteps)
             if rank==0:
                 hr = model.t/3600.
                 print(hr,scalefact*pv.min(),scalefact*pv.max())
     else:
-        import matplotlib, os
+        # running on a single task, plot animation
+        import matplotlib
         matplotlib.use('qtagg')
         import matplotlib.pyplot as plt
         import matplotlib.animation as animation
-        nout = 0 
         fig = plt.figure(figsize=(14,8))
         fig.subplots_adjust(left=0.05, bottom=0.05, top=0.95, right=0.95)
         vmin = comm.reduce(scalefact*model.pvbar.min(),op=MPI.MIN)
@@ -299,7 +300,6 @@ if __name__ == "__main__":
             im2 = ax2.imshow(scalefact*pv[1],cmap=plt.cm.jet,interpolation='nearest',origin='lower',vmin=vmin,vmax=vmax)
             return im1,im2,
         def updatefig(*args):
-            global nout
             pv = model.advance(timesteps=ntimesteps)
             print(model.t/3600.,scalefact*pv.min(),scalefact*pv.max())
             im1.set_data(scalefact*pv[0])
