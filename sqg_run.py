@@ -120,8 +120,8 @@ t = 0.; nout = 0
 if rank==0: t1 = time.time()
 while t < tmax:
     pv = model.advance(timesteps=ntimesteps)
+    t = model.t
     if rank == 0:
-        t = model.t
         hr = t/3600.
         print(hr,scalefact*pv.min(),scalefact*pv.max())
         if savedata is not None and t >= tmin:
@@ -131,8 +131,6 @@ while t < tmax:
             nc.sync()
             if t >= tmax: nc.close()
             nout = nout + 1
-print('rank =',rank)
-comm.Barrier()
 if rank==0:
     t2 = time.time()
     ttot = t2-t1
