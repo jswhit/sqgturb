@@ -1,10 +1,10 @@
-import matplotlib
-matplotlib.use('qtagg')
-from sqgturb import SQG, rfft2, irfft2
+from sqgturb import SQG, MPI
 import numpy as np
-import matplotlib.pyplot as plt
-import matplotlib.animation as animation
-import os
+import os, time
+
+comm = MPI.COMM_WORLD
+num_processes = comm.Get_size()
+rank = comm.Get_rank()
 
 # run SQG turbulence simulation, optionally plotting results to screen and/or saving to
 # netcdf file.
@@ -63,29 +63,26 @@ pv[1] = pv[1]+2000.*(np.sin(x/2)**(2*nexp)*np.sin(y)**nexp)
 for k in range(2):
     pv[k] = pv[k] - pv[k].mean()
 
-# get OMP_NUM_THREADS (threads to use) from environment.
-threads = int(os.getenv('OMP_NUM_THREADS','1'))
-
 # single or double precision
 precision='single' # pyfftw FFTs twice as fast as double
 
 # initialize qg model instance
 model = SQG(pv,nsq=nsq,f=f,U=U,H=H,r=r,tdiab=tdiab,dt=dt,
             diff_order=norder,diff_efold=diff_efold,
-            threads=threads,precision=precision,tstart=0)
+            precision=precision,tstart=0)
 
 #  initialize figure.
 outputinterval = 6.*3600. # interval between frames in seconds
-tmin = 100.*86400. # time to start saving data (in days)
-tmax = 300.*86400. # time to stop (in days)
+tmin = 10.*86400. # time to start saving data (in days)
+tmax = 30.*86400. # time to stop (in days)
 nsteps = int(tmax/outputinterval) # number of time steps to animate
 # set number of timesteps to integrate for each call to model.advance
 ntimesteps = int(outputinterval/model.dt)
-savedata = 'sqgu%s_dek%s_N%s_6hrly.nc' % (U,dek,N) # save data plotted in a netcdf file.
-#savedata = None # don't save data
-plot = True # animate data as model is running?
+#savedata = 'sqgu%s_dek%s_N%s_6hrly.nc' % (U,dek,N) # save data plotted in a netcdf file.
+#savedata = 'sqg_run_test.nc'
+savedata = None # don't save data
 
-if savedata is not None:
+if savedata is not None and rank==0:
     from netCDF4 import Dataset
     nc = Dataset(savedata, mode='w', format='NETCDF4_CLASSIC')
     nc.r = model.r[0]
@@ -119,56 +116,14 @@ if savedata is not None:
     yvar[:] = np.arange(0,model.L,model.L/N)
     zvar[0] = 0; zvar[1] = model.H
 
-nout = 0 
-if plot:
-    fig = plt.figure(figsize=(14,8))
-    fig.subplots_adjust(left=0.05, bottom=0.05, top=0.95, right=0.95)
-    vmin = scalefact*model.pvbar[1].min()
-    vmax = scalefact*model.pvbar[1].max()
-    def initfig():
-        global im1,im2
-        ax1 = fig.add_subplot(121)
-        ax1.axis('off')
-        pv = irfft2(model.pvspec[0])  # spectral to grid
-        im1 = ax1.imshow(scalefact*pv,cmap=plt.cm.jet,interpolation='nearest',origin='lower',vmin=vmin,vmax=vmax)
-        ax2 = fig.add_subplot(122)
-        ax2.axis('off')
-        pv = irfft2(model.pvspec[1])  # spectral to grid
-        im2 = ax2.imshow(scalefact*pv,cmap=plt.cm.jet,interpolation='nearest',origin='lower',vmin=vmin,vmax=vmax)
-        return im1,im2,
-    def updatefig(*args):
-        global nout
-        model.advance(timesteps=ntimesteps)
+t = 0.; nout = 0
+if rank==0: t1 = time.time()
+while t < tmax:
+    pv = model.advance(timesteps=ntimesteps)
+    if rank == 0:
         t = model.t
-        pv = irfft2(model.pvspec[0])
         hr = t/3600.
-        spd = np.sqrt(model.u[1]**2+model.v[1]**2)
-        print(hr,spd.max(),scalefact*pv.min(),scalefact*pv.max())
-        im1.set_data(scalefact*pv)
-        pv = irfft2(model.pvspec[1])
-        im2.set_data(scalefact*pv)
-        if savedata is not None and t >= tmin:
-            print('saving data at t = t = %g hours' % hr)
-            pvvar[nout,:,:,:] = irfft2(model.pvspec)
-            tvar[nout] = t
-            nc.sync()
-            if t >= tmax: nc.close()
-            nout = nout + 1
-        return im1,im2,
-
-    # interval=0 means draw as fast as possible
-    ani = animation.FuncAnimation(fig, updatefig, frames=nsteps, repeat=False,\
-          init_func=initfig,interval=0,blit=True)
-    plt.show()
-else:
-    t = 0.0
-    while t < tmax:
-        model.advance(timesteps=ntimesteps)
-        t = model.t
-        pv = irfft2(model.pvspec)
-        hr = t/3600.
-        spd = np.sqrt(model.u[1]**2+model.v[1]**2)
-        print(hr,spd.max(),scalefact*pv.min(),scalefact*pv.max())
+        print(hr,scalefact*pv.min(),scalefact*pv.max())
         if savedata is not None and t >= tmin:
             print('saving data at t = t = %g hours' % hr)
             pvvar[nout,:,:,:] = pv
@@ -176,3 +131,10 @@ else:
             nc.sync()
             if t >= tmax: nc.close()
             nout = nout + 1
+print('rank =',rank)
+comm.Barrier()
+if rank==0:
+    t2 = time.time()
+    ttot = t2-t1
+    print('all done % secs' % ttot)
+    if savedata is not None: nc.close()
