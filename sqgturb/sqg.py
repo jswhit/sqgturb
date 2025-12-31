@@ -224,11 +224,6 @@ class SQG:
         self.t += self.dt  # increment time
 
 if __name__ == "__main__":
-    import matplotlib, os
-    matplotlib.use('qtagg')
-    import matplotlib.pyplot as plt
-    import matplotlib.animation as animation
-
     comm = MPI.COMM_WORLD
     num_processes = comm.Get_size()
     rank = comm.Get_rank()
@@ -284,6 +279,10 @@ if __name__ == "__main__":
                 hr = model.t/3600.
                 print(hr,scalefact*pv.min(),scalefact*pv.max())
     else:
+        import matplotlib, os
+        matplotlib.use('qtagg')
+        import matplotlib.pyplot as plt
+        import matplotlib.animation as animation
         nout = 0 
         fig = plt.figure(figsize=(14,8))
         fig.subplots_adjust(left=0.05, bottom=0.05, top=0.95, right=0.95)
