@@ -58,7 +58,7 @@ class SQG:
         if diff_efold is None:  # efolding time scale for diffusion must be specified
             raise ValueError("must specify efolding time scale for diffusion")
         self.N = N
-        # number of openmp threads to use for FFTs (only for pyfftw)
+        # number of openmp threads to use for FFTs
         self.threads = threads
         if precision == 'single':
             # ffts in single precision (faster)
