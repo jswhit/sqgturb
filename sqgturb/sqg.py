@@ -107,13 +107,15 @@ class SQG:
 
         # distributed pv on grid.
         pv_dist = newDistArrayGrid(self.FFT) 
+        self.local_slice_grid = pv_dist.local_slice()
         for k in range(2):
-            pv_dist[k,...] = pv[k][pv_dist.local_slice()]
+            pv_dist[k,...] = pv[k][self.local_slice_grid]
         self.pvspec = fft_forward(self.FFT, pv_dist)
+        self.local_slice_spec = self.pvspec.local_slice()
 
         self.pvbar = newDistArrayGrid(self.FFT) 
         for k in range(2):
-            self.pvbar[k,...] = pvbar[k][self.pvbar.local_slice()]
+            self.pvbar[k,...] = pvbar[k][self.local_slice_grid]
         self.pvspec_eq = fft_forward(self.FFT, self.pvbar)
 
         # spectral stuff
@@ -127,10 +129,10 @@ class SQG:
         l = 2.0 * pi * l / self.L
         ksqlsq = k ** 2 + l ** 2
 
-        self.k = k[self.pvspec.local_slice()]
-        self.l = l[self.pvspec.local_slice()]
+        self.k = k[self.local_slice_spec]
+        self.l = l[self.local_slice_spec]
 
-        self.ksqlsq = ksqlsq[self.pvspec.local_slice()]
+        self.ksqlsq = ksqlsq[self.local_slice_spec]
         self.ik = (1.0j * self.k).astype(np.complex64)
         self.il = (1.0j * self.l).astype(np.complex64)
 
@@ -170,7 +172,7 @@ class SQG:
         if pv is not None:
             pv_dist = newDistArrayGrid(self.FFT) 
             for k in range(2):
-                pv_dist[k,...] = pv[k][pv_dist.local_slice()]
+                pv_dist[k,...] = pv[k][self.local_slice_grid]
             # distributed pv spectal coeffs.
             self.pvspec = fft_forward(self.FFT, pv_dist)
         for n in range(timesteps):
@@ -182,11 +184,12 @@ class SQG:
         pv = np.zeros((2,self.N,self.N),self.pvbar.dtype)
         pv_dist = fft_backward(self.FFT, self.pvspec)
         for k in range(2):
-            pv[k][pv_dist.local_slice()] = pv_dist[k,...]
+            pv[k][self.local_slice_grid] = pv_dist[k,...]
         MPI.COMM_WORLD.Allreduce(MPI.IN_PLACE,pv,op=MPI.SUM)
         return pv
 
     def xyderiv(self, specarr):
+        # return gradient on expanded (3/2) grid.
         xderiv_spec = self.ik * specarr
         yderiv_spec = self.il * specarr
         xderiv = fft_backward(self.FFT_pad, xderiv_spec)
