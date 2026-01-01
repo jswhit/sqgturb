@@ -42,6 +42,7 @@ class SQG:
         g=9.8,
         dt=None,
         precision="single",
+        threads=1,
         backend="fftw",
         tstart=0,
     ):
@@ -57,16 +58,18 @@ class SQG:
         if diff_efold is None:  # efolding time scale for diffusion must be specified
             raise ValueError("must specify efolding time scale for diffusion")
         self.N = N
+        # number of openmp threads to use for FFTs (only for pyfftw)
+        self.threads = threads
         if precision == 'single':
             # ffts in single precision (faster)
             dtype = np.float32
-            self.FFT = PFFT(MPI.COMM_WORLD, [N,N], dtype=dtype, collapse=False, axes=(0,1), backend=backend)
-            self.FFT_pad = PFFT(MPI.COMM_WORLD, [N,N], dtype=dtype, padding=[1.5,1.5], axes=(0,1), backend=backend)
+            self.FFT = PFFT(MPI.COMM_WORLD, [N,N], dtype=dtype, collapse=False, axes=(0,1), backend=backend, threads=threads)
+            self.FFT_pad = PFFT(MPI.COMM_WORLD, [N,N], dtype=dtype, padding=[1.5,1.5], axes=(0,1), backend=backend, threads=threads)
         elif precision == 'double':
             # ffts in double precision
             dtype = np.float64
-            self.FFT = PFFT(MPI.COMM_WORLD, [N,N], dtype=dtype, collapse=False, axes=(0,1), backend=backend)
-            self.FFT_pad = PFFT(MPI.COMM_WORLD, [N,N], dtype=dtype, padding=[1.5,1.5], axes=(0,1), backend=backend)
+            self.FFT = PFFT(MPI.COMM_WORLD, [N,N], dtype=dtype, collapse=False, axes=(0,1), backend=backend, threads=threads)
+            self.FFT_pad = PFFT(MPI.COMM_WORLD, [N,N], dtype=dtype, padding=[1.5,1.5], axes=(0,1), backend=backend, threads=threads)
         else:
             msg = "precision must be 'single' or 'double'"
             raise ValueError(msg)
