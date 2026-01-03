@@ -73,7 +73,7 @@ nassim = 600 # assimilation times to run
 nassim_spinup = 100
 
 nanals = 16 # ensemble members
-ngroups = nanals  # number of groups for cross-validation (ngroups=nanals//N is "leave N out")
+ngroups = nanals//2  # number of groups for cross-validation (ngroups=nanals//N is "leave N out")
 
 oberrstdev = 1. # ob error standard deviation in K
 
