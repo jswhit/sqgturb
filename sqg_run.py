@@ -19,13 +19,13 @@ rank = comm.Get_rank()
 #dt = 300
 #diff_efold = 86400./8.
  
-N = 128
-dt = 600
-diff_efold = 86400./3.
+#N = 128
+#dt = 600
+#diff_efold = 86400./3.
 
-#N = 96
-#dt = 900
-#diff_efold = 86400./2.
+N = 96
+dt = 900
+diff_efold = 86400./2.
 
 #N = 64
 #dt = 900    
@@ -129,7 +129,6 @@ while t < tmax:
             pvvar[nout,:,:,:] = pv
             tvar[nout] = t
             nc.sync()
-            if t >= tmax: nc.close()
             nout = nout + 1
 if rank==0:
     t2 = time.time()
