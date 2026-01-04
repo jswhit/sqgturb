@@ -216,7 +216,7 @@ class SQG:
         # nonlinear jacobian and thermal relaxation
         psix, psiy = self.xyderiv(psispec)
         pvx, pvy = self.xyderiv(pvspec)
-        jacobian = psix * pvy - psiy * pvx
+        jacobian = 2.25*(psix * pvy - psiy * pvx) # 2.25 (1.5**2) factor for FFT normalization with padding
         jacobianspec = fft_forward(self.FFT_pad, jacobian)
         dpvspecdt = (1.0 / self.tdiab) * (self.pvspec_eq - pvspec) - jacobianspec + self.r[:,np.newaxis,np.newaxis] * self.ksqlsq * psispec
         return dpvspecdt
@@ -244,12 +244,12 @@ if __name__ == "__main__":
     
     N = 96 # size of domain 
     dt = 900 # time step in seconds
-    diff_efold = 86400./2. # hyperdiffusion dampling time scale on shortest wave
+    diff_efold = 86400./4. # hyperdiffusion dampling time scale on shortest wave
     norder = 8 # order of hyperdiffusion
     r = 0 # Ekman damping 
     nsq = 1.e-4; f=1.e-4; g = 9.8; theta0 = 300
     H = 10.e3 # lid height
-    U = 16 # jet speed
+    U = 20 # jet speed
     L = 20.e6
     # thermal relaxation time scale
     tdiab = 10.*86400 # in seconds
@@ -269,14 +269,14 @@ if __name__ == "__main__":
         for k in range(2):
             pv[k] = pv[k] - pv[k].mean()
     else:
-        pv = np.zeros((2,N,N),dtype=np.float32)
+        pv = np.empty((2,N,N),dtype=np.float32)
     comm.Bcast(pv,root=0) # broadcast to all tasks
 
     # single or double precision
     precision='single' 
 
     # initialize qg model instance
-    model = SQG(pv,nsq=nsq,f=f,U=U,H=H,r=r,tdiab=tdiab,dt=dt,
+    model = SQG(pv,nsq=nsq,f=f,L=L,U=U,H=H,r=r,tdiab=tdiab,dt=dt,
                 diff_order=norder,diff_efold=diff_efold,
                 precision=precision,tstart=0)
     
