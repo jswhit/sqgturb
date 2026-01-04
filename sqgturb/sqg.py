@@ -102,7 +102,7 @@ class SQG:
         self.ik = (1.0j * k).astype(np.complex64)
         self.il = (1.0j * l).astype(np.complex64)
         self.wavenums = np.sqrt(kk**2+ll**2)
-        k_pad = ((3 * N // 2) * np.fft.fftfreq(3 * N // 2))[0 : (3 * N // 4) + 1]
+        k_pad = (3 * N // 2) * np.fft.rfftfreq(3 * N // 2)
         l_pad = (3 * N // 2) * np.fft.fftfreq(3 * N // 2)
         k_pad, l_pad = np.meshgrid(k_pad, l_pad)
         k_pad = k_pad.astype(dtype)
@@ -235,13 +235,15 @@ if __name__ == "__main__":
     nsq = 1.e-4; f=1.e-4; g = 9.8; theta0 = 300
     H = 10.e3 # lid height
     U = 20 # jet speed
+    L = 20.e6
     # thermal relaxation time scale
     tdiab = 10.*86400 # in seconds
     # parameter used to scale PV to temperature units.
     scalefact = f*theta0/g
     
     # create random noise
-    pv = np.random.normal(0,100.,size=(2,N,N)).astype(np.float32)
+    rs = np.random.RandomState(42) # fixed seed
+    pv = rs.normal(0,0.,size=(2,N,N)).astype(np.float32)
     # add isolated blob on lid
     nexp = 20
     x = np.arange(0,2.*np.pi,2.*np.pi/N); y = np.arange(0.,2.*np.pi,2.*np.pi/N)
@@ -258,7 +260,7 @@ if __name__ == "__main__":
     precision='single' # pyfftw FFTs twice as fast as double
     
     # initialize qg model instance
-    model = SQG(pv,nsq=nsq,f=f,U=U,H=H,r=r,tdiab=tdiab,dt=dt,
+    model = SQG(pv,nsq=nsq,f=f,U=U,L=L,H=H,r=r,tdiab=tdiab,dt=dt,
                 diff_order=norder,diff_efold=diff_efold,
                 threads=threads,
                 precision=precision,tstart=0)
@@ -289,9 +291,8 @@ if __name__ == "__main__":
     def updatefig(*args):
         global nout
         model.advance(timesteps=ntimesteps)
-        spd = np.sqrt(model.u**2+model.v**2)
-        print(model.t/3600.,spd.max())
         pv = irfft2(model.pvspec[0])
+        print(model.t/3600.,scalefact*pv.min(),scalefact*pv.max())
         im1.set_data(scalefact*pv)
         pv = irfft2(model.pvspec[1]) 
         im2.set_data(scalefact*pv)
