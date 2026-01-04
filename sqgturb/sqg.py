@@ -149,11 +149,8 @@ class SQG:
         self.diff_efold = np.array(diff_efold, dtype)  # hyperdiff time scale
         ktot = np.sqrt(self.ksqlsq)
         ktotcutoff = np.array(pi * N / self.L, dtype)
-        # integrating factor for hyperdiffusion
-        # with efolding time scale for diffusion of shortest wave (N/2)
-        self.hyperdiff = np.exp(
-            (-self.dt / self.diff_efold) * (ktot / ktotcutoff) ** self.diff_order
-        )
+        # hyper-diffusion with efolding time scale for diffusion of shortest wave (N/2)
+        self.hyperdiff = -(1./self.diff_efold)*(ktot / ktotcutoff) ** self.diff_order
 
     def invert(self,pvspec=None):
         # invert boundary pv to get streamfunction
@@ -219,21 +216,16 @@ class SQG:
         jacobian = 2.25*(psix * pvy - psiy * pvx) # 2.25 (1.5**2) factor for FFT normalization with padding
         jacobianspec = fft_forward(self.FFT_pad, jacobian)
         dpvspecdt = (1.0 / self.tdiab) * (self.pvspec_eq - pvspec) - jacobianspec + self.r[:,np.newaxis,np.newaxis] * self.ksqlsq * psispec
+        dpvspecdt += self.hyperdiff[np.newaxis,...]*self.pvspec
         return dpvspecdt
 
     def timestep(self):
-        # update pv using 4th order runge-kutta time step with
-        # implicit "integrating factor" treatment of hyperdiffusion.
-        self.rkstep = 0
-        k1 = self.dt * self.gettend(self.pvspec)
-        self.rkstep = 1
-        k2 = self.dt * self.gettend(self.pvspec + 0.5 * k1)
-        self.rkstep = 2
-        k3 = self.dt * self.gettend(self.pvspec + 0.5 * k2)
-        self.rkstep = 3
-        k4 = self.dt * self.gettend(self.pvspec + k3)
-        pvspecnew = self.pvspec + (k1 + 2.0 * k2 + 2.0 * k3 + k4) / 6.0
-        self.pvspec = self.hyperdiff * pvspecnew
+        # update pv using 4th order runge-kutta time step 
+        k1 = self.gettend(self.pvspec)
+        k2 = self.gettend(self.pvspec + 0.5 * self.dt*k1)
+        k3 = self.gettend(self.pvspec + 0.5 * self.dt*k2)
+        k4 = self.gettend(self.pvspec + self.dt*k3)
+        self.pvspec += self.dt*(k1 + 2.0 * k2 + 2.0 * k3 + k4) / 6.0
         self.t += self.dt  # increment time
 
 if __name__ == "__main__":
@@ -244,7 +236,7 @@ if __name__ == "__main__":
     
     N = 96 # size of domain 
     dt = 900 # time step in seconds
-    diff_efold = 86400./4. # hyperdiffusion dampling time scale on shortest wave
+    diff_efold = 86400./8. # hyperdiffusion dampling time scale on shortest wave
     norder = 8 # order of hyperdiffusion
     r = 0 # Ekman damping 
     nsq = 1.e-4; f=1.e-4; g = 9.8; theta0 = 300
