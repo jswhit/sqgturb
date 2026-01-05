@@ -22,7 +22,7 @@ def fft_forward(FFT, distarr):
 def fft_backward(FFT, distarr_spec):
     distarr = newDistArrayGrid(FFT)
     for k in range(2):
-        distarr[k] = FFT.backward(distarr_spec[k])
+        distarr[k] = FFT.backward(distarr_spec[k], distarr[k])
     return distarr
 
 class SQG:
