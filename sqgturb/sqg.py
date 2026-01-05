@@ -199,6 +199,8 @@ class SQG:
 
     def xyderiv(self, specarr):
         # return gradient on expanded (3/2) grid.
+        # remove nyquist freq
+        specarr[:,self.nyquist_mask]=0.+0.j
         xderiv_spec = self.ik * specarr
         yderiv_spec = self.il * specarr
         xderiv = fft_backward(self.FFT_pad, xderiv_spec)
@@ -216,11 +218,11 @@ class SQG:
         pvx, pvy = self.xyderiv(pvspec)
         jacobian = 2.25*(psix * pvy - psiy * pvx) # 2.25 (1.5**2) factor for FFT normalization with padding
         jacobianspec = fft_forward(self.FFT_pad, jacobian)
+        # remove nyquist freq
+        jacobianspec[:,self.nyquist_mask] = 0.+0.j
         dpvspecdt = (1.0 / self.tdiab) * (self.pvspec_eq - pvspec) - jacobianspec 
         # add Ekman damping and hyperdiffusion
         dpvspecdt += self.r[:,np.newaxis,np.newaxis]*self.ksqlsq*psispec + self.hyperdiff[np.newaxis,...]*self.pvspec 
-        # remove nyquist freq
-        dpvspecdt[:,self.nyquist_mask] = 0.+0.j
         return dpvspecdt
 
     def timestep(self):
