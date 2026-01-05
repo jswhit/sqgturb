@@ -140,8 +140,8 @@ class SQG:
         self.ik = (1.0j * self.k).astype(np.complex64)
         self.il = (1.0j * self.l).astype(np.complex64)
         # remove nyquist freq (not really needed)
-        self.ik[self.nyquist_mask] = 0.+0.j
-        self.il[self.nyquist_mask] = 0.+0.j
+        #self.ik[self.nyquist_mask] = 0.+0.j
+        #self.il[self.nyquist_mask] = 0.+0.j
 
         mu = np.sqrt(self.ksqlsq) * np.sqrt(self.nsq) * self.H / self.f
         mu = mu.clip(np.finfo(mu.dtype).eps)  # clip to avoid NaN
@@ -256,8 +256,8 @@ if __name__ == "__main__":
     scalefact = f*theta0/g
     
     # create initial pv
-    pv = np.zeros((2,N,N),np.float32)
     if rank == 0:
+        pv = np.random.normal(0,100.,size=(2,N,N)).astype(np.float32)
         # add isolated blob on lid
         nexp = 20
         x = np.arange(0,2.*np.pi,2.*np.pi/N); y = np.arange(0.,2.*np.pi,2.*np.pi/N)
@@ -266,6 +266,8 @@ if __name__ == "__main__":
         # remove area mean from each level.
         for k in range(2):
             pv[k] = pv[k] - pv[k].mean()
+    else:
+        pv = np.empty((2,N,N),np.float32)
     comm.Bcast(pv,root=0) # broadcast to all tasks
 
     # single or double precision
