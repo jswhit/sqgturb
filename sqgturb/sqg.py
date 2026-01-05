@@ -125,6 +125,7 @@ class SQG:
         k = N * np.fft.rfftfreq(N)
         l = N * np.fft.fftfreq(N)
         kk, ll = np.meshgrid(k, l)
+        self.nyquist_mask = ~np.logical_and(kk[self.local_slice_spec] < self.N//2, np.abs(ll[self.local_slice_spec]) < self.N/2)
         k = kk.astype(dtype)
         l = ll.astype(dtype)
         # dimensionalize wavenumbers.
@@ -218,6 +219,8 @@ class SQG:
         dpvspecdt = (1.0 / self.tdiab) * (self.pvspec_eq - pvspec) - jacobianspec 
         # add Ekman damping and hyperdiffusion
         dpvspecdt += self.r[:,np.newaxis,np.newaxis]*self.ksqlsq*psispec + self.hyperdiff[np.newaxis,...]*self.pvspec 
+        # remove nyquist freq
+        dpvspecdt[:,self.nyquist_mask] = 0.+0.j
         return dpvspecdt
 
     def timestep(self):
@@ -236,8 +239,11 @@ if __name__ == "__main__":
     rank = comm.Get_rank()
     
     N = 96 # size of domain 
-    dt = 1200 # time step in seconds
-    diff_efold = 4.*3600. # hyperdiffusion dampling time scale on shortest wave
+    dt = 900 # time step in seconds
+    diff_efold = 12.*3600. # hyperdiffusion dampling time scale on shortest wave
+    #N = 128 # size of domain 
+    #dt = 720 # time step in seconds
+    #diff_efold = 3.*3600. # hyperdiffusion dampling time scale on shortest wave
     norder = 8 # order of hyperdiffusion
     r = 0 # Ekman damping 
     nsq = 1.e-4; f=1.e-4; g = 9.8; theta0 = 300
@@ -251,8 +257,7 @@ if __name__ == "__main__":
     
     # create initial pv
     if rank == 0:
-        rs = np.random.RandomState(42) # fixed seed
-        pv = rs.normal(0,100.,size=(2,N,N)).astype(np.float32)
+        pv = np.empty((2,N,N),np.float32)
         # add isolated blob on lid
         nexp = 20
         x = np.arange(0,2.*np.pi,2.*np.pi/N); y = np.arange(0.,2.*np.pi,2.*np.pi/N)
