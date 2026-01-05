@@ -138,7 +138,9 @@ class SQG:
 
         self.ksqlsq = ksqlsq[self.local_slice_spec]
         self.ik = (1.0j * self.k).astype(np.complex64)
+        self.ik[self.nyquist_mask] = 0.+0.j
         self.il = (1.0j * self.l).astype(np.complex64)
+        self.il[self.nyquist_mask] = 0.+0.j
 
         mu = np.sqrt(self.ksqlsq) * np.sqrt(self.nsq) * self.H / self.f
         mu = mu.clip(np.finfo(mu.dtype).eps)  # clip to avoid NaN
@@ -200,7 +202,6 @@ class SQG:
     def xyderiv(self, specarr):
         # return gradient on expanded (3/2) grid.
         # remove nyquist freq
-        specarr[:,self.nyquist_mask]=0.+0.j
         xderiv_spec = self.ik * specarr
         yderiv_spec = self.il * specarr
         xderiv = fft_backward(self.FFT_pad, xderiv_spec)
@@ -243,9 +244,6 @@ if __name__ == "__main__":
     N = 96 # size of domain 
     dt = 900 # time step in seconds
     diff_efold = 12.*3600. # hyperdiffusion dampling time scale on shortest wave
-    #N = 128 # size of domain 
-    #dt = 720 # time step in seconds
-    #diff_efold = 3.*3600. # hyperdiffusion dampling time scale on shortest wave
     norder = 8 # order of hyperdiffusion
     r = 0 # Ekman damping 
     nsq = 1.e-4; f=1.e-4; g = 9.8; theta0 = 300
@@ -258,6 +256,7 @@ if __name__ == "__main__":
     scalefact = f*theta0/g
     
     # create initial pv
+    pv = np.zeros((2,N,N),np.float32)
     if rank == 0:
         pv = np.empty((2,N,N),np.float32)
         # add isolated blob on lid
@@ -268,8 +267,6 @@ if __name__ == "__main__":
         # remove area mean from each level.
         for k in range(2):
             pv[k] = pv[k] - pv[k].mean()
-    else:
-        pv = np.empty((2,N,N),dtype=np.float32)
     comm.Bcast(pv,root=0) # broadcast to all tasks
 
     # single or double precision
