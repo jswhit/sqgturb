@@ -138,8 +138,9 @@ class SQG:
 
         self.ksqlsq = ksqlsq[self.local_slice_spec]
         self.ik = (1.0j * self.k).astype(np.complex64)
-        self.ik[self.nyquist_mask] = 0.+0.j
         self.il = (1.0j * self.l).astype(np.complex64)
+        # remove nyquist freq (not really needed)
+        self.ik[self.nyquist_mask] = 0.+0.j
         self.il[self.nyquist_mask] = 0.+0.j
 
         mu = np.sqrt(self.ksqlsq) * np.sqrt(self.nsq) * self.H / self.f
@@ -201,7 +202,6 @@ class SQG:
 
     def xyderiv(self, specarr):
         # return gradient on expanded (3/2) grid.
-        # remove nyquist freq
         xderiv_spec = self.ik * specarr
         yderiv_spec = self.il * specarr
         xderiv = fft_backward(self.FFT_pad, xderiv_spec)
@@ -221,9 +221,9 @@ class SQG:
         jacobianspec = fft_forward(self.FFT_pad, jacobian)
         # remove nyquist freq
         jacobianspec[:,self.nyquist_mask] = 0.+0.j
-        dpvspecdt = (1.0 / self.tdiab) * (self.pvspec_eq - pvspec) - jacobianspec 
-        # add Ekman damping and hyperdiffusion
-        dpvspecdt += self.r[:,np.newaxis,np.newaxis]*self.ksqlsq*psispec + self.hyperdiff[np.newaxis,...]*self.pvspec 
+        # total pv tendence = newtonian relaxation + nonlinear terms + ekman damping + hyper-diffusion
+        dpvspecdt = (1.0 / self.tdiab) * (self.pvspec_eq - pvspec) - jacobianspec +\
+        self.r[:,np.newaxis,np.newaxis]*self.ksqlsq*psispec + self.hyperdiff[np.newaxis,...]*self.pvspec 
         return dpvspecdt
 
     def timestep(self):
@@ -243,7 +243,7 @@ if __name__ == "__main__":
     
     N = 96 # size of domain 
     dt = 900 # time step in seconds
-    diff_efold = 12.*3600. # hyperdiffusion dampling time scale on shortest wave
+    diff_efold = 86400./2. # hyperdiffusion dampling time scale on shortest wave
     norder = 8 # order of hyperdiffusion
     r = 0 # Ekman damping 
     nsq = 1.e-4; f=1.e-4; g = 9.8; theta0 = 300
@@ -258,7 +258,6 @@ if __name__ == "__main__":
     # create initial pv
     pv = np.zeros((2,N,N),np.float32)
     if rank == 0:
-        pv = np.empty((2,N,N),np.float32)
         # add isolated blob on lid
         nexp = 20
         x = np.arange(0,2.*np.pi,2.*np.pi/N); y = np.arange(0.,2.*np.pi,2.*np.pi/N)
