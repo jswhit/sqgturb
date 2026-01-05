@@ -215,8 +215,9 @@ class SQG:
         pvx, pvy = self.xyderiv(pvspec)
         jacobian = 2.25*(psix * pvy - psiy * pvx) # 2.25 (1.5**2) factor for FFT normalization with padding
         jacobianspec = fft_forward(self.FFT_pad, jacobian)
-        dpvspecdt = (1.0 / self.tdiab) * (self.pvspec_eq - pvspec) - jacobianspec + self.r[:,np.newaxis,np.newaxis] * self.ksqlsq * psispec
-        dpvspecdt += self.hyperdiff[np.newaxis,...]*self.pvspec
+        dpvspecdt = (1.0 / self.tdiab) * (self.pvspec_eq - pvspec) - jacobianspec 
+        # add Ekman damping and hyperdiffusion
+        dpvspecdt += self.r[:,np.newaxis,np.newaxis]*self.ksqlsq*psispec + self.hyperdiff[np.newaxis,...]*self.pvspec 
         return dpvspecdt
 
     def timestep(self):
