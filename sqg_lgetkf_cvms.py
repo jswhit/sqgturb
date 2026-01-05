@@ -69,7 +69,7 @@ read_restart = False
 savedata = None
 #nassim = 101
 #nassim_spinup = 1
-nassim = 600 # assimilation times to run
+nassim = 1000 # assimilation times to run
 nassim_spinup = 100
 
 nanals = 16 # ensemble members
@@ -155,9 +155,6 @@ models = []
 for nanal in range(nanals):
     models.append(\
     SQG(pvens[nanal],dt=dt,nsq=nsq,f=f,U=U,H=H,r=r,tdiab=tdiab,diff_order=diff_order,diff_efold=diff_efold,threads=threads))
-pvspecens = np.empty((nanals,2,)+(models[0].pvspec).global_shape,models[0].pvspec.dtype)
-for nanal in range(nanals):
-    pvspecens[nanal] = models[nanal].pv_spec()
 if rank==0 and read_restart: ncinit.close()
 
 hcovlocal_scales_km = [lscale/1000. for lscale in hcovlocal_scales]
@@ -168,11 +165,7 @@ if rank==0:
 
 # each ob time nobs ob locations are randomly sampled (without
 # replacement) from the model grid
-#nobs = nx*ny//6 # number of obs to assimilate (randomly distributed)
-#nobs = 2*nx*ny//24 # 768
-nobs = 2*nx*ny//18 # 1024
-#nobs = 2*nx*ny//12 # 1536
-#nobs = 2*nx*ny//9 # 2048
+nobs = 1024
 
 # nature run
 if rank == 0:
@@ -336,21 +329,21 @@ for ntime in range(nassim):
         pvens_filtered_lst=[]
         pvfilt_save = np.zeros_like(pvpert)
 
-        #pv_dist = newDistArrayGrid(models[0].FFT) 
-        #pvspec = np.zeros((nanals,2,)+models[0].pvspec.global_shape, models[0].pvspec.dtype)
-        #for nanal in range(nanals):
-        #    for k in range(2):
-        #        pv_dist[k,...] = pvpert[nanal,k,...][pv_dist.local_slice()]
-        #    pvspec_dist = fft_forward(models[0].FFT, pv_dist)
-        #    for k in range(2):
-        #        pvspec[nanal,k,...][pvspec_dist.local_slice()] = pvspec_dist[k]
-        #MPI.COMM_WORLD.Allreduce(MPI.IN_PLACE,np.ascontiguousarray(pvspec),op=MPI.SUM)
-        #pvspec = rfft2(pvpert)
+        pv_dist = newDistArrayGrid(models[0].FFT) 
+        pvspecens = np.zeros((nanals,2,)+models[0].pvspec.global_shape, models[0].pvspec.dtype)
+        for nanal in range(nanals):
+            for k in range(2):
+                pv_dist[k,...] = pvpert[nanal,k,...][pv_dist.local_slice()]
+            pvspec_dist = fft_forward(models[0].FFT, pv_dist)
+            for k in range(2):
+                pvspecens[nanal,k,...][pvspec_dist.local_slice()] = pvspec_dist[k]
+        MPI.COMM_WORLD.Allreduce(MPI.IN_PLACE,np.ascontiguousarray(pvspecens),op=MPI.SUM)
+        #pvspecens = rfft2(pvpert)
         #if rank==0:
-        #    pvspec = rfft2(pvpert)
+        #    pvspecens = rfft2(pvpert)
         #else:
-        #    pvspec = np.empty((nanals,2,)+models[0].pvspec.global_shape, models[0].pvspec.dtype)
-        #comm.Bcast(np.ascontiguousarray(pvspec), root=0)
+        #    pvspecens = np.empty((nanals,2,)+models[0].pvspec.global_shape, models[0].pvspec.dtype)
+        #comm.Bcast(np.ascontiguousarray(pvspecens), root=0)
 
         pvspec_dist = newDistArraySpec(models[0].FFT) 
         for n,cutoff in enumerate(band_cutoffs):
@@ -457,7 +450,6 @@ for ntime in range(nassim):
     t1 = time.time()
     for nanal in range(nanals):
         pvens[nanal] = models[nanal].advance(timesteps=assim_timesteps,pv=pvens[nanal])
-        pvspecens[nanal] = models[nanal].pv_spec()
     t2 = time.time()
     if profile and rank == 0: print('cpu time for ens forecast',t2-t1)
     if not np.all(np.isfinite(pvens)):

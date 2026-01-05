@@ -192,14 +192,6 @@ class SQG:
         MPI.COMM_WORLD.Allreduce(MPI.IN_PLACE,pv,op=MPI.SUM)
         return pv
 
-    def pv_spec(self):
-        # return global pv spectral coeffs on all tasks
-        pvspec = np.zeros((2,)+self.pvspec.global_shape, self.pvspec.dtype)
-        for k in range(2):
-            pvspec[k][self.local_slice_spec] = self.pvspec[k]
-        MPI.COMM_WORLD.Allreduce(MPI.IN_PLACE,pvspec,op=MPI.SUM)
-        return pvspec
-
     def xyderiv(self, specarr):
         # return gradient on expanded (3/2) grid.
         xderiv_spec = self.ik * specarr
