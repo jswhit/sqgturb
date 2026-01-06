@@ -6,9 +6,6 @@ from netCDF4 import Dataset
 import sys, time, os
 from sqgturb import SQG, fft_forward, fft_backward, cartdist, lgetkf_ms, gaspcohn, newDistArrayGrid, newDistArraySpec, MPI
 from numpy.fft import rfft2, ifft2
-#from pyfftw.interfaces import numpy_fft
-#rfft2 = numpy_fft.rfft2
-#irfft2 = numpy_fft.irfft2
 
 comm = MPI.COMM_WORLD
 num_processes = comm.Get_size()
@@ -324,9 +321,7 @@ for ntime in range(nassim):
     pvsprd_b = ((scalefact*pvpert)**2).sum(axis=0)/(nanals-1)
 
     # filter background perturbations into different scale bands
-    if nlscales == 1:
-        pvens_filtered_lst=[pvpert]
-    else:
+    if nlscales > 1:
         pvens_filtered_lst=[]
         pvfilt_save = np.zeros_like(pvpert)
 
@@ -371,9 +366,10 @@ for ntime in range(nassim):
         pvens_filtered_lst.append(pvpert-pvsum)
         #plt.show()
         #raise SystemExit
-    pvens_filtered = np.asarray(pvens_filtered_lst)
-    pvens = np.dot(pvens_filtered.T,crossband_covmat).T
-    pvens += pvensmean_b  # mean added back to all scales.
+
+        pvens_filtered = np.asarray(pvens_filtered_lst)
+        pvens = np.dot(pvens_filtered.T,crossband_covmat).T
+        pvens += pvensmean_b  # mean added back to all scales.
 
     if savedata is not None:
         if savedata == 'restart' and ntime != nassim-1:
@@ -398,7 +394,7 @@ for ntime in range(nassim):
     # update state vector.
 
     # hxens,pvob are in PV units, xens is not
-    xens_updated = np.zeros_like(xens) 
+    xens_updated = np.ascontiguousarray(np.zeros_like(xens))
     xens = lgetkf_ms(nlscales,xens,hxprime,pvob-hxensmean_b,oberrvar,covlocal_tmp,ngroups=ngroups,npts_dist=npts_dist)
     xens_updated[:,:,npts_dist] = xens[:,:,npts_dist]
     comm.Allreduce(MPI.IN_PLACE, xens_updated, op=MPI.SUM)
@@ -407,10 +403,11 @@ for ntime in range(nassim):
     # back to 3d state vector
     pvens = xens.reshape((nlscales*nanals,2,ny,nx))
     pvensmean_a = pvens.mean(axis=0) 
-    pvens_filtered = pvens - pvensmean_a
-    pvens_filtered = pvens_filtered.reshape(nlscales,nanals,2,ny,nx)
-    pvprime = np.dot(pvens_filtered.T,crossband_covmatr).T
-    pvens = pvprime.sum(axis=0) + pvensmean_a
+    if nlscales > 1:
+        pvens_filtered = pvens - pvensmean_a
+        pvens_filtered = pvens_filtered.reshape(nlscales,nanals,2,ny,nx)
+        pvprime = np.dot(pvens_filtered.T,crossband_covmatr).T
+        pvens = pvprime.sum(axis=0) + pvensmean_a
     t2 = time.time()
     if profile and rank == 0: print('cpu time for EnKF update',t2-t1)
 
