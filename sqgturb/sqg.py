@@ -111,14 +111,15 @@ class SQG:
         # distributed pv on grid.
         pv_dist = newDistArrayGrid(self.FFT) 
         self.local_slice_grid = pv_dist.local_slice()
+        sy,sx = self.local_slice_grid
         for k in range(2):
-            pv_dist[k,...] = pv[k][self.local_slice_grid]
+            pv_dist[k,...] = pv[k,sy,sx]
         self.pvspec = fft_forward(self.FFT, pv_dist)
         self.local_slice_spec = self.pvspec.local_slice()
 
         self.pvbar = newDistArrayGrid(self.FFT) 
         for k in range(2):
-            self.pvbar[k,...] = pvbar[k][self.local_slice_grid]
+            self.pvbar[k,...] = pvbar[k,sy,sx]
         self.pvspec_eq = fft_forward(self.FFT, self.pvbar)
 
         # spectral stuff
@@ -175,8 +176,9 @@ class SQG:
         # return updated PV on global grid (on all ranks)
         if pv is not None:
             pv_dist = newDistArrayGrid(self.FFT) 
+            sy, sx = self.local_slice_grid
             for k in range(2):
-                pv_dist[k,...] = pv[k][self.local_slice_grid]
+                pv_dist[k,...] = pv[k,sy,sx]
             # distributed pv spectal coeffs.
             self.pvspec = fft_forward(self.FFT, pv_dist)
         for n in range(timesteps):
@@ -187,8 +189,9 @@ class SQG:
         # return global pv grid on all tasks
         pv = np.zeros((2,self.N,self.N),self.pvbar.dtype)
         pv_dist = fft_backward(self.FFT, self.pvspec)
+        sy, sx = self.local_slice_grid
         for k in range(2):
-            pv[k][self.local_slice_grid] = pv_dist[k,...]
+            pv[k,sy,sx] = pv_dist[k,...]
         MPI.COMM_WORLD.Allreduce(MPI.IN_PLACE,pv,op=MPI.SUM)
         return pv
 
