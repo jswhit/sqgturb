@@ -334,12 +334,10 @@ for ntime in range(nassim):
         for nanal in range(nanals):
             pv_dist = newDistArrayGrid(models[nanal].FFT) 
             s1,s2 = pv_dist.local_slice()
-            for k in range(2):
-                pv_dist[k] = pvpert[nanal,k,s1,s2]
+            pv_dist = pvpert[nanal,:,s1,s2]
             pvspec_dist = fft_forward(models[nanal].FFT, pv_dist)
             ss1,ss2 = pvspec_dist.local_slice()
-            for k in range(2):
-                pvspecens[nanal,k,ss1,ss2] = pvspec_dist[k]
+            pvspecens[nanal,:,ss1,ss2] = pvspec_dist
         comm.Allreduce(MPI.IN_PLACE,pvspecens,op=MPI.SUM)
         #pvspecens = rfft2(pvpert)
 
@@ -352,12 +350,10 @@ for ntime in range(nassim):
             for nanal in range(nanals):
                 pvspec_dist = newDistArraySpec(models[nanal].FFT) 
                 ss1,ss2 = pvspec_dist.local_slice()
-                for k in range(2):
-                    pvspec_dist[k] = pvfiltspec[nanal,k,ss1,ss2]
+                pvspec_dist = pvfiltspec[nanal,:,ss1,ss2]
                 pv_dist = fft_backward(models[nanal].FFT, pvspec_dist)
                 s1,s2 = pv_dist.local_slice()
-                for k in range(2):
-                    pvfilt[nanal,k,s1,s2] = pv_dist[k]
+                pvfilt[nanal,:,s1,s2] = pv_dist
             comm.Allreduce(MPI.IN_PLACE,pvfilt,op=MPI.SUM)
             #pvfilt = irfft2(pvfiltspec)
 
