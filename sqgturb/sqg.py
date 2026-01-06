@@ -5,13 +5,11 @@ from mpi4py_fft import PFFT, newDistArray
 
 def newDistArrayGrid(FFT):
     distarr = newDistArray(FFT, False) 
-    distarr = np.tile(distarr, (2,1,1))
-    return distarr
+    return np.tile(distarr, (2,1,1))
 
 def newDistArraySpec(FFT):
     distarr = newDistArray(FFT, True) 
-    distarr = np.tile(distarr, (2,1,1))
-    return distarr
+    return np.tile(distarr, (2,1,1))
 
 def fft_forward(FFT, distarr):
     distarr_spec = newDistArraySpec(FFT)
@@ -230,7 +228,7 @@ if __name__ == "__main__":
     rank = comm.Get_rank()
     
     N = 128 # size of domain 
-    dt = 900 # time step in seconds
+    dt = 720 # time step in seconds
     diff_efold = 6.*3600. # hyperdiffusion dampling time scale on shortest wave
     #N = 96 # size of domain 
     #dt = 1200 # time step in seconds
