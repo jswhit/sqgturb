@@ -1,5 +1,8 @@
 import numpy as np
-from scipy.linalg import lapack, inv
+try:
+    from scipy.linalg import eigh
+except:
+    from numpy.linalg import eigh
 
 # function definitions.
 
@@ -80,11 +83,11 @@ def lgetkf(xens, hxens, obs, oberrs, covlocal, nerger=True, ngroups=None):
         YbsqrtRinv, YbRinv = getYbvecs(hx,Rlocal,oberrvar,nerger=nerger)
         if nobs >= nens:
             a = np.dot(YbsqrtRinv,YbsqrtRinv.T)
-            evals, evecs, info = lapack.dsyevd(a)
+            evals, evecs = eigh(a)
             evals = evals.clip(min=np.finfo(evals.dtype).eps)
         else:
             a = np.dot(YbsqrtRinv.T,YbsqrtRinv)
-            evals, evecs, info = lapack.dsyevd(a)
+            evals, evecs = eigh(a)
             evals = evals.clip(min=np.finfo(evals.dtype).eps)
             evecs = np.dot(YbsqrtRinv,evecs/np.sqrt(evals))
         # gammapI used in calculation of posterior cov in ensemble space
@@ -111,11 +114,11 @@ def lgetkf(xens, hxens, obs, oberrs, covlocal, nerger=True, ngroups=None):
         YbsqrtRinv, YbRinv = getYbvecs(hx,Rlocal,oberrvar,nerger=nerger)
         if nobs >= nens:
             a = np.dot(YbsqrtRinv,YbsqrtRinv.T)
-            evals, evecs, info = lapack.dsyevd(a)
+            evals, evecs = eigh(a)
             evals = evals.clip(min=np.finfo(evals.dtype).eps)
         else:
             a = np.dot(YbsqrtRinv.T,YbsqrtRinv)
-            evals, evecs, info = lapack.dsyevd(a)
+            evals, evecs = eigh(a)
             evals = evals.clip(min=np.finfo(evals.dtype).eps)
             evecs = np.dot(YbsqrtRinv,evecs/np.sqrt(evals))
         # gammapI used in calculation of posterior cov in ensemble space
@@ -216,11 +219,11 @@ def lgetkf_ms(nlscales, xens, hxprime, omf, oberrs, covlocal, ngroups=None, npts
         YbsqrtRinv, YbRinv = getYbvecs(nlscales,hx,Rlocal,oberrvar)
         if nobs >= nens:
             a = np.dot(YbsqrtRinv,YbsqrtRinv.T)
-            evals, evecs, info = lapack.dsyevd(a)
+            evals, evecs = eigh(a)
             evals = evals.clip(min=np.finfo(evals.dtype).eps)
         else:
             a = np.dot(YbsqrtRinv.T,YbsqrtRinv)
-            evals, evecs, info = lapack.dsyevd(a)
+            evals, evecs = eigh(a)
             evals = evals.clip(min=np.finfo(evals.dtype).eps)
             evecs = np.dot(YbsqrtRinv,evecs/np.sqrt(evals))
         gamma_inv = 1./evals
@@ -246,11 +249,11 @@ def lgetkf_ms(nlscales, xens, hxprime, omf, oberrs, covlocal, ngroups=None, npts
         YbsqrtRinv, YbRinv = getYbvecs(nlscales,hx,Rlocal,oberrvar)
         if nobs >= nens:
             a = np.dot(YbsqrtRinv,YbsqrtRinv.T)
-            evals, evecs, info = lapack.dsyevd(a)
+            evals, evecs = eigh(a)
             evals = evals.clip(min=np.finfo(evals.dtype).eps)
         else:
             a = np.dot(YbsqrtRinv.T,YbsqrtRinv)
-            evals, evecs, info = lapack.dsyevd(a)
+            evals, evecs = eigh(a)
             evals = evals.clip(min=np.finfo(evals.dtype).eps)
             evecs = np.dot(YbsqrtRinv,evecs/np.sqrt(evals))
         # gammapI used in calculation of posterior cov in ensemble space
@@ -366,11 +369,11 @@ def lgetkf_ms_vloc(nlscales, xens, xens2, hxprime, hxprime2, omf, oberrs, covloc
         YbsqrtRinv, YbRinv = getYbvecs(nlscales,hx,Rlocal,oberrvar)
         if nobs >= nens:
             a = np.dot(YbsqrtRinv,YbsqrtRinv.T)
-            evals, evecs, info = lapack.dsyevd(a)
+            evals, evecs = eigh(a)
             evals = evals.clip(min=np.finfo(evals.dtype).eps)
         else:
             a = np.dot(YbsqrtRinv.T,YbsqrtRinv)
-            evals, evecs, info = lapack.dsyevd(a)
+            evals, evecs = eigh(a)
             evals = evals.clip(min=np.finfo(evals.dtype).eps)
             evecs = np.dot(YbsqrtRinv,evecs/np.sqrt(evals))
         gamma_inv = 1./evals
@@ -396,11 +399,11 @@ def lgetkf_ms_vloc(nlscales, xens, xens2, hxprime, hxprime2, omf, oberrs, covloc
         YbsqrtRinv, YbRinv = getYbvecs(nlscales,hx,Rlocal,oberrvar)
         if nobs >= nens:
             a = np.dot(YbsqrtRinv,YbsqrtRinv.T)
-            evals, evecs, info = lapack.dsyevd(a)
+            evals, evecs = eigh(a)
             evals = evals.clip(min=np.finfo(evals.dtype).eps)
         else:
             a = np.dot(YbsqrtRinv.T,YbsqrtRinv)
-            evals, evecs, info = lapack.dsyevd(a)
+            evals, evecs = eigh(a)
             evals = evals.clip(min=np.finfo(evals.dtype).eps)
             evecs = np.dot(YbsqrtRinv,evecs/np.sqrt(evals))
         # gammapI used in calculation of posterior cov in ensemble space
