@@ -38,7 +38,7 @@ def gaspcohn(r):
     )
     return taper
 
-def lgetkf(xens, hxens, obs, oberrs, covlocal, nerger=True, ngroups=None):
+def lgetkf(xens, hxens, obs, oberrs, covlocal, nerger=True, ngroups=None,npts_dist=None):
 
     """returns ensemble updated by LGETKF with cross-validation"""
 
@@ -46,6 +46,8 @@ def lgetkf(xens, hxens, obs, oberrs, covlocal, nerger=True, ngroups=None):
     hxprime = hxens - hxmean
     nanals = hxens.shape[0]
     ndim = covlocal.shape[-1]
+    if npts_dist is None:
+        npts_dist = np.arange(ndim)
     xmean = xens.mean(axis=0)
     xprime = xens - xmean
     xprime_b = xprime.copy()
@@ -131,7 +133,7 @@ def lgetkf(xens, hxens, obs, oberrs, covlocal, nerger=True, ngroups=None):
         pasqrt=np.dot(evecs*(1.-np.sqrt(1./gammapI[np.newaxis,:]))*gamma_inv[np.newaxis,:],evecs.T)
         return -np.dot(pasqrt, np.dot(YbRinv,hx_orig.T)).T/normfact # use witheld ens member here
 
-    for n in range(ndim):
+    for n in npts_dist:
         mask = covlocal[:,n] > 1.0e-10
         nobs_local = mask.sum()
         if nobs_local > 0:
@@ -295,7 +297,7 @@ def lgetkf_ms(nlscales, xens, hxprime, omf, oberrs, covlocal, ngroups=None, npts
 
     return xens
 
-def lgetkf_ms_vloc(nlscales, xens, xens2, hxprime, hxprime2, omf, oberrs, covlocal, ngroups=None):
+def lgetkf_ms_vloc(nlscales, xens, xens2, hxprime, hxprime2, omf, oberrs, covlocal, ngroups=None, npts_dist=None):
 
     """returns ensemble updated by LGETKF with 'leave one out' cross-validation and multi-scale R localization"""
 
@@ -304,6 +306,8 @@ def lgetkf_ms_vloc(nlscales, xens, xens2, hxprime, hxprime2, omf, oberrs, covloc
     nanals_orig = nanals//nlscales
     neig = nanals2//nanals
     ndim = covlocal.shape[-1]
+    if npts_dist is None:
+        npts_dist = np.arange(ndim)
     xmean = xens.mean(axis=0)
     xprime = xens - xmean
     xprime2 = xens2 - xmean
@@ -416,7 +420,7 @@ def lgetkf_ms_vloc(nlscales, xens, xens2, hxprime, hxprime2, omf, oberrs, covloc
         # wts_ensperts = -C [ (I - (Gamma+I)**-1/2)*Gamma**-1 ] C^T (HZ)^T R**-1/2 HXprime
         return -np.dot(pa, np.dot(YbRinv,hx_orig.T)).T/normfact # use witheld ens member here
 
-    for n in range(ndim):
+    for n in npts_dist:
         mask = covlocal[0,:,n] > 1.0e-10
         nobs_local = mask.sum()
         if nobs_local > 0:
