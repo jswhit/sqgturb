@@ -138,9 +138,6 @@ class SQG:
         self.ksqlsq = ksqlsq[self.local_slice_spec]
         self.ik = (1.0j * self.k).astype(np.complex64)
         self.il = (1.0j * self.l).astype(np.complex64)
-        # remove nyquist freq (not really needed)
-        #self.ik[self.nyquist_mask] = 0.+0.j
-        #self.il[self.nyquist_mask] = 0.+0.j
 
         mu = np.sqrt(self.ksqlsq) * np.sqrt(self.nsq) * self.H / self.f
         mu = mu.clip(np.finfo(mu.dtype).eps)  # clip to avoid NaN
