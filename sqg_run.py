@@ -19,13 +19,13 @@ rank = comm.Get_rank()
 #dt = 300
 #diff_efold = 86400./8.
  
-#N = 128
-#dt = 600
-#diff_efold = 86400./3.
+N = 128
+dt = 720.
+diff_efold = 6*3600.
 
-N = 96
-dt = 900
-diff_efold = 86400./2.
+#N = 96
+#dt = 1200
+#diff_efold = 12*3600.
 
 #N = 64
 #dt = 900    
@@ -52,7 +52,8 @@ tdiab = 10.*86400 # in seconds
 scalefact = f*theta0/g
 
 # create random noise
-pv = np.random.normal(0,100.,size=(2,N,N)).astype(np.float32)
+rs = np.random.RandomState(42) # fixed seed
+pv = rs.normal(0,100.,size=(2,N,N)).astype(np.float32)
 # add isolated blob on lid
 nexp = 20
 x = np.arange(0,2.*np.pi,2.*np.pi/N); y = np.arange(0.,2.*np.pi,2.*np.pi/N)
@@ -64,7 +65,7 @@ for k in range(2):
     pv[k] = pv[k] - pv[k].mean()
 
 # single or double precision
-precision='single' # pyfftw FFTs twice as fast as double
+precision='single' 
 
 # initialize qg model instance
 model = SQG(pv,nsq=nsq,f=f,U=U,H=H,r=r,tdiab=tdiab,dt=dt,
@@ -78,8 +79,7 @@ tmax = 400.*86400. # time to stop (in days)
 nsteps = int(tmax/outputinterval) # number of time steps to animate
 # set number of timesteps to integrate for each call to model.advance
 ntimesteps = int(outputinterval/model.dt)
-savedata = 'sqgu%s_dek%s_N%s_6hrly.nc' % (U,dek,N) # save data plotted in a netcdf file.
-#savedata = 'sqg_run_test.nc'
+savedata = 'sqgu%s_N%s_6hrly.nc' % (U,N) # save data plotted in a netcdf file.
 #savedata = None # don't save data
 
 if savedata is not None and rank==0:

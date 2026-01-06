@@ -5,13 +5,11 @@ from mpi4py_fft import PFFT, newDistArray
 
 def newDistArrayGrid(FFT):
     distarr = newDistArray(FFT, False) 
-    distarr = np.tile(distarr, (2,1,1))
-    return distarr
+    return np.tile(distarr, (2,1,1))
 
 def newDistArraySpec(FFT):
     distarr = newDistArray(FFT, True) 
-    distarr = np.tile(distarr, (2,1,1))
-    return distarr
+    return np.tile(distarr, (2,1,1))
 
 def fft_forward(FFT, distarr):
     distarr_spec = newDistArraySpec(FFT)
@@ -112,14 +110,12 @@ class SQG:
         pv_dist = newDistArrayGrid(self.FFT) 
         self.local_slice_grid = pv_dist.local_slice()
         sy,sx = self.local_slice_grid
-        for k in range(2):
-            pv_dist[k,...] = pv[k,sy,sx]
+        pv_dist = pv[:,sy,sx]
         self.pvspec = fft_forward(self.FFT, pv_dist)
         self.local_slice_spec = self.pvspec.local_slice()
 
         self.pvbar = newDistArrayGrid(self.FFT) 
-        for k in range(2):
-            self.pvbar[k,...] = pvbar[k,sy,sx]
+        self.pvbar = pvbar[:,sy,sx]
         self.pvspec_eq = fft_forward(self.FFT, self.pvbar)
 
         # spectral stuff
@@ -140,9 +136,6 @@ class SQG:
         self.ksqlsq = ksqlsq[self.local_slice_spec]
         self.ik = (1.0j * self.k).astype(np.complex64)
         self.il = (1.0j * self.l).astype(np.complex64)
-        # remove nyquist freq (not really needed)
-        #self.ik[self.nyquist_mask] = 0.+0.j
-        #self.il[self.nyquist_mask] = 0.+0.j
 
         mu = np.sqrt(self.ksqlsq) * np.sqrt(self.nsq) * self.H / self.f
         mu = mu.clip(np.finfo(mu.dtype).eps)  # clip to avoid NaN
@@ -177,8 +170,7 @@ class SQG:
         if pv is not None:
             pv_dist = newDistArrayGrid(self.FFT) 
             sy, sx = self.local_slice_grid
-            for k in range(2):
-                pv_dist[k,...] = pv[k,sy,sx]
+            pv_dist = pv[:,sy,sx]
             # distributed pv spectal coeffs.
             self.pvspec = fft_forward(self.FFT, pv_dist)
         for n in range(timesteps):
@@ -190,8 +182,7 @@ class SQG:
         pv = np.zeros((2,self.N,self.N),self.pvbar.dtype)
         pv_dist = fft_backward(self.FFT, self.pvspec)
         sy, sx = self.local_slice_grid
-        for k in range(2):
-            pv[k,sy,sx] = pv_dist[k,...]
+        pv[:,sy,sx] = pv_dist
         MPI.COMM_WORLD.Allreduce(MPI.IN_PLACE,pv,op=MPI.SUM)
         return pv
 
@@ -236,9 +227,12 @@ if __name__ == "__main__":
     nranks = comm.Get_size()
     rank = comm.Get_rank()
     
-    N = 96 # size of domain 
-    dt = 1200 # time step in seconds
-    diff_efold = 86400./2. # hyperdiffusion dampling time scale on shortest wave
+    N = 128 # size of domain 
+    dt = 720 # time step in seconds
+    diff_efold = 6.*3600. # hyperdiffusion dampling time scale on shortest wave
+    #N = 96 # size of domain 
+    #dt = 1200 # time step in seconds
+    #diff_efold = 12.*3600. # hyperdiffusion dampling time scale on shortest wave
     norder = 8 # order of hyperdiffusion
     r = 0 # Ekman damping 
     nsq = 1.e-4; f=1.e-4; g = 9.8; theta0 = 300

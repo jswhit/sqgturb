@@ -5,9 +5,7 @@ import numpy as np
 from netCDF4 import Dataset
 import sys, time, os
 from sqgturb import SQG, fft_forward, fft_backward, cartdist, lgetkf_ms, gaspcohn, newDistArrayGrid, newDistArraySpec, MPI
-from pyfftw.interfaces import numpy_fft
-rfft2 = numpy_fft.rfft2
-irfft2 = numpy_fft.irfft2
+from numpy.fft import rfft2, ifft2
 
 comm = MPI.COMM_WORLD
 num_processes = comm.Get_size()
@@ -69,7 +67,7 @@ read_restart = False
 savedata = None
 #nassim = 101
 #nassim_spinup = 1
-nassim = 1000 # assimilation times to run
+nassim = 1100 # assimilation times to run
 nassim_spinup = 100
 
 nanals = 16 # ensemble members
@@ -78,9 +76,9 @@ ngroups = nanals//2  # number of groups for cross-validation (ngroups=nanals//N 
 oberrstdev = 1. # ob error standard deviation in K
 
 # nature run created using sqg_run.py.
-filename_climo = 'sqgu20_dek0_N96_6hrly_12hdiff.nc' # file name for forecast model climo
+filename_climo = 'sqgu20_N128_6hrly.nc' # file name for forecast model climo
 # perfect model
-filename_truth = 'sqgu20_dek0_N96_6hrly_12hdiff.nc' # file name for nature run to draw obs
+filename_truth = 'sqgu20_N128_6hrly.nc' # file name for nature run to draw obs
 #filename_truth = 'sqg_N256_N96_12hrly.nc' # file name for nature run to draw obs
 
 if rank==0:
@@ -323,9 +321,7 @@ for ntime in range(nassim):
     pvsprd_b = ((scalefact*pvpert)**2).sum(axis=0)/(nanals-1)
 
     # filter background perturbations into different scale bands
-    if nlscales == 1:
-        pvens_filtered_lst=[pvpert]
-    else:
+    if nlscales > 1:
         pvens_filtered_lst=[]
         pvfilt_save = np.zeros_like(pvpert)
 
@@ -333,12 +329,10 @@ for ntime in range(nassim):
         for nanal in range(nanals):
             pv_dist = newDistArrayGrid(models[nanal].FFT) 
             s1,s2 = pv_dist.local_slice()
-            for k in range(2):
-                pv_dist[k] = pvpert[nanal,k,s1,s2]
+            pv_dist = pvpert[nanal,:,s1,s2]
             pvspec_dist = fft_forward(models[nanal].FFT, pv_dist)
             ss1,ss2 = pvspec_dist.local_slice()
-            for k in range(2):
-                pvspecens[nanal,k,ss1,ss2] = pvspec_dist[k]
+            pvspecens[nanal,:,ss1,ss2] = pvspec_dist
         comm.Allreduce(MPI.IN_PLACE,pvspecens,op=MPI.SUM)
         #pvspecens = rfft2(pvpert)
 
@@ -351,12 +345,10 @@ for ntime in range(nassim):
             for nanal in range(nanals):
                 pvspec_dist = newDistArraySpec(models[nanal].FFT) 
                 ss1,ss2 = pvspec_dist.local_slice()
-                for k in range(2):
-                    pvspec_dist[k] = pvfiltspec[nanal,k,ss1,ss2]
+                pvspec_dist = pvfiltspec[nanal,:,ss1,ss2]
                 pv_dist = fft_backward(models[nanal].FFT, pvspec_dist)
                 s1,s2 = pv_dist.local_slice()
-                for k in range(2):
-                    pvfilt[nanal,k,s1,s2] = pv_dist[k]
+                pvfilt[nanal,:,s1,s2] = pv_dist
             comm.Allreduce(MPI.IN_PLACE,pvfilt,op=MPI.SUM)
             #pvfilt = irfft2(pvfiltspec)
 
@@ -374,9 +366,10 @@ for ntime in range(nassim):
         pvens_filtered_lst.append(pvpert-pvsum)
         #plt.show()
         #raise SystemExit
-    pvens_filtered = np.asarray(pvens_filtered_lst)
-    pvens = np.dot(pvens_filtered.T,crossband_covmat).T
-    pvens += pvensmean_b  # mean added back to all scales.
+
+        pvens_filtered = np.asarray(pvens_filtered_lst)
+        pvens = np.dot(pvens_filtered.T,crossband_covmat).T
+        pvens += pvensmean_b  # mean added back to all scales.
 
     if savedata is not None:
         if savedata == 'restart' and ntime != nassim-1:
@@ -401,7 +394,7 @@ for ntime in range(nassim):
     # update state vector.
 
     # hxens,pvob are in PV units, xens is not
-    xens_updated = np.zeros_like(xens) 
+    xens_updated = np.ascontiguousarray(np.zeros_like(xens))
     xens = lgetkf_ms(nlscales,xens,hxprime,pvob-hxensmean_b,oberrvar,covlocal_tmp,ngroups=ngroups,npts_dist=npts_dist)
     xens_updated[:,:,npts_dist] = xens[:,:,npts_dist]
     comm.Allreduce(MPI.IN_PLACE, xens_updated, op=MPI.SUM)
@@ -410,10 +403,11 @@ for ntime in range(nassim):
     # back to 3d state vector
     pvens = xens.reshape((nlscales*nanals,2,ny,nx))
     pvensmean_a = pvens.mean(axis=0) 
-    pvens_filtered = pvens - pvensmean_a
-    pvens_filtered = pvens_filtered.reshape(nlscales,nanals,2,ny,nx)
-    pvprime = np.dot(pvens_filtered.T,crossband_covmatr).T
-    pvens = pvprime.sum(axis=0) + pvensmean_a
+    if nlscales > 1:
+        pvens_filtered = pvens - pvensmean_a
+        pvens_filtered = pvens_filtered.reshape(nlscales,nanals,2,ny,nx)
+        pvprime = np.dot(pvens_filtered.T,crossband_covmatr).T
+        pvens = pvprime.sum(axis=0) + pvensmean_a
     t2 = time.time()
     if profile and rank == 0: print('cpu time for EnKF update',t2-t1)
 
