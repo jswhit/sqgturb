@@ -5,9 +5,10 @@ import numpy as np
 from netCDF4 import Dataset
 import sys, time, os
 from sqgturb import SQG, fft_forward, fft_backward, cartdist, lgetkf_ms, gaspcohn, newDistArrayGrid, newDistArraySpec, MPI
-from pyfftw.interfaces import numpy_fft
-rfft2 = numpy_fft.rfft2
-irfft2 = numpy_fft.irfft2
+from numpy.fft import rfft2, ifft2
+#from pyfftw.interfaces import numpy_fft
+#rfft2 = numpy_fft.rfft2
+#irfft2 = numpy_fft.irfft2
 
 comm = MPI.COMM_WORLD
 num_processes = comm.Get_size()
@@ -69,7 +70,7 @@ read_restart = False
 savedata = None
 #nassim = 101
 #nassim_spinup = 1
-nassim = 1000 # assimilation times to run
+nassim = 1100 # assimilation times to run
 nassim_spinup = 100
 
 nanals = 16 # ensemble members
@@ -78,9 +79,9 @@ ngroups = nanals//2  # number of groups for cross-validation (ngroups=nanals//N 
 oberrstdev = 1. # ob error standard deviation in K
 
 # nature run created using sqg_run.py.
-filename_climo = 'sqgu20_dek0_N96_6hrly_12hdiff.nc' # file name for forecast model climo
+filename_climo = 'sqgu20_N128_6hrly.nc' # file name for forecast model climo
 # perfect model
-filename_truth = 'sqgu20_dek0_N96_6hrly_12hdiff.nc' # file name for nature run to draw obs
+filename_truth = 'sqgu20_N128_6hrly.nc' # file name for nature run to draw obs
 #filename_truth = 'sqg_N256_N96_12hrly.nc' # file name for nature run to draw obs
 
 if rank==0:
