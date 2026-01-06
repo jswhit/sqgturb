@@ -78,9 +78,9 @@ ngroups = nanals//2  # number of groups for cross-validation (ngroups=nanals//N 
 oberrstdev = 1. # ob error standard deviation in K
 
 # nature run created using sqg_run.py.
-filename_climo = 'sqgu20_dek0_N96_6hrly.nc' # file name for forecast model climo
+filename_climo = 'sqgu20_dek0_N96_6hrly_12hdiff.nc' # file name for forecast model climo
 # perfect model
-filename_truth = 'sqgu20_dek0_N96_6hrly.nc' # file name for nature run to draw obs
+filename_truth = 'sqgu20_dek0_N96_6hrly_12hdiff.nc' # file name for nature run to draw obs
 #filename_truth = 'sqg_N256_N96_12hrly.nc' # file name for nature run to draw obs
 
 if rank==0:
@@ -329,41 +329,36 @@ for ntime in range(nassim):
         pvens_filtered_lst=[]
         pvfilt_save = np.zeros_like(pvpert)
 
-        pv_dist = newDistArrayGrid(models[0].FFT) 
         pvspecens = np.zeros((nanals,2,)+models[0].pvspec.global_shape, models[0].pvspec.dtype)
         for nanal in range(nanals):
+            pv_dist = newDistArrayGrid(models[nanal].FFT) 
+            s1,s2 = pv_dist.local_slice()
             for k in range(2):
-                pv_dist[k,...] = pvpert[nanal,k,...][pv_dist.local_slice()]
-            pvspec_dist = fft_forward(models[0].FFT, pv_dist)
+                pv_dist[k] = pvpert[nanal,k,s1,s2]
+            pvspec_dist = fft_forward(models[nanal].FFT, pv_dist)
+            ss1,ss2 = pvspec_dist.local_slice()
             for k in range(2):
-                pvspecens[nanal,k,...][pvspec_dist.local_slice()] = pvspec_dist[k]
-        MPI.COMM_WORLD.Allreduce(MPI.IN_PLACE,np.ascontiguousarray(pvspecens),op=MPI.SUM)
+                pvspecens[nanal,k,ss1,ss2] = pvspec_dist[k]
+        comm.Allreduce(MPI.IN_PLACE,pvspecens,op=MPI.SUM)
         #pvspecens = rfft2(pvpert)
-        #if rank==0:
-        #    pvspecens = rfft2(pvpert)
-        #else:
-        #    pvspecens = np.empty((nanals,2,)+models[0].pvspec.global_shape, models[0].pvspec.dtype)
-        #comm.Bcast(np.ascontiguousarray(pvspecens), root=0)
 
-        pvspec_dist = newDistArraySpec(models[0].FFT) 
         for n,cutoff in enumerate(band_cutoffs):
             #filtfact = np.exp(-(ktot/cutoff)**8)
             #pvfiltspec = filtfact*pvspecens
             pvfiltspec = np.where(ktot < cutoff, pvspecens, 0.+0.j)
 
-            pvfilt = np.zeros_like(pvpert)
+            pvfilt = np.ascontiguousarray(np.zeros_like(pvpert))
             for nanal in range(nanals):
+                pvspec_dist = newDistArraySpec(models[nanal].FFT) 
+                ss1,ss2 = pvspec_dist.local_slice()
                 for k in range(2):
-                    pvspec_dist[k,...] = pvfiltspec[nanal,k,...][pvspec_dist.local_slice()]
-                pv_dist = fft_backward(models[0].FFT, pvspec_dist)
+                    pvspec_dist[k] = pvfiltspec[nanal,k,ss1,ss2]
+                pv_dist = fft_backward(models[nanal].FFT, pvspec_dist)
+                s1,s2 = pv_dist.local_slice()
                 for k in range(2):
-                    pvfilt[nanal,k,...][pv_dist.local_slice()] = pv_dist[k]
-            MPI.COMM_WORLD.Allreduce(MPI.IN_PLACE,np.ascontiguousarray(pvfilt),op=MPI.SUM)
-            #if rank==0:
-            #    pvfilt = irfft2(pvfiltspec)
-            #else:
-            #    pvfilt = np.empty_like(pvens)
-            #comm.Bcast(np.ascontiguousarray(pvfilt), root=0)
+                    pvfilt[nanal,k,s1,s2] = pv_dist[k]
+            comm.Allreduce(MPI.IN_PLACE,pvfilt,op=MPI.SUM)
+            #pvfilt = irfft2(pvfiltspec)
 
             pvens_filtered_lst.append(pvfilt-pvfilt_save)
             #plt.figure()
