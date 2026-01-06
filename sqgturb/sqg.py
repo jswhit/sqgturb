@@ -236,9 +236,12 @@ if __name__ == "__main__":
     nranks = comm.Get_size()
     rank = comm.Get_rank()
     
-    N = 96 # size of domain 
-    dt = 1200 # time step in seconds
-    diff_efold = 86400./2. # hyperdiffusion dampling time scale on shortest wave
+    N = 128 # size of domain 
+    dt = 900 # time step in seconds
+    diff_efold = 6.*3600. # hyperdiffusion dampling time scale on shortest wave
+    #N = 96 # size of domain 
+    #dt = 1200 # time step in seconds
+    #diff_efold = 12.*3600. # hyperdiffusion dampling time scale on shortest wave
     norder = 8 # order of hyperdiffusion
     r = 0 # Ekman damping 
     nsq = 1.e-4; f=1.e-4; g = 9.8; theta0 = 300
