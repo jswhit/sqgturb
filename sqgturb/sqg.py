@@ -35,7 +35,7 @@ class SQG:
         r=0.0,
         tdiab=10.0 * 86400,
         diff_order=8,
-        diff_efold=None,
+        diff_efold=12.*3600.,
         theta0=300,
         g=9.8,
         dt=None,
@@ -188,8 +188,7 @@ class SQG:
 
     def xyderiv(self, specarr):
         # return gradient on expanded (3/2) grid.
-        xderiv_spec = self.ik * specarr
-        yderiv_spec = self.il * specarr
+        xderiv_spec = self.ik * specarr; yderiv_spec = self.il * specarr
         xderiv = fft_backward(self.FFT_pad, xderiv_spec)
         yderiv = fft_backward(self.FFT_pad, yderiv_spec)
         return xderiv, yderiv
@@ -229,10 +228,9 @@ if __name__ == "__main__":
     
     N = 128 # size of domain 
     dt = 720 # time step in seconds
-    diff_efold = 6.*3600. # hyperdiffusion dampling time scale on shortest wave
-    #N = 96 # size of domain 
-    #dt = 1200 # time step in seconds
-    #diff_efold = 12.*3600. # hyperdiffusion dampling time scale on shortest wave
+    #N = 96 
+    #dt = 1200 
+    diff_efold = 12.*3600. # hyperdiffusion dampling time scale on shortest wave
     norder = 8 # order of hyperdiffusion
     r = 0 # Ekman damping 
     nsq = 1.e-4; f=1.e-4; g = 9.8; theta0 = 300
