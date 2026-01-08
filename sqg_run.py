@@ -21,7 +21,7 @@ rank = comm.Get_rank()
  
 N = 128
 dt = 720.
-diff_efold = 6*3600.
+diff_efold = 12*3600.
 
 #N = 96
 #dt = 1200
@@ -79,7 +79,7 @@ tmax = 400.*86400. # time to stop (in days)
 nsteps = int(tmax/outputinterval) # number of time steps to animate
 # set number of timesteps to integrate for each call to model.advance
 ntimesteps = int(outputinterval/model.dt)
-savedata = 'sqgu%s_N%s_6hrly.nc' % (U,N) # save data plotted in a netcdf file.
+savedata = 'sqgu%s_N%s_6hrly_12hdiff.nc' % (U,N) # save data plotted in a netcdf file.
 #savedata = None # don't save data
 
 if savedata is not None and rank==0:
