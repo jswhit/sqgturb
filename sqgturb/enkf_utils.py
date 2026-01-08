@@ -38,13 +38,11 @@ def gaspcohn(r):
     )
     return taper
 
-def lgetkf(xens, hxens, obs, oberrs, covlocal, nerger=True, ngroups=None,npts_dist=None):
+def lgetkf(xens, hxprime, omf, oberrs, covlocal, nerger=True, ngroups=None,npts_dist=None):
 
     """returns ensemble updated by LGETKF with cross-validation"""
 
-    hxmean = hxens.mean(axis=0)
-    hxprime = hxens - hxmean
-    nanals = hxens.shape[0]
+    nanals = hxprime.shape[0]
     ndim = covlocal.shape[-1]
     if npts_dist is None:
         npts_dist = np.arange(ndim)
@@ -139,7 +137,7 @@ def lgetkf(xens, hxens, obs, oberrs, covlocal, nerger=True, ngroups=None,npts_di
         if nobs_local > 0:
             Rlocal = covlocal[mask, n]
             oberrvar_local = oberrs[mask]
-            ominusf_local = (obs-hxmean)[mask]
+            ominusf_local = omf[mask]
             hxprime_local = hxprime[:,mask]
             wts_ensmean = calcwts_mean(nanals, hxprime_local, Rlocal, oberrvar_local, ominusf_local, nerger=nerger)
             for k in range(2):

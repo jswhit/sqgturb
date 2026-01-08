@@ -4,22 +4,33 @@ import matplotlib.pyplot as plt
 import numpy as np
 from netCDF4 import Dataset
 import sys, time, os
-from sqgturb import SQG, rfft2, irfft2, cartdist, lgetkf, gaspcohn
+from sqgturb import SQG, fft_forward, fft_backward, cartdist, lgetkf, gaspcohn, newDistArrayGrid, newDistArraySpec, MPI
+from numpy.fft import rfft2, ifft2
+
+comm = MPI.COMM_WORLD
+num_processes = comm.Get_size()
+rank = comm.Get_rank()
 
 # LGETKF cycling for SQG turbulence model with boundary temp obs,
-# ob space horizontal localization, no vertical localization.
+# multi-scale ob space horizontal localization, no vertical localization.
 # cross-validation update (no inflation).
 # Random observing network.
 
-if len(sys.argv) == 1:
-   msg="""
-python sqg_lgetkf_cv.py hcovlocal_scale covinflate>
-   hcovlocal_scale = horizontal localization scale in km
-   """
-   raise SystemExit(msg)
+if rank == 0:
+    if len(sys.argv) == 1:
+       msg="""
+    python sqg_lgetkf_cv.py hcovlocal_scale
+       hcovlocal_scale = horizontal localization scale in km
+       """
+       raise SystemExit(msg)
+    
+    # horizontal covariance localization length scale in meters.
+    hcovlocal_scale = eval(sys.argv[1])
+else:
+    hcovlocal_scale=None
 
-# horizontal covariance localization length scale in meters.
-hcovlocal_scale = float(sys.argv[1])
+hcovlocal_scale = comm.bcast(hcovlocal_scale, root=0)
+
 exptname = os.getenv('exptname','test')
 threads = int(os.getenv('OMP_NUM_THREADS','1'))
 
@@ -34,89 +45,127 @@ read_restart = False
 #savedata = 'restart'
 savedata = None
 #nassim = 101
-#nassim_spinup = 100
-nassim = 600 # assimilation times to run
+#nassim_spinup = 1
+nassim = 1100 # assimilation times to run
 nassim_spinup = 100
 
 nanals = 16 # ensemble members
-nerger = True # use Nerger regularization for R localization
-ngroups = nanals  # number of groups for cross-validation (ngroups=nanals//n is "leave n out")
+ngroups = nanals//2  # number of groups for cross-validation (ngroups=nanals//N is "leave N out")
 
 oberrstdev = 1. # ob error standard deviation in K
 
 # nature run created using sqg_run.py.
-filename_climo = 'sqgu16_dek0_N96_6hrly.nc' # file name for forecast model climo
+filename_climo = 'sqgu20_N128_6hrly_12hdiff.nc' # file name for forecast model climo
 # perfect model
-filename_truth = 'sqgu16_dek0_N96_6hrly.nc' # file name for nature run to draw obs
+filename_truth = 'sqgu20_N128_6hrly_12hdiff.nc' # file name for nature run to draw obs
 #filename_truth = 'sqg_N256_N96_12hrly.nc' # file name for nature run to draw obs
 
-print('# filename_modelclimo=%s' % filename_climo)
-print('# filename_truth=%s' % filename_truth)
+if rank==0:
+    print('# filename_modelclimo=%s' % filename_climo)
+    print('# filename_truth=%s' % filename_truth)
 
 # fix random seed for reproducibility.
 rsobs = np.random.RandomState(42) # fixed seed for observations
-#rsics = np.random.RandomState() # varying seed for initial conditions
 rsics = np.random.RandomState(24) # fixed seed for initial conditions
 
 # get model info
-nc_climo = Dataset(filename_climo)
-# parameter used to scale PV to temperature units.
-scalefact = nc_climo.f*nc_climo.theta0/nc_climo.g
-# initialize qg model instances for each ensemble member.
-x = nc_climo.variables['x'][:]
-y = nc_climo.variables['y'][:]
-x, y = np.meshgrid(x, y)
-nx = len(x); ny = len(y)
-dt = nc_climo.dt
-if diff_efold == None: diff_efold=nc_climo.diff_efold
+if rank==0:
+    nc_climo = Dataset(filename_climo)
+    x = nc_climo.variables['x'][:]
+    y = nc_climo.variables['y'][:]
+    nx = len(x); ny = len(y)
+    x, y = np.meshgrid(x, y)
+else: 
+    nx = None; ny = None
+nx = comm.bcast(nx, root=0)
+ny = comm.bcast(ny, root=0)
+if rank != 0:
+    x = np.empty((ny,nx), np.float32)
+    y = np.empty((ny,nx), np.float32)
+comm.Bcast(x, root=0)
+comm.Bcast(y, root=0)
+
 pvens = np.empty((nanals,2,ny,nx),np.float32)
-if not read_restart:
-    pv_climo = nc_climo.variables['pv']
-    indxran = rsics.choice(pv_climo.shape[0],size=nanals,replace=False)
+if rank == 0:
+    # parameter used to scale PV to temperature units.
+    scalefact = nc_climo.f*nc_climo.theta0/nc_climo.g
+    dt = nc_climo.dt
+    nsq = nc_climo.nsq
+    f = nc_climo.f
+    r = nc_climo.r
+    U = nc_climo.U
+    H = nc_climo.H
+    tdiab = nc_climo.tdiab
+    diff_order = nc_climo.diff_order
+    if diff_efold == None: diff_efold=nc_climo.diff_efold
+    tstart = 0
+    if not read_restart:
+        pv_climo = nc_climo.variables['pv']
+        indxran = rsics.choice(pv_climo.shape[0],size=nanals,replace=False)
+        for nanal in range(nanals):
+            pvens[nanal] = pv_climo[indxran[nanal]]
+    else:
+        ncinit = Dataset('%s_restart.nc' % exptname, mode='r', format='NETCDF4_CLASSIC')
+        ncinit.set_auto_mask(False)
+        pvens[:] = ncinit.variables['pv_b'][-1,...]/scalefact
+        tstart = ncinit.variables['t'][-1]
+        #for nanal in range(nanals):
+        #    print(nanal, pvens[nanal].min(), pvens[nanal].max())
 else:
-    ncinit = Dataset('%s_restart.nc' % exptname, mode='r', format='NETCDF4_CLASSIC')
-    ncinit.set_auto_mask(False)
-    pvens[:] = ncinit.variables['pv_b'][-1,...]/scalefact
-    tstart = ncinit.variables['t'][-1]
-    #for nanal in range(nanals):
-    #    print(nanal, pvens[nanal].min(), pvens[nanal].max())
-# get OMP_NUM_THREADS (threads to use) from environment.
+    tdiab=None; dt=None; f=None; U=None; H=None; nsq=None; scalefact=None; diff_order=None; diff_efold=None; r=None; tstart=None
+comm.Bcast(pvens, root=0)
+dt = comm.bcast(dt, root=0)
+diff_efold = comm.bcast(diff_efold, root=0)
+scalefact = comm.bcast(scalefact, root=0)
+nsq = comm.bcast(nsq, root=0)
+tstart = comm.bcast(tstart, root=0)
+f = comm.bcast(f, root=0)
+U = comm.bcast(U, root=0)
+H = comm.bcast(H, root=0)
+tdiab = comm.bcast(tdiab, root=0)
+diff_order = comm.bcast(diff_order, root=0)
+diff_efold = comm.bcast(diff_efold, root=0)
+dt = comm.bcast(dt, root=0)
+r = comm.bcast(r, root=0)
+
 models = []
 for nanal in range(nanals):
-    if not read_restart:
-        pvens[nanal] = pv_climo[indxran[nanal]]
-        #print(nanal, pvens[nanal].min(), pvens[nanal].max())
     models.append(\
-    SQG(pvens[nanal],
-    nsq=nc_climo.nsq,f=nc_climo.f,dt=dt,U=nc_climo.U,H=nc_climo.H,\
-    r=nc_climo.r,tdiab=nc_climo.tdiab,\
-    diff_order=nc_climo.diff_order,diff_efold=diff_efold,threads=threads))
-if read_restart: ncinit.close()
+    SQG(pvens[nanal],dt=dt,nsq=nsq,f=f,U=U,H=H,r=r,tdiab=tdiab,diff_order=diff_order,diff_efold=diff_efold,threads=threads))
+if rank==0 and read_restart: ncinit.close()
 
-hcovlocal_km = int(hcovlocal_scale/1000.)
-print("# hcovlocal=%g diff_efold=%s nanals=%s ngroups=%s" %\
-     (hcovlocal_km,diff_efold,nanals,ngroups))
+hcovlocal_scale_km = hcovlocal_scale/1000.
+if rank==0:
+    print("# hcovlocal=%s diff_efold=%s nanals=%s ngroups=%s" %\
+         (hcovlocal_scale_km,diff_efold,nanals,ngroups))
 
 # each ob time nobs ob locations are randomly sampled (without
 # replacement) from the model grid
-#nobs = nx*ny//6 # number of obs to assimilate (randomly distributed)
-#nobs = nx*ny//6 # number of obs to assimilate (randomly distributed)
-#nobs = 2*nx*ny//24 # 768
-nobs = 2*nx*ny//18 # 1024
-#nobs = 2*nx*ny//12 # 1536
-#nobs = 2*nx*ny//9 # 2048
+nobs = 1024
 
 # nature run
-nc_truth = Dataset(filename_truth)
-pv_truth = nc_truth.variables['pv']
-# set up arrays for obs and localization function
-print('# random network nobs = %s' % nobs)
+if rank == 0:
+    nc_truth = Dataset(filename_truth)
+    pv_truth = nc_truth.variables['pv'][:]
+    obtimes = nc_truth.variables['t'][:]
+    nc_truth.close()
+    ntimes = pv_truth.shape[0]
+    # set up arrays for obs and localization function
+    print('# random network nobs = %s' % nobs)
+else:
+    ntimes = None
+ntimes = comm.bcast(ntimes, root=0)
+if rank != 0:
+    pv_truth = np.empty((ntimes, 2, ny ,nx), np.float32)
+    obtimes = np.empty(ntimes, np.float32)
+comm.Bcast(pv_truth, root=0)
+comm.Bcast(obtimes, root=0)
 
 oberrvar = oberrstdev**2*np.ones(nobs,np.float32)
+pvob = np.empty(nobs,np.float32)
 covlocal = np.empty((ny,nx),np.float32)
 covlocal_tmp = np.empty((nobs,nx*ny),np.float32)
 
-obtimes = nc_truth.variables['t'][:]
 if read_restart:
     timeslist = obtimes.tolist()
     ntstart = timeslist.index(tstart)
@@ -125,23 +174,26 @@ else:
     ntstart = 0
 assim_interval = obtimes[1]-obtimes[0]
 assim_timesteps = int(np.round(assim_interval/models[0].dt))
-print('# assim interval = %s secs (%s time steps)' % (assim_interval,assim_timesteps))
-print('# ntime,pverr_a,pvsprd_a,pverr_b,pvsprd_b,obfits_b,osprd_b+R,obbias_b,tr(P^a)/tr(P^b)')
+if rank == 0:
+    print('# assim interval = %s secs (%s time steps)' % (assim_interval,assim_timesteps))
+    print('# ntime,pverr_a,pvsprd_a,pverr_b,pvsprd_b,obfits_b,osprd_b+R,obbias_b,tr(P^a)/tr(P^b)')
 
 # initialize model clock
 for nanal in range(nanals):
     models[nanal].t = obtimes[ntstart]
 
 # initialize output file.
-if savedata is not None:
+if savedata is not None and rank == 0:
    nc = Dataset('%s.nc' % exptname, mode='w', format='NETCDF4_CLASSIC')
-   nc.r = models[0].r
+   nc.r = models[0].r[0]
    nc.f = models[0].f
    nc.U = models[0].U
    nc.L = models[0].L
    nc.H = models[0].H
    nc.nanals = nanals
    nc.hcovlocal_scale = hcovlocal_scale
+   nc.band_cutoffs = band_cutoffs
+   nc.crossbandcov_facts = crossband_covfacts
    nc.oberrstdev = oberrstdev
    nc.g = nc_climo.g; nc.theta0 = nc_climo.theta0
    nc.nsq = models[0].nsq
@@ -188,9 +240,10 @@ if savedata is not None:
 pvspec_errmean = None; pvspec_sprdmean = None
 
 ncount = 0
+normfact = np.array(np.sqrt(nanals-1),dtype=np.float32)
 
 N = models[0].N
-k = np.abs((N*np.fft.fftfreq(N))[0:(N//2)+1])
+k = N*np.fft.rfftfreq(N)
 l = N*np.fft.fftfreq(N)
 imax = len(k); jmax = len(l)
 k,l = np.meshgrid(k,l)
@@ -198,6 +251,9 @@ ktotsq = (k**2+l**2).astype(np.int32)
 jmax,imax = ktotsq.shape
 ktot = np.sqrt(ktotsq)
 ktotmax = (N//2)+1
+# grid points updated on this task
+ix = np.arange(models[0].N**2).reshape(N,N)
+npts_dist = ix[models[0].local_slice_grid].ravel()
 
 for ntime in range(nassim):
 
@@ -214,14 +270,13 @@ for ntime in range(nassim):
     yob = np.concatenate((y.ravel(),y.ravel()))[indxob]
     # compute covariance localization function for each ob
     for nob in range(nobs):
-        dist = cartdist(xob[nob],yob[nob],x,y,nc_climo.L,nc_climo.L)
+        dist = cartdist(xob[nob],yob[nob],x,y,models[0].L,models[0].L)
         covlocal = gaspcohn(dist/hcovlocal_scale)
-        covlocal_tmp[nob] = covlocal.ravel()
-        dist = cartdist(xob[nob],yob[nob],xob,yob,nc_climo.L,nc_climo.L)
+        covlocal_tmp[nob,...] = covlocal.ravel()
 
     # first-guess spread
-    pvensmean = pvens.mean(axis=0)
-    pvprime = pvens - pvensmean
+    pvensmean_b = pvens.mean(axis=0)
+    pvprime = pvens - pvensmean_b
 
     fsprd = (pvprime**2).sum(axis=0)/(nanals-1)
 
@@ -238,9 +293,9 @@ for ntime in range(nassim):
     obfits_b = (obfits**2).mean()
     obbias_b = obfits.mean()
     obsprd_b = obsprd.mean()
-    pvensmean_b = pvens.mean(axis=0).copy()
+    pvpert = pvens-pvensmean_b
     pverr_b = (scalefact*(pvensmean_b-pv_truth[ntime+ntstart]))**2
-    pvsprd_b = ((scalefact*(pvensmean_b-pvens))**2).sum(axis=0)/(nanals-1)
+    pvsprd_b = ((scalefact*pvpert)**2).sum(axis=0)/(nanals-1)
 
     if savedata is not None:
         if savedata == 'restart' and ntime != nassim-1:
@@ -254,34 +309,45 @@ for ntime in range(nassim):
 
     # EnKF update
     # create 1d state vector.
+    # concatenate along ensemble dimension 
     xens = pvens.reshape(nanals,2,nx*ny)
+    xmean = xens.mean(axis=0)
+    xprime = xens - xmean
+    hxprime = np.empty((nanals,nobs),np.float32)
+    for nanal in range(nanals):
+        hxprime[nanal] = (scalefact*xprime[nanal].reshape(2*nx*ny))[indxob] # surface pv obs
 
     # update state vector.
 
     # hxens,pvob are in PV units, xens is not
-    xens = lgetkf(xens,hxens,pvob,oberrvar,covlocal_tmp,nerger=nerger,ngroups=ngroups)
+    xens_updated = np.ascontiguousarray(np.zeros_like(xens))
+    xens = lgetkf(xens,hxprime,pvob-hxensmean_b,oberrvar,covlocal_tmp,ngroups=ngroups,npts_dist=npts_dist)
+    xens_updated[:,:,npts_dist] = xens[:,:,npts_dist]
+    comm.Allreduce(MPI.IN_PLACE, xens_updated, op=MPI.SUM)
+    xens = xens_updated
 
     # back to 3d state vector
     pvens = xens.reshape((nanals,2,ny,nx))
     t2 = time.time()
-    if profile: print('cpu time for EnKF update',t2-t1)
+    if profile and rank == 0: print('cpu time for EnKF update',t2-t1)
 
     pvensmean_a = pvens.mean(axis=0)
-    pvprime = pvens-pvensmean_a
+    pvprime = pvens - pvensmean_a
     asprd = (pvprime**2).sum(axis=0)/(nanals-1)
     asprd_over_fsprd = asprd.mean()/fsprd.mean()
 
     # print out analysis error, spread and innov stats for background
     pverr_a = (scalefact*(pvensmean_a-pv_truth[ntime+ntstart]))**2
     pvsprd_a = ((scalefact*(pvensmean_a-pvens))**2).sum(axis=0)/(nanals-1)
-    print("%s %g %g %g %g %g %g %g %g" %\
-    (ntime+ntstart,np.sqrt(pverr_a.mean()),np.sqrt(pvsprd_a.mean()),\
-     np.sqrt(pverr_b.mean()),np.sqrt(pvsprd_b.mean()),\
-     np.sqrt(obfits_b),np.sqrt(obsprd_b+oberrstdev**2),obbias_b,
-     asprd_over_fsprd))
+    if rank == 0:
+        print("%s %g %g %g %g %g %g %g %g" %\
+        (ntime+ntstart,np.sqrt(pverr_a.mean()),np.sqrt(pvsprd_a.mean()),\
+         np.sqrt(pverr_b.mean()),np.sqrt(pvsprd_b.mean()),\
+         np.sqrt(obfits_b),np.sqrt(obsprd_b+oberrstdev**2),obbias_b,
+         asprd_over_fsprd))
 
     # save data.
-    if savedata is not None:
+    if savedata is not None and rank == 0:
         if savedata == 'restart' and ntime != nassim-1:
             pass
         else:
@@ -294,12 +360,12 @@ for ntime in range(nassim):
     for nanal in range(nanals):
         pvens[nanal] = models[nanal].advance(timesteps=assim_timesteps,pv=pvens[nanal])
     t2 = time.time()
-    if profile: print('cpu time for ens forecast',t2-t1)
+    if profile and rank == 0: print('cpu time for ens forecast',t2-t1)
     if not np.all(np.isfinite(pvens)):
         raise SystemExit('non-finite values detected after forecast, stopping...')
 
     # compute spectra of error and spread
-    if ntime >= nassim_spinup:
+    if ntime >= nassim_spinup and rank == 0:
         pvfcstmean = pvens.mean(axis=0)
         pverrspec = scalefact*rfft2(pvfcstmean - pv_truth[ntime+ntstart+1])
         pverrspec_mag = (pverrspec*np.conjugate(pverrspec)).real
@@ -316,9 +382,9 @@ for ntime in range(nassim):
                 pvspec_sprdmean = pvspec_sprdmean+pvpertspec_mag
         ncount += 1
 
-if savedata: nc.close()
+if savedata and rank == 0: nc.close()
 
-if ncount:
+if ncount and rank == 0:
     pvspec_sprdmean = pvspec_sprdmean/ncount
     pvspec_errmean = pvspec_errmean/ncount
     pvspec_err = np.zeros(ktotmax,np.float32)
@@ -337,7 +403,8 @@ if ncount:
     wavenums = np.arange(ktotmax,dtype=np.float32)
     for n in range(1,ktotmax):
         print('# ',wavenums[n],pvspec_err[n],pvspec_sprd[n])
-    plt.loglog(wavenums[1:-1],pvspec_err[1:-1],color='r')
-    plt.loglog(wavenums[1:-1],pvspec_sprd[1:-1],color='b')
-    plt.title('error (red) and spread (blue) l=%s' % hcovlocal_km)
+    plt.loglog(wavenums[1:-1],pvspec_err[1:-1],color='r',label='error')
+    plt.loglog(wavenums[1:-1],pvspec_sprd[1:-1],color='b',label='spread')
+    plt.title('expt=%s' % exptname)
+    plt.legend()
     plt.savefig('errorspread_spectra_cv_%s.png' % exptname)

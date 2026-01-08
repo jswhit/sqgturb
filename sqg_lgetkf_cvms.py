@@ -19,7 +19,7 @@ rank = comm.Get_rank()
 if rank == 0:
     if len(sys.argv) == 1:
        msg="""
-    python sqg_lgetkf_cv.py hcovlocal_scale covinflate>
+    python sqg_lgetkf_cv.py hcovlocal_scale 
        hcovlocal_scales = horizontal localization scale(s) in km
        band_cutoffs = filter waveband cutoffs 
        crossbandcov_facts = cross-band covariance factors
@@ -76,9 +76,9 @@ ngroups = nanals//2  # number of groups for cross-validation (ngroups=nanals//N 
 oberrstdev = 1. # ob error standard deviation in K
 
 # nature run created using sqg_run.py.
-filename_climo = 'sqgu20_N128_6hrly.nc' # file name for forecast model climo
+filename_climo = 'sqgu20_N128_6hrly_12hdiff.nc' # file name for forecast model climo
 # perfect model
-filename_truth = 'sqgu20_N128_6hrly.nc' # file name for nature run to draw obs
+filename_truth = 'sqgu20_N128_6hrly_12hdiff.nc' # file name for nature run to draw obs
 #filename_truth = 'sqg_N256_N96_12hrly.nc' # file name for nature run to draw obs
 
 if rank==0:
