@@ -57,9 +57,9 @@ percentvar_cutoff = 0.95 # threshold for eigenvalues used in ensemble modulation
 oberrstdev = 1. # ob error standard deviation in K
 
 # nature run created using sqg_run.py.
-filename_climo = 'sqgu20_dek0_N96_6hrly.nc' # file name for forecast model climo
+filename_climo = 'sqgu20_N96_6hrly_12hdiff.nc' # file name for forecast model climo
 # perfect model
-filename_truth = 'sqgu20_dek0_N96_6hrly.nc' # file name for nature run to draw obs
+filename_truth = 'sqgu20_N96_6hrly_12hdiff.nc' # file name for nature run to draw obs
 #filename_truth = 'sqg_N256_N96_12hrly.nc' # file name for nature run to draw obs
 
 if rank==0:
@@ -289,7 +289,6 @@ ktotsq = (k**2+l**2).astype(np.int32)
 jmax,imax = ktotsq.shape
 ktot = np.sqrt(ktotsq)
 ktotmax = (N//2)+1
-distob = np.empty((nobs,nx*ny),np.float32)
 covlocal_ob = np.empty((nobs,nx*ny),np.float32)
 
 for ntime in range(nassim):
@@ -307,8 +306,8 @@ for ntime in range(nassim):
     yob = np.concatenate((y.ravel(),y.ravel()))[indxob]
     # compute covariance localization function for each ob
     for nob in range(nobs):
-        distob[nob,:] = cartdist(xob[nob],yob[nob],x1,y1,models[0].L,models[0].L)/hcovlocal_scale
-        covlocal_ob[nob,:] = gaspcohn(distob[nob]).ravel()
+        distob = cartdist(xob[nob],yob[nob],x1,y1,models[0].L,models[0].L)/hcovlocal_scale
+        covlocal_ob[nob,:] = gaspcohn(distob).ravel()
 
     # first-guess spread
     pvensmean_b = pvens.mean(axis=0)
