@@ -16,5 +16,5 @@ time stepping (dealiasing with 2/3 rule, hyperdiffusion treated implicitly).
 
 Jeff Whitaker December, 2016 <jeffrey.s.whitaker@noaa.gov>
 """
-from .enkf_utils import gaspcohn, cartdist, lgetkf, lgetkf_ms, lgetkf_ms_vloc
+from .enkf_utils import gaspcohn, cartdist, lgetkf, lgetkf_ms, lgetkf_ms_vloc, eigh, lgetkf_bloc
 from .sqg import SQG, MPI, fft_forward, fft_backward, newDistArrayGrid, newDistArraySpec
