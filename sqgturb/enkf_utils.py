@@ -285,6 +285,144 @@ def lgetkf_bloc(xens, omf, oberrs, sqrtcovlocal_local, covlocal_ob, indxob, covl
 
     return xens
 
+def lgetkfms_bloc(nlscales, xens, omf, oberrs, sqrtcovlocal_local, covlocal_ob, indxob, covlocal_model, scalefact, ngroups=None, npts_dist=None):
+
+    """returns ensemble updated by LGETKF with cross-validation and model-space localization"""
+
+    nanals = xens.shape[0]
+    nanals_orig = nanals//nlscales
+    ndim = xens.shape[-1]
+    if npts_dist is None:
+        npts_dist = np.arange(ndim)
+    xmean = xens.mean(axis=0)
+    xprime = xens - xmean
+    xprime_b = xprime.copy()
+    indx_ens=np.ones(nanals,np.bool_); indx_lev=np.ones(2,np.bool_)
+    if ngroups is None: # default is "leave one out" (nanals must be multiple of ngroups)
+        ngroups = nanals
+    if nanals % ngroups:
+        raise ValueError('nanals must be a multiple of ngroups')
+    else:
+        nanals_per_group = nanals//ngroups
+
+    def getYbvecs(normfact, hx, oberrvar):
+        hx = hx/normfact 
+        YbsqrtRinv = hx*np.sqrt(1./oberrvar)
+        YbRinv = hx*(1./oberrvar)
+        return YbsqrtRinv, YbRinv
+
+    def calcwts_mean(nens, hx, oberrvar, ominusf):
+        # nens is the original (unmodulated) ens size
+        nobs = hx.shape[1]
+        normfact = np.array(np.sqrt(nens-1),dtype=np.float32)
+        # gain-form etkf solution
+        # HZ^T = hxens * R**-1/2
+        # compute eigenvectors/eigenvalues of A = HZ^T HZ (C=left SV)
+        # (in Bishop paper HZ is nobs, nanals, here is it nanals, nobs)
+        # normalize so dot product is covariance
+        YbsqrtRinv, YbRinv = getYbvecs(normfact, hx,oberrvar)
+        a = np.dot(YbsqrtRinv,YbsqrtRinv.T)
+        evals, evecs = eigh(a)
+        evals = evals.clip(min=np.finfo(evals.dtype).eps)
+        # gammapI used in calculation of posterior cov in ensemble space
+        gammapI = evals+1.
+        # compute factor to multiply with model space ensemble perturbations
+        # to compute analysis increment (for mean update).
+        # This is the factor C (Gamma + I)**-1 C^T (HZ)^ T R**-1/2 (y - HXmean)
+        # in Bishop paper (eqs 10-12).
+        # pa = C (Gamma + I)**-1 C^T (analysis error cov in ensemble space)
+        # wts_ensmean = C (Gamma + I)**-1 C^T (HZ)^ T R**-1/2 (y - HXmean)
+        pa = np.dot(evecs/gammapI[np.newaxis,:],evecs.T)
+        return np.dot(pa, np.dot(YbRinv,ominusf))/normfact
+
+    def calcwts_perts(nens, hx_orig, hx, oberrvar):
+        # hx_orig contains the ensemble for the witheld member
+        # nens is the original (unmodulated) ens size
+        nobs = hx.shape[1]
+        normfact = np.array(np.sqrt(nens-1),dtype=np.float32)
+        # gain-form etkf solution
+        # HZ^T = hxens * R**-1/2
+        # compute eigenvectors/eigenvalues of A = HZ^T HZ (C=left SV)
+        # (in Bishop paper HZ is nobs, nanals, here is it nanals, nobs)
+        # normalize so dot product is covariance
+        YbsqrtRinv, YbRinv = getYbvecs(normfact,hx,oberrvar)
+        a = np.dot(YbsqrtRinv,YbsqrtRinv.T)
+        evals, evecs = eigh(a)
+        evals = evals.clip(min=np.finfo(evals.dtype).eps)
+        # gammapI used in calculation of posterior cov in ensemble space
+        gamma_inv = 1./evals; gammapI = evals+1.
+        # compute factor to multiply with model space ensemble perturbations
+        # to compute analysis increment (for perturbation update), save in single precision.
+        # This is -C [ (I - (Gamma+I)**-1/2)*Gamma**-1 ] C^T (HZ)^T R**-1/2 HXprime
+        # in Bishop paper (eqn 29).
+        # wts_ensperts = -C [ (I - (Gamma+I)**-1/2)*Gamma**-1 ] C^T (HZ)^T R**-1/2 HXprime
+        pasqrt=np.dot(evecs*(1.-np.sqrt(1./gammapI[np.newaxis,:]))*gamma_inv[np.newaxis,:],evecs.T)
+        return -np.dot(pasqrt, np.dot(YbRinv,hx_orig.T)).T/normfact # use witheld ens member here
+
+    nc = 0
+    for n in npts_dist:
+        mask = covlocal_ob[:,n] > np.finfo(covlocal_ob.dtype).eps
+        mask_local = covlocal_model[:,n] > np.finfo(covlocal_model.dtype).eps
+        # indices of model grid points in local volume on global grid
+        indx_local = np.nonzero(mask_local)[0]
+        # concatenate upper and lower
+        indx_local2 = np.concatenate([indx_local, indx_local+ndim])
+        # global indices of observations in local volume
+        indxob_local = np.nonzero(mask)[0]
+        # indices of observation grid points in local volume on local grid
+        indxob_local_local = np.isin(indx_local2,indxob[indxob_local])
+        nobs_local = len(indxob_local); npts_local = len(indx_local)
+        if nobs_local != indxob_local_local.sum():
+            raise ValueError('not all obs in local volume accounted for')
+        xprime_local = xprime_b[:,:,indx_local]
+        xprime2_local = modens(xprime_local,sqrtcovlocal_local[nc])
+        nanals2 = xprime2_local.shape[0]
+        nmindist = np.argmax(covlocal_model[indx_local,n])
+        #nanal_index = get_nanal_index(nanals, nanals2//nanals)
+        nanal_index1 = np.empty(nanals,np.int32)
+        nanal_index2  = np.empty(nanals2,np.int32)
+        nanal2 = 0
+        for nl in range(nlscales):
+            nanal1 = 0
+            for j in range(neig):
+                for nanal in range(nanals_orig):
+                    nanal_index1[nanal1]=nanal
+                    nanal_index2[nanal2]=nanal
+                    nanal1 += 1
+                    nanal2 += 1
+        if nobs_local > 0:
+            hxprime_local = np.empty((nanals,nobs_local),np.float32)
+            hxprime2_local = np.empty((nanals2,nobs_local),np.float32)
+            for nanal in range(nanals):
+                hxprime_local[nanal] = (scalefact*xprime_local[nanal].reshape(2*npts_local))[indxob_local_local]
+            for nanal in range(nanals2):
+                hxprime2_local[nanal] = (scalefact*xprime2_local[nanal].reshape(2*npts_local))[indxob_local_local]
+            oberrvar_local = oberrs[mask]
+            ominusf_local = omf[mask]
+            wts_ensmean = calcwts_mean(nanals, hxprime2_local, oberrvar_local, ominusf_local)
+            for k in range(2):
+                xmean[k,n] += np.dot(wts_ensmean,xprime2_local[:,k,nmindist])
+            # update sub-ensemble groups, using cross validation.
+            for ngrp in range(ngroups):
+                #nanal_cv = [na + ngrp*nanals_per_group for na in range(nanals_per_group)]
+                #nanals_sub = np.nonzero(np.isin(nanal_index,nanal_cv))
+                #hxprime_cv = np.delete(hxprime2_local,nanals_sub,axis=0)
+                #xprime_cv = np.delete(xprime2_local[:,:,nmindist],nanals_sub,axis=0)
+                nanal_cv = [na + ngrp*nanals_per_group for na in range(nanals_per_group)]
+                nanals_sub1 = np.nonzero(np.isin(nanal_index1,nanal_cv))
+                nanals_sub2 = np.nonzero(np.isin(nanal_index2,nanal_cv))
+                hxprime_cv = np.delete(hxprime2_local,nanals_sub2,axis=0)
+                xprime_cv = np.delete(xprime2[:,:,n],nanals_sub2,axis=0)
+                wts_ensperts_cv = calcwts_perts(nanals-nanals//ngroups, hxprime_local[nanals_sub1], hxprime_cv, oberrvar_local)
+                for k in range(2):
+                    xprime[nanal_cv,k,n] += np.dot(wts_ensperts_cv,xprime_cv[:,k])
+            xprime_mean = xprime[:,:,n].mean(axis=0) 
+            xprime[:,:,n] -= xprime_mean # ensure zero mean
+            xens[:,:,n] = xmean[:,n]+xprime[:,:,n]
+        nc += 1
+
+    return xens
+
 def lgetkf_ms(nlscales, xens, hxprime, omf, oberrs, covlocal, ngroups=None, npts_dist=None):
 
     """returns ensemble updated by LGETKF with 'leave one out' cross-validation and multi-scale R localization"""
