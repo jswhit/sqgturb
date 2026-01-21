@@ -377,14 +377,15 @@ def lgetkfms_bloc(nlscales, xens, omf, oberrs, sqrtcovlocal_local, covlocal_ob, 
         xprime_local = xprime_b[:,:,indx_local]
         xprime2_local = modens(xprime_local,sqrtcovlocal_local[nc])
         nanals2 = xprime2_local.shape[0]
+        neig = sqrtcovlocal_local[nc].shape[0]
         nmindist = np.argmax(covlocal_model[indx_local,n])
         #nanal_index = get_nanal_index(nanals, nanals2//nanals)
         nanal_index1 = np.empty(nanals,np.int32)
-        nanal_index2  = np.empty(nanals2,np.int32)
+        nanal_index2 = np.empty(nanals2,np.int32)
         nanal2 = 0
-        for nl in range(nlscales):
+        for j in range(neig):
             nanal1 = 0
-            for j in range(neig):
+            for nl in range(nlscales):
                 for nanal in range(nanals_orig):
                     nanal_index1[nanal1]=nanal
                     nanal_index2[nanal2]=nanal
@@ -412,7 +413,7 @@ def lgetkfms_bloc(nlscales, xens, omf, oberrs, sqrtcovlocal_local, covlocal_ob, 
                 nanals_sub1 = np.nonzero(np.isin(nanal_index1,nanal_cv))
                 nanals_sub2 = np.nonzero(np.isin(nanal_index2,nanal_cv))
                 hxprime_cv = np.delete(hxprime2_local,nanals_sub2,axis=0)
-                xprime_cv = np.delete(xprime2[:,:,n],nanals_sub2,axis=0)
+                xprime_cv = np.delete(xprime2_local[:,:,nmindist],nanals_sub2,axis=0)
                 wts_ensperts_cv = calcwts_perts(nanals-nanals//ngroups, hxprime_local[nanals_sub1], hxprime_cv, oberrvar_local)
                 for k in range(2):
                     xprime[nanal_cv,k,n] += np.dot(wts_ensperts_cv,xprime_cv[:,k])

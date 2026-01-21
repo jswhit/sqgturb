@@ -209,8 +209,9 @@ for n in npts_dist:
         evals, evecs = eigh(covlocal22)
         evals = evals.clip(min=np.finfo(evals.dtype).eps)
         sqrtcovlocal22 = evecs*np.sqrt(evals)
-        covlocal12 = crossbandcov_facts[0]*np.dot(sqrtcovlocal11,sqrtcovlocal22.T)
-        covlocal21 = crossbandcov_facts[0]*np.dot(sqrtcovlocal22,sqrtcovlocal11.T)
+        covlocal12 = np.dot(sqrtcovlocal11,sqrtcovlocal22.T)
+        #covlocal21 = np.dot(sqrtcovlocal22,sqrtcovlocal11.T)
+        covlocal21 = covlocal12.T
         covlocal_local = np.block([[covlocal11, covlocal12],[covlocal21, covlocal22]])
         evals, evecs = eigh(covlocal_local)
         evals = evals.clip(min=np.finfo(evals.dtype).eps)
@@ -220,8 +221,6 @@ for n in npts_dist:
             if percentvar > percentvar_cutoff: # perc variance cutoff truncation
                 neig = i
                 break
-        print(neig)
-        raise SystemExit
         evecs_norm = (evecs*np.sqrt(evals/percentvar)).T
         sqrtcovlocal = evecs_norm[-neig:,:]
         sqrtcovlocal_local.append(sqrtcovlocal)
@@ -364,7 +363,7 @@ for ntime in range(nassim):
     yob = np.concatenate((y.ravel(),y.ravel()))[indxob]
     # compute covariance localization function for each ob
     for nob in range(nobs):
-        distob = cartdist(xob[nob],yob[nob],x1,y1,models[0].L,models[0].L)/hcovlocal_scale
+        distob = cartdist(xob[nob],yob[nob],x1,y1,models[0].L,models[0].L)/hcovlocal_scales[0]
         covlocal_ob[nob,:] = gaspcohn(distob).ravel()
 
     # first-guess spread
@@ -465,7 +464,7 @@ for ntime in range(nassim):
 
     # hxens,pvob are in PV units, xens is not
     xens_updated = np.ascontiguousarray(np.zeros_like(xens))
-    xens = lgetkfms_bloc(nlscales, xens, pvob-hxensmean_b, oberrvar, sqrtcovlocal_local, covlocal_ob, indxob, covlocal_model, scalefact, ngroups=ngroups, npts_dist=npts_dist)
+    xens = lgetkfms_bloc(nlscales, xens, pvob-hxensmean_b, oberrvar, sqrtcovlocal_local, covlocal_ob, indxob, covlocal_model[0], scalefact, ngroups=ngroups, npts_dist=npts_dist)
     xens_updated[:,:,npts_dist] = xens[:,:,npts_dist]
     comm.Allreduce(MPI.IN_PLACE, xens_updated, op=MPI.SUM)
     xens = xens_updated
