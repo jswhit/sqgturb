@@ -372,10 +372,8 @@ for ntime in range(nassim):
 
     fsprd = (pvprime**2).sum(axis=0)/(nanals-1)
 
-    # compute forward operator on modulated ensemble.
     # hxens is ensemble in observation space.
     hxens = np.empty((nanals,nobs),np.float32)
-
     for nanal in range(nanals):
         hxens[nanal] = scalefact*pvens[nanal,...].reshape(2*nx*ny)[indxob] # surface pv obs
     hxensmean_b = hxens.mean(axis=0)
@@ -453,12 +451,9 @@ for ntime in range(nassim):
     # EnKF update
     # create 1d state vector.
     # concatenate along ensemble dimension 
-    xens = pvens.reshape(nanals,2,nx*ny)
+    xens = pvens.reshape(nanals*nlscales,2,nx*ny)
     xmean = xens.mean(axis=0)
     xprime = xens - xmean
-    hxprime = np.empty((nanals,nobs),np.float32)
-    for nanal in range(nanals):
-        hxprime[nanal] = (scalefact*xprime[nanal].reshape(2*nx*ny))[indxob] # surface pv obs
 
     # update state vector.
 
