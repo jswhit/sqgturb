@@ -377,7 +377,7 @@ def lgetkfms_bloc(xmean, xprime, omf, oberrs, sqrtcovlocal_local, covlocal_ob, i
         neig = sqrtcovlocal_local[nc].shape[0]
         nanals2 = nanals*neig
         xprime2_local = (modens(xprime_local.reshape((nanals,2,nlscales*npts_local)),sqrtcovlocal_local[nc])).reshape((nanals2,2,nlscales,npts_local))
-        xprime2_local = xprime2_local.sum(axis=2) # sum over wavebands
+        xprime2_local = xprime2_local.sum(axis=2) # sum over wavebands after modulation
         xprime_local = xprime_local.sum(axis=2) # sum over wavebands
         nmindist = np.argmax(covlocal_model[indx_local,n])
         nanal_index = get_nanal_index(nanals, neig)

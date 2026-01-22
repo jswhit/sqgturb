@@ -44,14 +44,6 @@ band_cutoffs = comm.bcast(band_cutoffs, root=0)
 nband_cutoffs = comm.bcast(nband_cutoffs, root=0)
 nlscales = comm.bcast(nlscales, root=0)
 crossbandcov_facts = comm.bcast(crossbandcov_facts, root=0)
-crossband_covmat = np.ones((nlscales,nlscales),np.float32)
-crossband_covmatr = np.ones((nlscales,nlscales),np.float32)
-for i in range(nlscales):
-    for j in range(nlscales):
-        if j != i:
-            crossband_covmat[j,i] = crossbandcov_facts[np.abs(i-j)-1] 
-            crossband_covmatr[j,i] = -crossbandcov_facts[np.abs(i-j)-1] 
-
 
 exptname = os.getenv('exptname','test')
 threads = int(os.getenv('OMP_NUM_THREADS','1'))
@@ -74,7 +66,7 @@ nassim_spinup = 100
 nanals = 16 # ensemble members
 ngroups = nanals//2  # number of groups for cross-validation (ngroups=nanals//N is "leave N out")
 
-percentvar_cutoff = 0.95 # threshold for eigenvalues used in ensemble modulation
+percentvar_cutoff = 0.9 # threshold for eigenvalues used in ensemble modulation
 
 oberrstdev = 1. # ob error standard deviation in K
 
@@ -164,7 +156,7 @@ hcovlocal_scales_km = [lscale/1000. for lscale in hcovlocal_scales]
 if rank==0:
     print("# hcovlocal=%s diff_efold=%s nanals=%s ngroups=%s" %\
          (repr(hcovlocal_scales_km),diff_efold,nanals,ngroups))
-    print('# band_cutoffs=%s crossbandcov_facts=%s' % (repr(band_cutoffs),repr(crossbandcov_facts)))
+    print('# band_cutoffs=%s crossbandcov_facts=%s eigcutoff=%s' % (repr(band_cutoffs),repr(crossbandcov_facts)),percentvar_cutoff)
 
 # each ob time nobs ob locations are randomly sampled (without
 # replacement) from the model grid
@@ -225,16 +217,11 @@ for n in npts_dist:
         sqrtcovlocal = evecs_norm[-neig:,:]
         sqrtcovlocal_local.append(sqrtcovlocal)
     elif nlscales == 1:
-        evals, evecs = eigh(covlocal11)
-        evals = evals.clip(min=np.finfo(evals.dtype).eps)
-        neig = 1
         for i in range(1,npts):
             percentvar = evals[-i:].sum()/evals.sum()
             if percentvar > percentvar_cutoff: # perc variance cutoff truncation
                 neig = i
                 break
-        #print(neig)
-        #raise SystemExit
         evecs_norm = (evecs*np.sqrt(evals/percentvar)).T
         sqrtcovlocal = evecs_norm[-neig:,:]
         sqrtcovlocal_local.append(sqrtcovlocal)
@@ -448,14 +435,11 @@ for ntime in range(nassim):
         pvprime = np.empty((nanals, 2, nlscales, ny, nx),np.float32)
         for nlscale in range(nlscales):
             pvprime[:,:,nlscale,:,:] = pvens_filtered_lst[nlscale]
-        pvens += pvensmean_b  # mean added back to all scales.
-        #pvens[:,0,...] += pvensmean_b  # mean added back to largest scale
 
     # EnKF update
     # create 1d state vector.
     xprime = pvprime.reshape(nanals,2,nlscales,nx*ny)
     xmean = pvensmean_b.reshape(2,nx*ny)
-    #xens = xprime.sum(axis=2) + xmean # sum over wavebands
 
     # update state vector.
 
