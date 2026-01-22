@@ -209,8 +209,8 @@ for n in npts_dist:
         evals, evecs = eigh(covlocal22)
         evals = evals.clip(min=np.finfo(evals.dtype).eps)
         sqrtcovlocal22 = evecs*np.sqrt(evals)
-        covlocal12 = np.dot(sqrtcovlocal11,sqrtcovlocal22.T)
-        #covlocal21 = np.dot(sqrtcovlocal22,sqrtcovlocal11.T)
+        covlocal12 = crossbandcov_facts[0]*np.dot(sqrtcovlocal11,sqrtcovlocal22.T)
+        #covlocal21 = crossbandcov_facts[0]*np.dot(sqrtcovlocal22,sqrtcovlocal11.T)
         covlocal21 = covlocal12.T
         covlocal_local = np.block([[covlocal11, covlocal12],[covlocal21, covlocal22]])
         evals, evecs = eigh(covlocal_local)
@@ -370,6 +370,16 @@ for ntime in range(nassim):
     pvensmean_b = pvens.mean(axis=0)
     pvprime = pvens - pvensmean_b
 
+    if savedata is not None:
+        if savedata == 'restart' and ntime != nassim-1:
+            pass
+        else:
+            pv_t[ntime] = pv_truth[ntime+ntstart]
+            pv_b[ntime,:,:,:] = scalefact*pvens
+            pv_obs[ntime] = pvob
+            x_obs[ntime] = xob
+            y_obs[ntime] = yob
+
     fsprd = (pvprime**2).sum(axis=0)/(nanals-1)
 
     # hxens is ensemble in observation space.
@@ -386,6 +396,7 @@ for ntime in range(nassim):
     pvpert = pvens-pvensmean_b
     pverr_b = (scalefact*(pvensmean_b-pv_truth[ntime+ntstart]))**2
     pvsprd_b = ((scalefact*pvpert)**2).sum(axis=0)/(nanals-1)
+    xens = pvens.reshape(nanals,2,nx*ny).copy()
 
     # filter background perturbations into different scale bands
     if nlscales > 1:
@@ -434,44 +445,30 @@ for ntime in range(nassim):
         #plt.show()
         #raise SystemExit
 
-        pvens_filtered = np.asarray(pvens_filtered_lst)
-        pvens = np.dot(pvens_filtered.T,crossband_covmat).T
+        pvprime = np.empty((nanals, 2, nlscales, ny, nx),np.float32)
+        for nlscale in range(nlscales):
+            pvprime[:,:,nlscale,:,:] = pvens_filtered_lst[nlscale]
         pvens += pvensmean_b  # mean added back to all scales.
-
-    if savedata is not None:
-        if savedata == 'restart' and ntime != nassim-1:
-            pass
-        else:
-            pv_t[ntime] = pv_truth[ntime+ntstart]
-            pv_b[ntime,:,:,:] = scalefact*pvens
-            pv_obs[ntime] = pvob
-            x_obs[ntime] = xob
-            y_obs[ntime] = yob
+        #pvens[:,0,...] += pvensmean_b  # mean added back to largest scale
 
     # EnKF update
     # create 1d state vector.
-    # concatenate along ensemble dimension 
-    xens = pvens.reshape(nanals*nlscales,2,nx*ny)
-    xmean = xens.mean(axis=0)
-    xprime = xens - xmean
+    xprime = pvprime.reshape(nanals,2,nlscales,nx*ny)
+    xmean = pvensmean_b.reshape(2,nx*ny)
+    #xens = xprime.sum(axis=2) + xmean # sum over wavebands
 
     # update state vector.
 
     # hxens,pvob are in PV units, xens is not
     xens_updated = np.ascontiguousarray(np.zeros_like(xens))
-    xens = lgetkfms_bloc(nlscales, xens, pvob-hxensmean_b, oberrvar, sqrtcovlocal_local, covlocal_ob, indxob, covlocal_model[0], scalefact, ngroups=ngroups, npts_dist=npts_dist)
+    xens = lgetkfms_bloc(xmean, xprime, pvob-hxensmean_b, oberrvar, sqrtcovlocal_local, covlocal_ob, indxob, covlocal_model[0], scalefact, ngroups=ngroups, npts_dist=npts_dist)
     xens_updated[:,:,npts_dist] = xens[:,:,npts_dist]
     comm.Allreduce(MPI.IN_PLACE, xens_updated, op=MPI.SUM)
     xens = xens_updated
 
     # back to 3d state vector
-    pvens = xens.reshape((nlscales*nanals,2,ny,nx))
-    pvensmean_a = pvens.mean(axis=0) 
-    if nlscales > 1:
-        pvens_filtered = pvens - pvensmean_a
-        pvens_filtered = pvens_filtered.reshape(nlscales,nanals,2,ny,nx)
-        pvprime = np.dot(pvens_filtered.T,crossband_covmatr).T
-        pvens = pvprime.sum(axis=0) + pvensmean_a
+    pvens = xens.reshape((nanals,2,ny,nx))
+    pvensmean_a = pvens.mean(axis=0)
     t2 = time.time()
     if profile and rank == 0: print('cpu time for EnKF update',t2-t1)
 

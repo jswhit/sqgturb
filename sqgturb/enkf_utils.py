@@ -285,18 +285,17 @@ def lgetkf_bloc(xens, omf, oberrs, sqrtcovlocal_local, covlocal_ob, indxob, covl
 
     return xens
 
-def lgetkfms_bloc(nlscales, xens, omf, oberrs, sqrtcovlocal_local, covlocal_ob, indxob, covlocal_model, scalefact, ngroups=None, npts_dist=None):
+def lgetkfms_bloc(xmean, xprime, omf, oberrs, sqrtcovlocal_local, covlocal_ob, indxob, covlocal_model, scalefact, ngroups=None, npts_dist=None):
 
     """returns ensemble updated by LGETKF with cross-validation and model-space localization"""
 
-    nanals = xens.shape[0]
-    nanals_orig = nanals//nlscales
-    ndim = xens.shape[-1]
+    nanals = xprime.shape[0]
+    nlscales = xprime.shape[2]
+    ndim = xprime.shape[-1]
     if npts_dist is None:
         npts_dist = np.arange(ndim)
-    xmean = xens.mean(axis=0)
-    xprime = xens - xmean
     xprime_b = xprime.copy()
+    xprime_updated = xprime_b.sum(axis=2) # sum over wavebands
     indx_ens=np.ones(nanals,np.bool_); indx_lev=np.ones(2,np.bool_)
     if ngroups is None: # default is "leave one out" (nanals must be multiple of ngroups)
         ngroups = nanals
@@ -320,7 +319,7 @@ def lgetkfms_bloc(nlscales, xens, omf, oberrs, sqrtcovlocal_local, covlocal_ob, 
         # compute eigenvectors/eigenvalues of A = HZ^T HZ (C=left SV)
         # (in Bishop paper HZ is nobs, nanals, here is it nanals, nobs)
         # normalize so dot product is covariance
-        YbsqrtRinv, YbRinv = getYbvecs(normfact, hx,oberrvar)
+        YbsqrtRinv, YbRinv = getYbvecs(normfact,hx,oberrvar)
         a = np.dot(YbsqrtRinv,YbsqrtRinv.T)
         evals, evecs = eigh(a)
         evals = evals.clip(min=np.finfo(evals.dtype).eps)
@@ -374,23 +373,14 @@ def lgetkfms_bloc(nlscales, xens, omf, oberrs, sqrtcovlocal_local, covlocal_ob, 
         nobs_local = len(indxob_local); npts_local = len(indx_local)
         if nobs_local != indxob_local_local.sum():
             raise ValueError('not all obs in local volume accounted for')
-        xprime_local = xprime_b[:,:,indx_local]
-        xprime2_local = modens(xprime_local,sqrtcovlocal_local[nc])
-        nanals2 = xprime2_local.shape[0]
+        xprime_local = xprime_b[:,:,:,indx_local]
         neig = sqrtcovlocal_local[nc].shape[0]
+        nanals2 = nanals*neig
+        xprime2_local = (modens(xprime_local.reshape((nanals,2,nlscales*npts_local)),sqrtcovlocal_local[nc])).reshape((nanals2,2,nlscales,npts_local))
+        xprime2_local = xprime2_local.sum(axis=2) # sum over wavebands
+        xprime_local = xprime_local.sum(axis=2) # sum over wavebands
         nmindist = np.argmax(covlocal_model[indx_local,n])
-        #nanal_index = get_nanal_index(nanals, nanals2//nanals)
-        nanal_index1 = np.empty(nanals,np.int32)
-        nanal_index2 = np.empty(nanals2,np.int32)
-        nanal2 = 0
-        for j in range(neig):
-            nanal1 = 0
-            for nl in range(nlscales):
-                for nanal in range(nanals_orig):
-                    nanal_index1[nanal1]=nanal
-                    nanal_index2[nanal2]=nanal
-                    nanal1 += 1
-                    nanal2 += 1
+        nanal_index = get_nanal_index(nanals, neig)
         if nobs_local > 0:
             hxprime_local = np.empty((nanals,nobs_local),np.float32)
             hxprime2_local = np.empty((nanals2,nobs_local),np.float32)
@@ -405,24 +395,18 @@ def lgetkfms_bloc(nlscales, xens, omf, oberrs, sqrtcovlocal_local, covlocal_ob, 
                 xmean[k,n] += np.dot(wts_ensmean,xprime2_local[:,k,nmindist])
             # update sub-ensemble groups, using cross validation.
             for ngrp in range(ngroups):
-                #nanal_cv = [na + ngrp*nanals_per_group for na in range(nanals_per_group)]
-                #nanals_sub = np.nonzero(np.isin(nanal_index,nanal_cv))
-                #hxprime_cv = np.delete(hxprime2_local,nanals_sub,axis=0)
-                #xprime_cv = np.delete(xprime2_local[:,:,nmindist],nanals_sub,axis=0)
                 nanal_cv = [na + ngrp*nanals_per_group for na in range(nanals_per_group)]
-                nanals_sub1 = np.nonzero(np.isin(nanal_index1,nanal_cv))
-                nanals_sub2 = np.nonzero(np.isin(nanal_index2,nanal_cv))
-                hxprime_cv = np.delete(hxprime2_local,nanals_sub2,axis=0)
-                xprime_cv = np.delete(xprime2_local[:,:,nmindist],nanals_sub2,axis=0)
-                wts_ensperts_cv = calcwts_perts(nanals-nanals//ngroups, hxprime_local[nanals_sub1], hxprime_cv, oberrvar_local)
+                nanals_sub = np.nonzero(np.isin(nanal_index,nanal_cv))
+                hxprime_cv = np.delete(hxprime2_local,nanals_sub,axis=0)
+                xprime_cv = np.delete(xprime2_local[:,:,nmindist],nanals_sub,axis=0)
+                wts_ensperts_cv = calcwts_perts(nanals-nanals//ngroups, hxprime_local[nanal_cv], hxprime_cv, oberrvar_local)
                 for k in range(2):
-                    xprime[nanal_cv,k,n] += np.dot(wts_ensperts_cv,xprime_cv[:,k])
-            xprime_mean = xprime[:,:,n].mean(axis=0) 
-            xprime[:,:,n] -= xprime_mean # ensure zero mean
-            xens[:,:,n] = xmean[:,n]+xprime[:,:,n]
+                    xprime_updated[nanal_cv,k,n] += np.dot(wts_ensperts_cv,xprime_cv[:,k])
+            xprime_mean = xprime_updated[:,:,n].mean(axis=0) 
+            xprime_updated[:,:,n] -= xprime_mean # ensure zero mean
         nc += 1
 
-    return xens
+    return xmean+xprime_updated
 
 def lgetkf_ms(nlscales, xens, hxprime, omf, oberrs, covlocal, ngroups=None, npts_dist=None):
 
