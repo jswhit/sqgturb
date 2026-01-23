@@ -46,9 +46,6 @@ def get_nanal_index(nanals, neig):
 #            nanal2 += 1
 #    return nanal_index
 
-def get_nanal_index(nanals, neig):
-    return np.multiply(np.repeat(np.ones(neig),nanals,axis=0),np.tile(np.arange(nanals),(neig,)))
-
 def gaspcohn(r):
     """
     Gaspari-Cohn taper function.
