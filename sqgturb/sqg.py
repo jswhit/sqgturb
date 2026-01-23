@@ -122,9 +122,8 @@ class SQG:
         k = N * np.fft.rfftfreq(N)
         l = N * np.fft.fftfreq(N)
         kk, ll = np.meshgrid(k, l)
-        self.nyquist_mask = ~np.logical_and(kk[self.local_slice_spec] < self.N//2, np.abs(ll[self.local_slice_spec]) < self.N/2)
-        k = kk.astype(dtype)
-        l = ll.astype(dtype)
+        self.nyquist_mask = ~np.logical_and(kk[self.local_slice_spec] < self.N//2, np.abs(ll[self.local_slice_spec]) < self.N//2)
+        k = kk.astype(dtype); l = ll.astype(dtype)
         # dimensionalize wavenumbers.
         k = 2.0 * pi * k / self.L
         l = 2.0 * pi * l / self.L
@@ -226,10 +225,8 @@ if __name__ == "__main__":
     nranks = comm.Get_size()
     rank = comm.Get_rank()
     
-    N = 128 # size of domain 
-    dt = 720 # time step in seconds
-    #N = 96 
-    #dt = 1200 
+    N = 96 
+    dt = 1200 
     diff_efold = 12.*3600. # hyperdiffusion dampling time scale on shortest wave
     norder = 8 # order of hyperdiffusion
     r = 0 # Ekman damping 
