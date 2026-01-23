@@ -66,7 +66,7 @@ nassim_spinup = 100
 nanals = 16 # ensemble members
 ngroups = nanals//2  # number of groups for cross-validation (ngroups=nanals//N is "leave N out")
 
-percentvar_cutoff = 0.9 # threshold for eigenvalues used in ensemble modulation
+percentvar_cutoff = 0.95 # threshold for eigenvalues used in ensemble modulation
 
 oberrstdev = 1. # ob error standard deviation in K
 
@@ -156,7 +156,7 @@ hcovlocal_scales_km = [lscale/1000. for lscale in hcovlocal_scales]
 if rank==0:
     print("# hcovlocal=%s diff_efold=%s nanals=%s ngroups=%s" %\
          (repr(hcovlocal_scales_km),diff_efold,nanals,ngroups))
-    print('# band_cutoffs=%s crossbandcov_facts=%s eigcutoff=%s' % (repr(band_cutoffs),repr(crossbandcov_facts)),percentvar_cutoff)
+    print('# band_cutoffs=%s crossbandcov_facts=%s eigcutoff=%s' % (repr(band_cutoffs),repr(crossbandcov_facts),percentvar_cutoff))
 
 # each ob time nobs ob locations are randomly sampled (without
 # replacement) from the model grid

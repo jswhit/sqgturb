@@ -199,9 +199,15 @@ def lgetkf_bloc(xens, omf, oberrs, sqrtcovlocal_local, covlocal_ob, indxob, covl
         # (in Bishop paper HZ is nobs, nanals, here is it nanals, nobs)
         # normalize so dot product is covariance
         YbsqrtRinv, YbRinv = getYbvecs(normfact, hx,oberrvar)
-        a = np.dot(YbsqrtRinv,YbsqrtRinv.T)
-        evals, evecs = eigh(a)
-        evals = evals.clip(min=np.finfo(evals.dtype).eps)
+        if nobs >= nens:
+            a = np.dot(YbsqrtRinv,YbsqrtRinv.T)
+            evals, evecs = eigh(a)
+            evals = evals.clip(min=np.finfo(evals.dtype).eps)
+        else:
+            a = np.dot(YbsqrtRinv.T,YbsqrtRinv)
+            evals, evecs = eigh(a)
+            evals = evals.clip(min=np.finfo(evals.dtype).eps)
+            evecs = np.dot(YbsqrtRinv,evecs/np.sqrt(evals))
         # gammapI used in calculation of posterior cov in ensemble space
         gammapI = evals+1.
         # compute factor to multiply with model space ensemble perturbations
@@ -224,9 +230,15 @@ def lgetkf_bloc(xens, omf, oberrs, sqrtcovlocal_local, covlocal_ob, indxob, covl
         # (in Bishop paper HZ is nobs, nanals, here is it nanals, nobs)
         # normalize so dot product is covariance
         YbsqrtRinv, YbRinv = getYbvecs(normfact,hx,oberrvar)
-        a = np.dot(YbsqrtRinv,YbsqrtRinv.T)
-        evals, evecs = eigh(a)
-        evals = evals.clip(min=np.finfo(evals.dtype).eps)
+        if nobs >= nens:
+            a = np.dot(YbsqrtRinv,YbsqrtRinv.T)
+            evals, evecs = eigh(a)
+            evals = evals.clip(min=np.finfo(evals.dtype).eps)
+        else:
+            a = np.dot(YbsqrtRinv.T,YbsqrtRinv)
+            evals, evecs = eigh(a)
+            evals = evals.clip(min=np.finfo(evals.dtype).eps)
+            evecs = np.dot(YbsqrtRinv,evecs/np.sqrt(evals))
         # gammapI used in calculation of posterior cov in ensemble space
         gamma_inv = 1./evals; gammapI = evals+1.
         # compute factor to multiply with model space ensemble perturbations
@@ -320,9 +332,15 @@ def lgetkfms_bloc(xmean, xprime, omf, oberrs, sqrtcovlocal_local, covlocal_ob, i
         # (in Bishop paper HZ is nobs, nanals, here is it nanals, nobs)
         # normalize so dot product is covariance
         YbsqrtRinv, YbRinv = getYbvecs(normfact,hx,oberrvar)
-        a = np.dot(YbsqrtRinv,YbsqrtRinv.T)
-        evals, evecs = eigh(a)
-        evals = evals.clip(min=np.finfo(evals.dtype).eps)
+        if nobs >= nens:
+            a = np.dot(YbsqrtRinv,YbsqrtRinv.T)
+            evals, evecs = eigh(a)
+            evals = evals.clip(min=np.finfo(evals.dtype).eps)
+        else:
+            a = np.dot(YbsqrtRinv.T,YbsqrtRinv)
+            evals, evecs = eigh(a)
+            evals = evals.clip(min=np.finfo(evals.dtype).eps)
+            evecs = np.dot(YbsqrtRinv,evecs/np.sqrt(evals))
         # gammapI used in calculation of posterior cov in ensemble space
         gammapI = evals+1.
         # compute factor to multiply with model space ensemble perturbations
@@ -345,9 +363,15 @@ def lgetkfms_bloc(xmean, xprime, omf, oberrs, sqrtcovlocal_local, covlocal_ob, i
         # (in Bishop paper HZ is nobs, nanals, here is it nanals, nobs)
         # normalize so dot product is covariance
         YbsqrtRinv, YbRinv = getYbvecs(normfact,hx,oberrvar)
-        a = np.dot(YbsqrtRinv,YbsqrtRinv.T)
-        evals, evecs = eigh(a)
-        evals = evals.clip(min=np.finfo(evals.dtype).eps)
+        if nobs >= nens:
+            a = np.dot(YbsqrtRinv,YbsqrtRinv.T)
+            evals, evecs = eigh(a)
+            evals = evals.clip(min=np.finfo(evals.dtype).eps)
+        else:
+            a = np.dot(YbsqrtRinv.T,YbsqrtRinv)
+            evals, evecs = eigh(a)
+            evals = evals.clip(min=np.finfo(evals.dtype).eps)
+            evecs = np.dot(YbsqrtRinv,evecs/np.sqrt(evals))
         # gammapI used in calculation of posterior cov in ensemble space
         gamma_inv = 1./evals; gammapI = evals+1.
         # compute factor to multiply with model space ensemble perturbations
