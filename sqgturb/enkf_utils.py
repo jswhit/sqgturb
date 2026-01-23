@@ -1,4 +1,5 @@
 import numpy as np
+import time
 try:
     from scipy.linalg import eigh
 except:
@@ -20,7 +21,10 @@ def modens(enspert, sqrtcovlocal):
     nanals = enspert.shape[0]
     neig = sqrtcovlocal.shape[0]
     return np.multiply(np.repeat(sqrtcovlocal[:,np.newaxis,:],nanals,axis=0),np.tile(enspert,(neig,1,1)))
+def get_nanal_index(nanals, neig):
+    return np.multiply(np.repeat(np.ones(neig),nanals,axis=0),np.tile(np.arange(nanals),(neig,)))
 
+# ensemble modulator
 #def modens(enspert, sqrtcovlocal):
 #    neig = sqrtcovlocal.shape[0]
 #    nanals = enspert.shape[0]
@@ -30,9 +34,17 @@ def modens(enspert, sqrtcovlocal):
 #        for nanal in range(nanals):
 #            for k in range(2):
 #                enspert2[nanal2,k,...] =\
-#                enspert[nanal,k,...]*sqrtcovlocal[neig-j-1,np.newaxis,...]
+#                enspert[nanal,k,...]*sqrtcovlocal[j,np.newaxis,...]
+##               enspert[nanal,k,...]*sqrtcovlocal[neig-j-1,np.newaxis,...]
 #            nanal2 += 1
 #    return enspert2
+#def get_nanal_index(nanals, neig):
+#    nanal_index=np.empty(nanals, np.int32)
+#    for j in range(neig):
+#        for nanal in range(nanals):
+#            nanal_index[nanal2]=nanal
+#            nanal2 += 1
+#    return nanal_index
 
 def get_nanal_index(nanals, neig):
     return np.multiply(np.repeat(np.ones(neig),nanals,axis=0),np.tile(np.arange(nanals),(neig,)))
@@ -199,7 +211,7 @@ def lgetkf_bloc(xens, omf, oberrs, sqrtcovlocal_local, covlocal_ob, indxob, covl
         # (in Bishop paper HZ is nobs, nanals, here is it nanals, nobs)
         # normalize so dot product is covariance
         YbsqrtRinv, YbRinv = getYbvecs(normfact, hx,oberrvar)
-        if nobs >= nens:
+        if nobs >= hx.shape[0]:
             a = np.dot(YbsqrtRinv,YbsqrtRinv.T)
             evals, evecs = eigh(a)
             evals = evals.clip(min=np.finfo(evals.dtype).eps)
@@ -230,7 +242,7 @@ def lgetkf_bloc(xens, omf, oberrs, sqrtcovlocal_local, covlocal_ob, indxob, covl
         # (in Bishop paper HZ is nobs, nanals, here is it nanals, nobs)
         # normalize so dot product is covariance
         YbsqrtRinv, YbRinv = getYbvecs(normfact,hx,oberrvar)
-        if nobs >= nens:
+        if nobs >= hx.shape[0]:
             a = np.dot(YbsqrtRinv,YbsqrtRinv.T)
             evals, evecs = eigh(a)
             evals = evals.clip(min=np.finfo(evals.dtype).eps)
@@ -332,7 +344,7 @@ def lgetkfms_bloc(xmean, xprime, omf, oberrs, sqrtcovlocal_local, covlocal_ob, i
         # (in Bishop paper HZ is nobs, nanals, here is it nanals, nobs)
         # normalize so dot product is covariance
         YbsqrtRinv, YbRinv = getYbvecs(normfact,hx,oberrvar)
-        if nobs >= nens:
+        if nobs >= hx.shape[0]:
             a = np.dot(YbsqrtRinv,YbsqrtRinv.T)
             evals, evecs = eigh(a)
             evals = evals.clip(min=np.finfo(evals.dtype).eps)
@@ -363,7 +375,7 @@ def lgetkfms_bloc(xmean, xprime, omf, oberrs, sqrtcovlocal_local, covlocal_ob, i
         # (in Bishop paper HZ is nobs, nanals, here is it nanals, nobs)
         # normalize so dot product is covariance
         YbsqrtRinv, YbRinv = getYbvecs(normfact,hx,oberrvar)
-        if nobs >= nens:
+        if nobs >= hx.shape[0]:
             a = np.dot(YbsqrtRinv,YbsqrtRinv.T)
             evals, evecs = eigh(a)
             evals = evals.clip(min=np.finfo(evals.dtype).eps)
@@ -384,6 +396,7 @@ def lgetkfms_bloc(xmean, xprime, omf, oberrs, sqrtcovlocal_local, covlocal_ob, i
 
     nc = 0
     for n in npts_dist:
+        #t1 = time.time()
         mask = covlocal_ob[:,n] > np.finfo(covlocal_ob.dtype).eps
         mask_local = covlocal_model[:,n] > np.finfo(covlocal_model.dtype).eps
         # indices of model grid points in local volume on global grid
@@ -405,6 +418,9 @@ def lgetkfms_bloc(xmean, xprime, omf, oberrs, sqrtcovlocal_local, covlocal_ob, i
         xprime_local = xprime_local.sum(axis=2) # sum over wavebands
         nmindist = np.argmax(covlocal_model[indx_local,n])
         nanal_index = get_nanal_index(nanals, neig)
+        #t2 = time.time()
+        #print('1',t2-t1)
+        #t1 = t2
         if nobs_local > 0:
             hxprime_local = np.empty((nanals,nobs_local),np.float32)
             hxprime2_local = np.empty((nanals2,nobs_local),np.float32)
@@ -418,6 +434,9 @@ def lgetkfms_bloc(xmean, xprime, omf, oberrs, sqrtcovlocal_local, covlocal_ob, i
             for k in range(2):
                 xmean[k,n] += np.dot(wts_ensmean,xprime2_local[:,k,nmindist])
             # update sub-ensemble groups, using cross validation.
+            #t2 = time.time()
+            #print('2',t2-t1)
+            #t1 = t2
             for ngrp in range(ngroups):
                 nanal_cv = [na + ngrp*nanals_per_group for na in range(nanals_per_group)]
                 nanals_sub = np.nonzero(np.isin(nanal_index,nanal_cv))
@@ -428,6 +447,9 @@ def lgetkfms_bloc(xmean, xprime, omf, oberrs, sqrtcovlocal_local, covlocal_ob, i
                     xprime_updated[nanal_cv,k,n] += np.dot(wts_ensperts_cv,xprime_cv[:,k])
             xprime_mean = xprime_updated[:,:,n].mean(axis=0) 
             xprime_updated[:,:,n] -= xprime_mean # ensure zero mean
+        #t2 = time.time()
+        #print('3',t2-t1)
+        #raise SystemExit
         nc += 1
 
     return xmean+xprime_updated
