@@ -46,22 +46,24 @@ nlscales = comm.bcast(nlscales, root=0)
 crossbandcov_facts = comm.bcast(crossbandcov_facts, root=0)
 
 exptname = os.getenv('exptname','test')
+exptname_restart = os.getenv('exptname_restart','test')
 threads = int(os.getenv('OMP_NUM_THREADS','1'))
 
 diff_efold = None # use diffusion from climo file
 
 profile = False # turn on profiling?
 
-read_restart = False
 # if savedata not None, netcdf filename will be defined by env var 'exptname'
 # if savedata = 'restart', only last time is saved (so expt can be restarted)
 #savedata = True
-#savedata = 'restart'
-savedata = None
+savedata = 'restart'
+#savedata = None
 #nassim = 101
 #nassim_spinup = 1
-nassim = 1100 # assimilation times to run
-nassim_spinup = 100
+nassim = 550 # assimilation times to run
+nassim_spinup = 0
+read_restart = False
+if read_restart: nassim += 1
 
 nanals = 16 # ensemble members
 ngroups = nanals//2  # number of groups for cross-validation (ngroups=nanals//N is "leave N out")
@@ -122,7 +124,7 @@ if rank == 0:
         for nanal in range(nanals):
             pvens[nanal] = pv_climo[indxran[nanal]]
     else:
-        ncinit = Dataset('%s_restart.nc' % exptname, mode='r', format='NETCDF4_CLASSIC')
+        ncinit = Dataset('%s.nc' % exptname_restart, mode='r', format='NETCDF4_CLASSIC')
         ncinit.set_auto_mask(False)
         pvens[:] = ncinit.variables['pv_b'][-1,...]/scalefact
         tstart = ncinit.variables['t'][-1]
@@ -252,7 +254,7 @@ pvob = np.empty(nobs,np.float32)
 if read_restart:
     timeslist = obtimes.tolist()
     ntstart = timeslist.index(tstart)
-    print('# restarting from %s.nc ntstart = %s' % (exptname,ntstart))
+    if rank==0: print('# restarting from %s.nc ntstart = %s' % (exptname,ntstart))
 else:
     ntstart = 0
 assim_interval = obtimes[1]-obtimes[0]
@@ -267,7 +269,7 @@ for nanal in range(nanals):
 
 # initialize output file.
 if savedata is not None and rank == 0:
-   nc = Dataset('%s.nc' % exptname, mode='w', format='NETCDF4_CLASSIC')
+   nc = Dataset('%s.nc' % exptname, mode='w', format='NETCDF4_CLASSIC', clobber=True)
    nc.r = models[0].r[0]
    nc.f = models[0].f
    nc.U = models[0].U
@@ -276,7 +278,7 @@ if savedata is not None and rank == 0:
    nc.nanals = nanals
    nc.hcovlocal_scale = hcovlocal_scales
    nc.band_cutoffs = band_cutoffs
-   nc.crossbandcov_facts = crossband_covfacts
+   nc.crossbandcov_facts = crossbandcov_facts
    nc.oberrstdev = oberrstdev
    nc.g = nc_climo.g; nc.theta0 = nc_climo.theta0
    nc.nsq = models[0].nsq
@@ -357,7 +359,7 @@ for ntime in range(nassim):
     pvensmean_b = pvens.mean(axis=0)
     pvprime = pvens - pvensmean_b
 
-    if savedata is not None:
+    if savedata is not None and rank == 0:
         if savedata == 'restart' and ntime != nassim-1:
             pass
         else:
