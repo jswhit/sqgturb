@@ -215,7 +215,7 @@ if savedata is not None and rank == 0:
    nc.nanals = nanals
    nc.hcovlocal_scales = hcovlocal_scales
    nc.band_cutoffs = band_cutoffs
-   nc.crossbandcov_facts = crossband_covfacts
+   nc.crossbandcov_facts = crossbandcov_facts
    nc.oberrstdev = oberrstdev
    nc.g = nc_climo.g; nc.theta0 = nc_climo.theta0
    nc.nsq = models[0].nsq
