@@ -103,6 +103,17 @@ class SQG:
             * np.cos(l * y)
             / np.sinh(0.5 * mu)
         )
+        #ubar = np.zeros((2, N), dtype)
+        #for k in range(2):
+        #    ubar[k] = (2*k-1)*(
+        #        -(0.5 * U)
+        #        * np.sinh(0.5 * mu)
+        #        * np.sin(l * y)
+        #        / np.sinh(0.5 * mu)
+        #    )
+        #for j in range(N):
+        #    print(ubar[0,j],ubar[1,j],pvbar[0,j])
+        #raise SystemExit
         pvbar.shape = (2, N, 1)
         pvbar = pvbar * np.ones((2, N, N), dtype)
 
