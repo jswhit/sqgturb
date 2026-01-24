@@ -56,12 +56,12 @@ profile = False # turn on profiling?
 # if savedata not None, netcdf filename will be defined by env var 'exptname'
 # if savedata = 'restart', only last time is saved (so expt can be restarted)
 #savedata = True
-savedata = 'restart'
-#savedata = None
+#savedata = 'restart'
+savedata = None
 #nassim = 101
 #nassim_spinup = 1
-nassim = 550 # assimilation times to run
-nassim_spinup = 0
+nassim = 600 # assimilation times to run
+nassim_spinup = 100
 read_restart = False
 if read_restart: nassim += 1
 
