@@ -371,7 +371,7 @@ for ntime in range(nassim):
         pvens = np.dot(pvens_filtered.T,crossband_covmat).T
         pvens += pvensmean_b  # mean added back to all scales.
 
-    if savedata is not None:
+    if savedata is not None and rank == 0:
         if savedata == 'restart' and ntime != nassim-1:
             pass
         else:

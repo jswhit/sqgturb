@@ -173,6 +173,7 @@ for n in npts_dist:
         covlocal_local[nrow,:] = gaspcohn(dist/hcovlocal_scale)
         nrow += 1
     evals, evecs = eigh(covlocal_local)
+    evals = evals.clip(min=np.finfo(evals.dtype).eps)
     neig = 1
     for i in range(1,npts):
         percentvar = evals[-i:].sum()/evals.sum()
@@ -332,7 +333,7 @@ for ntime in range(nassim):
     pverr_b = (scalefact*(pvensmean_b-pv_truth[ntime+ntstart]))**2
     pvsprd_b = ((scalefact*pvpert)**2).sum(axis=0)/(nanals-1)
 
-    if savedata is not None:
+    if savedata is not None and rank == 0:
         if savedata == 'restart' and ntime != nassim-1:
             pass
         else:

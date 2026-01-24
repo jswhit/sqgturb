@@ -297,7 +297,7 @@ for ntime in range(nassim):
     pverr_b = (scalefact*(pvensmean_b-pv_truth[ntime+ntstart]))**2
     pvsprd_b = ((scalefact*pvpert)**2).sum(axis=0)/(nanals-1)
 
-    if savedata is not None:
+    if savedata is not None and rank == 0:
         if savedata == 'restart' and ntime != nassim-1:
             pass
         else:
