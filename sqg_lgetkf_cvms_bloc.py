@@ -60,7 +60,7 @@ profile = False # turn on profiling?
 savedata = None
 #nassim = 101
 #nassim_spinup = 1
-nassim = 600 # assimilation times to run
+nassim = 1100 # assimilation times to run
 nassim_spinup = 100
 read_restart = False
 if read_restart: nassim += 1
@@ -73,9 +73,9 @@ percentvar_cutoff = 0.95 # threshold for eigenvalues used in ensemble modulation
 oberrstdev = 1. # ob error standard deviation in K
 
 # nature run created using sqg_run.py.
-filename_climo = 'sqgu20_N96_6hrly_12hdiff.nc' # file name for forecast model climo
+filename_climo = 'sqgu20_N64_6hrly_24hdiff.nc' # file name for forecast model climo
 # perfect model
-filename_truth = 'sqgu20_N96_6hrly_12hdiff.nc' # file name for nature run to draw obs
+filename_truth = 'sqgu20_N64_6hrly_24hdiff.nc' # file name for nature run to draw obs
 #filename_truth = 'sqg_N256_N96_12hrly.nc' # file name for nature run to draw obs
 
 if rank==0:
@@ -162,7 +162,7 @@ if rank==0:
 
 # each ob time nobs ob locations are randomly sampled (without
 # replacement) from the model grid
-nobs = 1024
+nobs = 820  
 
 # grid points updated on this task
 N = models[0].N
@@ -204,9 +204,8 @@ for n in npts_dist:
         evals = evals.clip(min=np.finfo(evals.dtype).eps)
         sqrtcovlocal22 = evecs*np.sqrt(evals)
         covlocal12 = crossbandcov_facts[0]*np.dot(sqrtcovlocal11,sqrtcovlocal22.T)
-        #covlocal21 = crossbandcov_facts[0]*np.dot(sqrtcovlocal22,sqrtcovlocal11.T)
         covlocal21 = covlocal12.T
-        covlocal_local = np.block([[covlocal11, covlocal12],[covlocal21, covlocal22]])
+        covlocal_local = np.block([[covlocal11, covlocal21],[covlocal12, covlocal22]])
         evals, evecs = eigh(covlocal_local)
         evals = evals.clip(min=np.finfo(evals.dtype).eps)
         neig = 1
