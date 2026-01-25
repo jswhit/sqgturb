@@ -19,17 +19,21 @@ rank = comm.Get_rank()
 #dt = 300
 #diff_efold = 86400./8.
  
-N = 128
-dt = 720.
-diff_efold = 12*3600.
-
-#N = 96
-#dt = 1200
+#N = 128
+#dt = 720.
 #diff_efold = 12*3600.
 
-#N = 64
-#dt = 900    
-#diff_efold = 86400./2.
+N = 96
+dt = 1200
+diff_efold = 12.*3600.
+
+N = 80
+dt = 1440
+diff_efold = 12.*3600.
+
+N = 64
+dt = 1200    
+diff_efold = 86400.
 
 norder = 8 # order of hyperdiffusion
 
@@ -75,16 +79,16 @@ model = SQG(pv,nsq=nsq,f=f,U=U,H=H,r=r,tdiab=tdiab,dt=dt,
 #  initialize figure.
 outputinterval = 6.*3600. # interval between frames in seconds
 tmin = 100.*86400. # time to start saving data (in days)
-tmax = 400.*86400. # time to stop (in days)
+tmax = 430.*86400. # time to stop (in days)
 nsteps = int(tmax/outputinterval) # number of time steps to animate
 # set number of timesteps to integrate for each call to model.advance
 ntimesteps = int(outputinterval/model.dt)
-savedata = 'sqgu%s_N%s_6hrly_12hdiff.nc' % (U,N) # save data plotted in a netcdf file.
+savedata = 'sqgu%s_N%s_6hrly_24hdiff.nc' % (U,N) # save data plotted in a netcdf file.
 #savedata = None # don't save data
 
 if savedata is not None and rank==0:
     from netCDF4 import Dataset
-    nc = Dataset(savedata, mode='w', format='NETCDF4_CLASSIC')
+    nc = Dataset(savedata, mode='w', format='NETCDF4',clobber=True)
     nc.r = model.r[0]
     nc.f = model.f
     nc.U = model.U
