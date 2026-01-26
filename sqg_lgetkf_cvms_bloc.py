@@ -56,13 +56,19 @@ profile = False # turn on profiling?
 # if savedata not None, netcdf filename will be defined by env var 'exptname'
 # if savedata = 'restart', only last time is saved (so expt can be restarted)
 #savedata = True
-#savedata = 'restart'
-savedata = None
+savedata = 'restart'
+#savedata = None
 #nassim = 101
 #nassim_spinup = 1
-nassim = 1100 # assimilation times to run
-nassim_spinup = 100
+
+nassim = 660 # assimilation times to run
+
+nassim_spinup = 120
 read_restart = False
+
+#nassim_spinup = 0
+#read_restart = True
+
 if read_restart: nassim += 1
 
 nanals = 16 # ensemble members
@@ -191,7 +197,7 @@ for n in npts_dist:
         covlocal11[nrow,:] = gaspcohn(dist/hcovlocal_scales[0])
         nrow += 1
     evals, evecs = eigh(covlocal11)
-    evals = evals.clip(min=np.finfo(evals.dtype).eps)
+    #evals = evals.clip(min=np.finfo(evals.dtype).eps)
     sqrtcovlocal11 = evecs*np.sqrt(evals)
     if nlscales == 2:
         covlocal22 = np.zeros((npts,npts),np.float32)
@@ -201,11 +207,10 @@ for n in npts_dist:
             covlocal22[nrow,:] = gaspcohn(dist/hcovlocal_scales[1])
             nrow += 1
         evals, evecs = eigh(covlocal22)
-        evals = evals.clip(min=np.finfo(evals.dtype).eps)
+        #evals = evals.clip(min=np.finfo(evals.dtype).eps)
         sqrtcovlocal22 = evecs*np.sqrt(evals)
         covlocal12 = crossbandcov_facts[0]*np.dot(sqrtcovlocal11,sqrtcovlocal22.T)
-        covlocal21 = covlocal12.T
-        covlocal_local = np.block([[covlocal11, covlocal21],[covlocal12, covlocal22]])
+        covlocal_local = np.block([[covlocal11, covlocal12],[covlocal12.T, covlocal22]])
         evals, evecs = eigh(covlocal_local)
         evals = evals.clip(min=np.finfo(evals.dtype).eps)
         neig = 1
