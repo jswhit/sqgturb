@@ -56,12 +56,12 @@ profile = False # turn on profiling?
 # if savedata not None, netcdf filename will be defined by env var 'exptname'
 # if savedata = 'restart', only last time is saved (so expt can be restarted)
 #savedata = True
-savedata = 'restart'
-#savedata = None
+#savedata = 'restart'
+savedata = None
 #nassim = 101
 #nassim_spinup = 1
 
-nassim = 660 # assimilation times to run
+nassim = 1320 # assimilation times to run
 
 nassim_spinup = 120
 read_restart = False
@@ -178,7 +178,7 @@ npts_dist = ix[models[0].local_slice_grid].ravel()
 # full model-space horizontal localization matrix
 x1 = x.reshape(nx*ny); y1 = y.reshape(nx*ny)
 n = 0
-covlocal_model = np.empty((nlscales,nx*ny,nx*ny),np.float32)
+covlocal_model = np.empty((nlscales,nx*ny,nx*ny),np.float64)
 for nlscale in range(nlscales):
     for n in range(nx*ny):
         dist = cartdist(x1[n],y1[n],x1,y1,L,L)
@@ -190,27 +190,30 @@ for n in npts_dist:
     mask = covlocal_model[0,:,n] > np.finfo(covlocal_model.dtype).eps
     indx = np.nonzero(mask)[0]
     npts = len(indx)
-    covlocal11 = np.zeros((npts,npts),np.float32)
+    covlocal11 = np.zeros((npts,npts),np.float64)
     nrow = 0
     for nn in indx:
         dist = cartdist(x1[nn],y1[nn],x1[indx],y1[indx],L,L)
         covlocal11[nrow,:] = gaspcohn(dist/hcovlocal_scales[0])
         nrow += 1
     evals, evecs = eigh(covlocal11)
-    #evals = evals.clip(min=np.finfo(evals.dtype).eps)
-    sqrtcovlocal11 = evecs*np.sqrt(evals)
+    evals = evals.clip(min=np.finfo(evals.dtype).eps)
+    sqrtcovlocal11 = np.dot(evecs, np.diag(np.sqrt(evals)))
     if nlscales == 2:
-        covlocal22 = np.zeros((npts,npts),np.float32)
+        covlocal22 = np.zeros((npts,npts),np.float64)
         nrow = 0
         for nn in indx:
             dist = cartdist(x1[nn],y1[nn],x1[indx],y1[indx],L,L)
             covlocal22[nrow,:] = gaspcohn(dist/hcovlocal_scales[1])
             nrow += 1
         evals, evecs = eigh(covlocal22)
-        #evals = evals.clip(min=np.finfo(evals.dtype).eps)
-        sqrtcovlocal22 = evecs*np.sqrt(evals)
+        evals = evals.clip(min=np.finfo(evals.dtype).eps)
+        sqrtcovlocal22 = np.dot(evecs, np.diag(np.sqrt(evals)))
         covlocal12 = crossbandcov_facts[0]*np.dot(sqrtcovlocal11,sqrtcovlocal22.T)
         covlocal_local = np.block([[covlocal11, covlocal12],[covlocal12.T, covlocal22]])
+        #plt.imshow(covlocal_local, cmap=plt.cm.bwr)
+        #plt.show()
+        #raise SystemExit
         evals, evecs = eigh(covlocal_local)
         evals = evals.clip(min=np.finfo(evals.dtype).eps)
         neig = 1
@@ -219,8 +222,8 @@ for n in npts_dist:
             if percentvar > percentvar_cutoff: # perc variance cutoff truncation
                 neig = i
                 break
-        evecs_norm = (evecs*np.sqrt(evals/percentvar)).T
-        sqrtcovlocal = evecs_norm[-neig:,:]
+        evecs_norm = np.dot(evecs, np.diag(np.sqrt(evals/percentvar))).T
+        sqrtcovlocal = evecs_norm[-neig:,:].astype(np.float32)
         sqrtcovlocal_local.append(sqrtcovlocal)
     elif nlscales == 1:
         for i in range(1,npts):
@@ -228,8 +231,8 @@ for n in npts_dist:
             if percentvar > percentvar_cutoff: # perc variance cutoff truncation
                 neig = i
                 break
-        evecs_norm = (evecs*np.sqrt(evals/percentvar)).T
-        sqrtcovlocal = evecs_norm[-neig:,:]
+        evecs_norm = np.dot(evecs, np.diag(np.sqrt(evals/percentvar))).T
+        sqrtcovlocal = evecs_norm[-neig:,:].astype(np.float32)
         sqrtcovlocal_local.append(sqrtcovlocal)
     else:
         raise ValueError('only nlscales=1 or 2 supported')
