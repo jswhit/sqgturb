@@ -46,8 +46,8 @@ read_restart = False
 savedata = None
 #nassim = 101
 #nassim_spinup = 1
-nassim = 1100 # assimilation times to run
-nassim_spinup = 100
+nassim = 1320 # assimilation times to run
+nassim_spinup = 120
 
 nanals = 16 # ensemble members
 ngroups = nanals//2  # number of groups for cross-validation (ngroups=nanals//N is "leave N out")
@@ -57,9 +57,9 @@ percentvar_cutoff = 0.95 # threshold for eigenvalues used in ensemble modulation
 oberrstdev = 1. # ob error standard deviation in K
 
 # nature run created using sqg_run.py.
-filename_climo = 'sqgu20_N96_6hrly_12hdiff.nc' # file name for forecast model climo
+filename_climo = 'sqgu20_N64_6hrly_24hdiff.nc' # file name for forecast model climo
 # perfect model
-filename_truth = 'sqgu20_N96_6hrly_12hdiff.nc' # file name for nature run to draw obs
+filename_truth = 'sqgu20_N64_6hrly_24hdiff.nc' # file name for nature run to draw obs
 #filename_truth = 'sqg_N256_N96_12hrly.nc' # file name for nature run to draw obs
 
 if rank==0:
@@ -145,7 +145,7 @@ if rank==0:
 
 # each ob time nobs ob locations are randomly sampled (without
 # replacement) from the model grid
-nobs = 1024
+nobs = 820  
 
 # grid points updated on this task
 N = models[0].N
@@ -155,7 +155,7 @@ npts_dist = ix[models[0].local_slice_grid].ravel()
 # full model-space horizontal localization matrix
 x1 = x.reshape(nx*ny); y1 = y.reshape(nx*ny)
 n = 0
-covlocal_model = np.empty((nx*ny,nx*ny),np.float32)
+covlocal_model = np.empty((nx*ny,nx*ny),np.float64)
 for n in range(nx*ny):
     dist = cartdist(x1[n],y1[n],x1,y1,L,L)
     covlocal_model[n,:] = gaspcohn(dist/hcovlocal_scale)
@@ -166,7 +166,7 @@ for n in npts_dist:
     mask = covlocal_model[:,n] > np.finfo(covlocal_model.dtype).eps
     indx = np.nonzero(mask)[0]
     npts = len(indx)
-    covlocal_local = np.zeros((npts,npts),np.float32)
+    covlocal_local = np.zeros((npts,npts),np.float64)
     nrow = 0
     for nn in indx:
         dist = cartdist(x1[nn],y1[nn],x1[indx],y1[indx],L,L)
@@ -180,9 +180,9 @@ for n in npts_dist:
         if percentvar > percentvar_cutoff: # perc variance cutoff truncation
             neig = i
             break
-    evecs_norm = (evecs*np.sqrt(evals/percentvar)).T
-    #evecs_norm = np.dot(evecs, np.diag(np.sqrt(evals/percentvar))).T
-    sqrtcovlocal = evecs_norm[-neig:,:]
+    #evecs_norm = (evecs*np.sqrt(evals/percentvar)).T
+    evecs_norm = np.dot(evecs, np.diag(np.sqrt(evals/percentvar))).T
+    sqrtcovlocal = evecs_norm[-neig:,:].astype(np.float32)
     sqrtcovlocal_local.append(sqrtcovlocal)
 
 # nature run
