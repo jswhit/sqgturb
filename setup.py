@@ -1,4 +1,4 @@
-from distutils.core import setup
+from setuptools import setup
 short_desc = "A program for simulating surface quasi-geostropic turbulence"
 setup(
   name = 'sqgturb',
@@ -8,7 +8,7 @@ setup(
   author_email = 'jeffrey dot s dot whitaker at noaa dot gov',
   url = 'https://github.com/jswhit/sqgturb',
   packages = ['sqgturb'],
-  requires = ['numpy']
+  requires = ['numpy','scipy','mpi4py','mpi4py_fft']
 )
 
 
