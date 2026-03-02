@@ -6,8 +6,7 @@ comm = MPI.COMM_WORLD
 num_processes = comm.Get_size()
 rank = comm.Get_rank()
 
-# run SQG turbulence simulation, optionally plotting results to screen and/or saving to
-# netcdf file.
+# run SQG turbulence simulation, save data to netcdf file
 
 # model parameters.
 
@@ -73,14 +72,13 @@ model = SQG(pv,nsq=nsq,f=f,U=U,H=H,r=r,tdiab=tdiab,dt=dt,
             precision=precision,tstart=0)
 
 #  initialize figure.
-outputinterval = 6.*3600. # interval between frames in seconds
+outputinterval = 6.*3600. # interval between output times in seconds.
 tmin = 100.*86400. # time to start saving data (in days)
 tmax = 430.*86400. # time to stop (in days)
 nsteps = int(tmax/outputinterval) # number of time steps to animate
 # set number of timesteps to integrate for each call to model.advance
 ntimesteps = int(outputinterval/model.dt)
 savedata = 'sqgu%s_N%s_6hrly_24hdiff.nc' % (U,N) # save data plotted in a netcdf file.
-#savedata = None # don't save data
 
 if savedata is not None and rank==0:
     from netCDF4 import Dataset
