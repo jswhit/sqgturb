@@ -158,9 +158,9 @@ public:
             // broadcast: pvbar[k, i, j] = pvbar1d[j]  (for both k)
             pvbar_.assign(2 * N_ * N_, 0.f);
             for (int k = 0; k < 2; ++k)
-                for (int i = 0; i < N_; ++i)
-                    for (int j = 0; j < N_; ++j)
-                        pvbar_[k * N_ * N_ + i * N_ + j] = pvbar1d[j];
+                for (int j = 0; j < N_; ++j)
+                    for (int i = 0; i < N_; ++i)
+                        pvbar_[k * N_ * N_ + j * N_ + i] = pvbar1d[j];
         }
 
         // ---- spectral state ----------------------------------
