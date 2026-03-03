@@ -2,7 +2,7 @@
 
 // =============================================================
 //  sqg.hpp  –  Surface Quasi-Geostrophic turbulence model
-//  Translated from sqg.py .
+//  Translated from sqg.py.
 //
 //  Dependencies: FFTW3 single-precision  (libfftw3f)
 //  Compile:
@@ -236,8 +236,6 @@ public:
         const auto& pv = pvspec_in ? *pvspec_in : pvspec_;
         const int   Nc = N_ / 2 + 1;
         std::vector<cplx_t> psispec(2 * N_ * Nc);
-        //float thmin = *std::min_element(tanhmu_.begin(), tanhmu_.end());
-        //std::cout << "TANH_MIN: " << thmin << std::endl;
         for (int idx = 0; idx < N_ * Nc; ++idx) {
             const cplx_t pv0 = pv[           idx];
             const cplx_t pv1 = pv[N_ * Nc + idx];
