@@ -53,11 +53,11 @@ int main()
     const float scalefact  = f * theta0 / g;
 
     // ---- create initial PV --------------------------------------
-    std::mt19937 rng(42);
-    std::normal_distribution<float> gauss(0.f, 100.f);
+    //std::mt19937 rng(42);
+    //std::normal_distribution<float> gauss(0.f, 100.f);
 
-    std::vector<float> pv(2 * N * N);
-    for (auto& v : pv) v = gauss(rng);
+    std::vector<float> pv(2 * N * N, 0);
+    //for (auto& v : pv) v = gauss(rng);
 
     // add isolated blob on lid (k==1)
     const int nexp = 20;
