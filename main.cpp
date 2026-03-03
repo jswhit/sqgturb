@@ -84,13 +84,6 @@ int main()
     SQG model(pv, N, f, nsq, L, H, U, r, tdiab,
               norder, diff_efold, theta0, g, dt);
 
-    auto pv_out = model.advance(1);
-    float pvmin2 = *std::min_element(pv_out.begin(), pv_out.end());
-    float pvmax2 = *std::max_element(pv_out.begin(), pv_out.end());
-    double t_now = model.t();
-    std::printf("hr=%8.2f  min/max pv  %10.4f  %10.4f\n",
-                t_now / 3600., pvmin2, pvmax2);
-
     const double outputinterval = 6. * 3600.;
     const double tmax           = 300. * 86400.;
     const int    nsteps         = int(tmax / outputinterval);
