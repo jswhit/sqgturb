@@ -229,7 +229,8 @@ if __name__ == "__main__":
     scalefact = f*theta0/g
     
     # create initial pv
-    pv = np.random.normal(0,100.,size=(2,N,N)).astype(np.float32)
+    #pv = np.random.normal(0,100.,size=(2,N,N)).astype(np.float32)
+    pv = np.zeros((2,N,N),np.float32)
     # add isolated blob on lid
     nexp = 20
     x = np.arange(0,2.*np.pi,2.*np.pi/N); y = np.arange(0.,2.*np.pi,2.*np.pi/N)
