@@ -233,12 +233,12 @@ public:
     // ----------------------------------------------------------
     std::vector<cplx_t> invert(const std::vector<cplx_t>* pvspec_in = nullptr) const
     {
-        const auto& pv = pvspec_in ? *pvspec_in : pvspec_;
+        const auto& pvspec = pvspec_in ? *pvspec_in : pvspec_;
         const int   Nc = N_ / 2 + 1;
         std::vector<cplx_t> psispec(2 * N_ * Nc);
         for (int idx = 0; idx < N_ * Nc; ++idx) {
-            const cplx_t pv0 = pv[           idx];
-            const cplx_t pv1 = pv[N_ * Nc + idx];
+            const cplx_t pv0 = pvspec[           idx];
+            const cplx_t pv1 = pvspec[N_ * Nc + idx];
             const real_t hom = Hovermu_[idx];
             const real_t sm  = sinhmu_[idx];
             const real_t tm  = tanhmu_[idx];
@@ -334,12 +334,12 @@ public:
     // ----------------------------------------------------------
     std::vector<cplx_t> gettend(const std::vector<cplx_t>* pvspec_in = nullptr) const
     {
-        const auto& pv = pvspec_in ? *pvspec_in : pvspec_;
+        const auto& pvspec = pvspec_in ? *pvspec_in : pvspec_;
         const int   Nc = N_ / 2 + 1;
 
-        auto psispec      = invert(&pv);
+        auto psispec      = invert(&pvspec);
         auto [psix, psiy] = xyderiv(psispec);
-        auto [pvx,  pvy ] = xyderiv(pv);
+        auto [pvx,  pvy ] = xyderiv(pvspec);
 
         // Jacobian on padded physical grid
         const int G = N_pad_;
@@ -350,17 +350,17 @@ public:
         auto jacobianspec = spectrunc(rfft2(jacobian, G, G));
 
         // tendency
-        std::vector<cplx_t> dpvdt(2 * N_ * Nc);
+        std::vector<cplx_t> dpvspecdt(2 * N_ * Nc);
         for (int k = 0; k < 2; ++k)
             for (int idx = 0; idx < N_ * Nc; ++idx) {
                 const int I = k * N_ * Nc + idx;
-                dpvdt[I] =
-                    (pvspec_eq_[I] - pv[I]) / tdiab_
+                dpvspecdt[I] =
+                    (pvspec_eq_[I] - pvspec[I]) / tdiab_
                     - jacobianspec[I]
                     + cplx_t(r_[k] * ksqlsq_[idx]) * psispec[I]
-                    + cplx_t(hyperdiff_[idx])        * pvspec_[I];
+                    + cplx_t(hyperdiff_[idx])        * pvspec[I];
             }
-        return dpvdt;
+        return dpvspecdt;
     }
 
     // ----------------------------------------------------------
