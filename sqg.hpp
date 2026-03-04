@@ -1,13 +1,11 @@
 #pragma once
 
-// =============================================================
+// =======================================================================
 //  sqg.hpp  –  Surface Quasi-Geostrophic turbulence model
 //  Translated from sqg.py.
 //
 //  Dependencies: FFTW3 single-precision  (libfftw3f)
-//  Compile:
-//    g++ -I<NETCDF_AND_FFTW_INCDIR> -std=c++17 -O3 -march=native main.cpp -L<NETCDF_AND_FFTW_LIBDIR> -lfftw3f -lm -lnetcdf -o sqg
-// =============================================================
+// =======================================================================
 
 #include <fftw3.h>
 

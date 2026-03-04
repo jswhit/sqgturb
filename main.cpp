@@ -1,11 +1,12 @@
-// =============================================================
+// =======================================================================
 //  main.cpp
 //  Equivalent of the __main__ block in sqg.py.
 //  Writes output to sqg.nc using the NetCDF-C library.
 //
 //  Compile:
-//    g++ -I<NETCDF_AND_FFTW_INCDIR> -std=c++17 -O3 -march=native main.cpp -L<NETCDF_AND_FFTW_LIBDIR> -lfftw3f -lm -lnetcdf -o sqg
-// =============================================================
+//    g++ -I<NETCDF_AND_FFTW_INCDIR> -std=c++17 -O3 -march=native main.cpp
+//        -L<NETCDF_AND_FFTW_LIBDIR> -lfftw3f -lm -lnetcdf -o sqg
+// =======================================================================
 
 #include "sqg.hpp"
 
