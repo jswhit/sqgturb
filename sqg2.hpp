@@ -2,7 +2,7 @@
 
 // =============================================================
 //  sqg2.hpp  –  Surface Quasi-Geostrophic turbulence model
-//  Translated from sqg.py, includes openmp threading
+//  Translated from sqg.py, includes caching of FFTW plans and openmp threading.
 //
 //  Optimisations:
 //    • FFTW plans created ONCE in the constructor and reused.
@@ -22,7 +22,7 @@
 //  Dependencies: FFTW3 single-precision + OpenMP
 //  Compile:
 //    g++ -std=c++17 -O3 -march=native -fopenmp \
-//        main2.cpp -lfftw3f_omp -lfftw3f -lm
+//        main.cpp -lfftw3f_omp -lfftw3f -lm
 //
 //  To control thread count at runtime:
 //    export OMP_NUM_THREADS=8
