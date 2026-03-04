@@ -389,7 +389,7 @@ public:
     }
 
     // ----------------------------------------------------------
-    //  gettend: spectral PV tendency dpv/dt
+    //  gettend: spectral PV tendency d(pvspec)/dt
     //
     //  dpvspecdt = (pvspec_eq - pvspec)/tdiab     (thermal relaxation)
     //            - jacobianspec                   (advection)
@@ -483,6 +483,7 @@ public:
 
     const std::vector<cplx_t>& pvspec()   const { return pvspec_;   }
     const std::vector<real_t>& wavenums() const { return wavenums_; }
+    const std::vector<real_t>& pvbar()    const { return pvbar_;   }
 
 private:
     // -------------------------------------------------------
