@@ -669,7 +669,7 @@ private:
     // Spectral arrays  (N × Nc)
     std::vector<real_t> k_, l_, ksqlsq_, wavenums_;
     std::vector<double_t> Hovermu_, tanhmu_, sinhmu_;
-    std::vector<cplx_t> ik_, il_; hyperdiff_
+    std::vector<cplx_t> ik_, il_, hyperdiff_;
     std::vector<cplx_t> ik_pad_, il_pad_;   // N_pad × Nc_pad
 
     // Model state
