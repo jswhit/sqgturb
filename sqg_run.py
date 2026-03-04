@@ -23,13 +23,13 @@ import os
 #dt = 600
 #diff_efold = 86400./3.
 
-N = 96
-dt = 900
-diff_efold = 86400./2.
-
-#N = 64
-#dt = 900    
+#N = 96
+#dt = 900
 #diff_efold = 86400./2.
+
+N = 64
+dt = 1800    
+diff_efold = 86400. 
 
 norder = 8 # order of hyperdiffusion
 
@@ -52,7 +52,8 @@ tdiab = 10.*86400 # in seconds
 scalefact = f*theta0/g
 
 # create random noise
-pv = np.random.normal(0,100.,size=(2,N,N)).astype(np.float32)
+rs = np.random.RandomState(42) # fixed seed
+pv = rs.normal(0,100.,size=(2,N,N)).astype(np.float32)
 # add isolated blob on lid
 nexp = 20
 x = np.arange(0,2.*np.pi,2.*np.pi/N); y = np.arange(0.,2.*np.pi,2.*np.pi/N)
@@ -77,11 +78,11 @@ model = SQG(pv,nsq=nsq,f=f,U=U,H=H,r=r,tdiab=tdiab,dt=dt,
 #  initialize figure.
 outputinterval = 6.*3600. # interval between frames in seconds
 tmin = 100.*86400. # time to start saving data (in days)
-tmax = 400.*86400. # time to stop (in days)
+tmax = 430.*86400. # time to stop (in days)
 nsteps = int(tmax/outputinterval) # number of time steps to animate
 # set number of timesteps to integrate for each call to model.advance
 ntimesteps = int(outputinterval/model.dt)
-savedata = 'sqgu%s_dek%s_N%s_6hrly.nc' % (U,dek,N) # save data plotted in a netcdf file.
+savedata = 'sqgu%s_N%s_6hrly_24hdiff.nc' % (U,N) # save data plotted in a netcdf file.
 #savedata = None # don't save data
 plot = False # animate data as model is running?
 
@@ -167,8 +168,7 @@ else:
         t = model.t
         pv = irfft2(model.pvspec)
         hr = t/3600.
-        spd = np.sqrt(model.u[1]**2+model.v[1]**2)
-        print(hr,spd.max(),scalefact*pv.min(),scalefact*pv.max())
+        print(hr,scalefact*pv.min(),scalefact*pv.max())
         if savedata is not None and t >= tmin:
             print('saving data at t = t = %g hours' % hr)
             pvvar[nout,:,:,:] = pv

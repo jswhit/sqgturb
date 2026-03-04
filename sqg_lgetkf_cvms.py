@@ -53,8 +53,8 @@ read_restart = False
 savedata = None
 #nassim = 101
 #nassim_spinup = 1
-nassim = 1000 # assimilation times to run
-nassim_spinup = 100
+nassim = 1320 # assimilation times to run
+nassim_spinup = 120
 
 nanals = 16 # ensemble members
 ngroups = nanals//2  # number of groups for cross-validation (ngroups=nanals//N is "leave N out")
@@ -62,9 +62,9 @@ ngroups = nanals//2  # number of groups for cross-validation (ngroups=nanals//N 
 oberrstdev = 1. # ob error standard deviation in K
 
 # nature run created using sqg_run.py.
-filename_climo = 'sqgu20_dek0_N96_6hrly.nc' # file name for forecast model climo
+filename_climo = 'sqgu20_N64_6hrly_24hdiff.nc' # file name for forecast model climo
 # perfect model
-filename_truth = 'sqgu20_dek0_N96_6hrly.nc' # file name for nature run to draw obs
+filename_truth = 'sqgu20_N64_6hrly_24hdiff.nc' # file name for nature run to draw obs
 #filename_truth = 'sqg_N256_N96_12hrly.nc' # file name for nature run to draw obs
 
 print('# filename_modelclimo=%s' % filename_climo)
@@ -117,7 +117,7 @@ print('# band_cutoffs=%s crossbandcov_facts=%s' % (repr(band_cutoffs),repr(cross
 
 # each ob time nobs ob locations are randomly sampled (without
 # replacement) from the model grid
-nobs = 2*nx*ny//18 # number of obs to assimilate (randomly distributed)
+nobs = 820 # number of obs to assimilate (randomly distributed)
 
 # nature run
 nc_truth = Dataset(filename_truth)
@@ -287,6 +287,8 @@ for ntime in range(nassim):
         #plt.show()
         #raise SystemExit
     pvens_filtered = np.asarray(pvens_filtered_lst)
+    print(pvens_filtered.shape)
+    raise SystemExit
     pvens = np.dot(pvens_filtered.T,crossband_covmat).T
     pvens += pvensmean_b  # mean added back to all scales.
 
