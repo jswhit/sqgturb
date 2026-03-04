@@ -499,13 +499,17 @@ public:
 
         auto psispec      = invert(&pv);
         auto [psix, psiy] = xyderiv(psispec);
+	auto& ref_psix = psix;
+	auto& ref_psiy = psiy;
         auto [pvx,  pvy ] = xyderiv(pv);
+	auto& ref_pvx = pvx;
+	auto& ref_pvy = pvy;
 
         // Level 2: Jacobian loop
         std::vector<real_t> jacobian(2 * Gsize);
         #pragma omp parallel for schedule(static)
         for (int i = 0; i < 2 * Gsize; ++i)
-            jacobian[i] = psix[i] * pvy[i] - psiy[i] * pvx[i];
+            jacobian[i] = ref_psix[i] * ref_pvy[i] - ref_psiy[i] * ref_pvx[i];
 
         auto jacobianspec = spectrunc(exec_rfft2_pad(jacobian));
 
