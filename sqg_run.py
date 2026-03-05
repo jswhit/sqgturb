@@ -28,7 +28,7 @@ import os
 #diff_efold = 86400./2.
 
 N = 64
-dt = 1800    
+dt = 1200    
 diff_efold = 86400. 
 
 norder = 8 # order of hyperdiffusion

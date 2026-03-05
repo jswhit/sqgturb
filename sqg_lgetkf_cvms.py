@@ -126,7 +126,6 @@ pv_truth = nc_truth.variables['pv']
 print('# random network nobs = %s' % nobs)
 
 oberrvar = oberrstdev**2*np.ones(nobs,np.float32)
-pvob = np.empty(nobs,np.float32)
 covlocal = np.empty((ny,nx),np.float32)
 covlocal_tmp = np.empty((nlscales,nobs,nx*ny),np.float32)
 
@@ -204,7 +203,6 @@ if savedata is not None:
 pvspec_errmean = None; pvspec_sprdmean = None
 
 ncount = 0
-normfact = np.array(np.sqrt(nlscales*nanals-1),dtype=np.float32)
 
 N = models[0].N
 k = np.abs((N*np.fft.fftfreq(N))[0:(N//2)+1])
@@ -287,8 +285,6 @@ for ntime in range(nassim):
         #plt.show()
         #raise SystemExit
     pvens_filtered = np.asarray(pvens_filtered_lst)
-    print(pvens_filtered.shape)
-    raise SystemExit
     pvens = np.dot(pvens_filtered.T,crossband_covmat).T
     pvens += pvensmean_b  # mean added back to all scales.
 
