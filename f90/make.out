@@ -1,0 +1,2 @@
+gfortran -std=f2003 -O3 -march=native -ffree-line-length-none -I/Users/jwhitaker/miniconda3/envs/netcdf4/include -I/Users/jwhitaker/miniconda3/envs/netcdf4/include -c sqg_main.f90
+gfortran -std=f2003 -O3 -march=native -ffree-line-length-none -o sqg sqg_mod.o sqg_main.o -L/Users/jwhitaker/miniconda3/envs/netcdf4/lib -lfftw3f -L/Users/jwhitaker/miniconda3/envs/netcdf4/lib -lnetcdff -lnetcdf -lm
