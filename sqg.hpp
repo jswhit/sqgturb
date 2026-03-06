@@ -246,7 +246,13 @@ public:
         }
 
         // ---- basic-state PV pvbar (2 × N × N) ----------------
-        {
+        // symmetric zonally-symmetric state, no difference between upper and lower boundary.
+        // -0.5*U*(2*k-1)*sin(2*pi/L) baroclinic jet (k=1 lower boundary, k=2 upper boundary).
+        // l = 2.*pi/L and mu = l*N*H/f
+        // u = -0.5*U*np.sin(l*y)*np.sinh(mu*(z-0.5*H)/H)*np.sin(l*y)/np.sinh(0.5*mu)
+        // theta = (f*theta0/g)*(0.5*U*mu/(l*H))*np.cosh(mu*(z-0.5*H)/H)*
+        // np.cos(l*y)/np.sinh(0.5*mu) + theta0 + (theta0*nsq*z/g)
+        //{
             const real_t l_fund = 2.f * pi / L_;
             const real_t mu0    = l_fund * std::sqrt(nsq_) * H_ / f_;
             std::vector<real_t> pvbar1d(N_);
@@ -573,7 +579,7 @@ private:
 
     // spectral arrays  (N × Nc)
     std::vector<real_t> k_, l_, ksqlsq_, wavenums_;
-    std::vector<double_t> Hovermu_, tanhmu_, sinhmu_;
+    std::vector<real_t> Hovermu_, tanhmu_, sinhmu_;
     std::vector<cplx_t> ik_, il_, hyperdiff_;
     std::vector<cplx_t> ik_pad_, il_pad_;
 
