@@ -204,7 +204,6 @@ comm.Bcast(pv_truth, root=0)
 comm.Bcast(obtimes, root=0)
 
 oberrvar = oberrstdev**2*np.ones(nobs,np.float32)
-pvob = np.empty(nobs,np.float32)
 
 if read_restart:
     timeslist = obtimes.tolist()
@@ -278,7 +277,6 @@ if savedata is not None and rank == 0:
 pvspec_errmean = None; pvspec_sprdmean = None
 
 ncount = 0
-normfact = np.array(np.sqrt(nanals-1),dtype=np.float32)
 
 k = N*np.fft.rfftfreq(N)
 l = N*np.fft.fftfreq(N)
