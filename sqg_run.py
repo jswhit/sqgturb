@@ -28,7 +28,7 @@ rank = comm.Get_rank()
 #diff_efold = 12.*3600.
 
 N = 64
-dt = 1800    
+dt = 1200    
 diff_efold = 86400.
 
 norder = 8 # order of hyperdiffusion

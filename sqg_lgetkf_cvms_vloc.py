@@ -82,9 +82,9 @@ ngroups = nanals//2  # number of groups for cross-validation (ngroups=nanals//N 
 oberrstdev = 1. # ob error standard deviation in K
 
 # nature run created using sqg_run.py.
-filename_climo = 'sqgu20_N128_6hrly_12hdiff.nc' # file name for forecast model climo
+filename_climo = 'sqgu20_N64_6hrly_24hdiff.nc' # file name for forecast model climo
 # perfect model
-filename_truth = 'sqgu20_N128_6hrly_12hdiff.nc' # file name for nature run to draw obs
+filename_truth = 'sqgu20_N64_6hrly_24hdiff.nc' # file name for nature run to draw obs
 #filename_truth = 'sqg_N256_N96_12hrly.nc' # file name for nature run to draw obs
 
 if rank==0:
@@ -169,7 +169,7 @@ if rank==0:
 
 # each ob time nobs ob locations are randomly sampled (without
 # replacement) from the model grid
-nobs = 1024
+nobs = 820
 
 # nature run
 if rank == 0:

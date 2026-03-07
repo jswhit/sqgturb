@@ -279,47 +279,41 @@ if __name__ == "__main__":
     # set number of timesteps to integrate for each call to model.advance
     ntimesteps = int(outputinterval/model.dt)
 
-    while model.t < tmax:
-        pv = model.advance(timesteps=ntimesteps)
-        if rank==0:
-            hr = model.t/3600.
-            print(hr,scalefact*pv.min(),scalefact*pv.max())
-
-    #if nranks > 1:
-    #    # running on multiple tasks, loop through times and print min/max pv
-    #    while model.t < tmax:
-    #        pv = model.advance(timesteps=ntimesteps)
-    #        if rank==0:
-    #            hr = model.t/3600.
-    #            print(hr,scalefact*pv.min(),scalefact*pv.max())
-    #else:
-    #    # running on a single task, plot animation
-    #    import matplotlib
-    #    matplotlib.use('qtagg')
-    #    import matplotlib.pyplot as plt
-    #    import matplotlib.animation as animation
-    #    fig = plt.figure(figsize=(14,8))
-    #    fig.subplots_adjust(left=0.05, bottom=0.05, top=0.95, right=0.95)
-    #    vmin = comm.reduce(scalefact*model.pvbar.min(),op=MPI.MIN)
-    #    vmax = comm.reduce(scalefact*model.pvbar.max(),op=MPI.MAX)
-    #    def initfig():
-    #        global im1,im2
-    #        ax1 = fig.add_subplot(121)
-    #        ax1.axis('off')
-    #        pv = model.advance(timesteps=0)
-    #        im1 = ax1.imshow(scalefact*pv[0],cmap=plt.cm.jet,interpolation='nearest',origin='lower',vmin=vmin,vmax=vmax)
-    #        ax2 = fig.add_subplot(122)
-    #        ax2.axis('off')
-    #        im2 = ax2.imshow(scalefact*pv[1],cmap=plt.cm.jet,interpolation='nearest',origin='lower',vmin=vmin,vmax=vmax)
-    #        return im1,im2,
-    #    def updatefig(*args):
-    #        pv = model.advance(timesteps=ntimesteps)
-    #        print(model.t/3600.,scalefact*pv.min(),scalefact*pv.max())
-    #        im1.set_data(scalefact*pv[0])
-    #        im2.set_data(scalefact*pv[1])
-    #        return im1,im2,
-    #    
-    #    # interval=0 means draw as fast as possible
-    #    ani = animation.FuncAnimation(fig, updatefig, frames=nsteps, repeat=False,\
-    #          init_func=initfig,interval=0,blit=True)
-    #    plt.show()
+    if nranks > 1:
+        # running on multiple tasks, loop through times and print min/max pv
+        while model.t < tmax:
+            pv = model.advance(timesteps=ntimesteps)
+            if rank==0:
+                hr = model.t/3600.
+                print(hr,scalefact*pv.min(),scalefact*pv.max())
+    else:
+        # running on a single task, plot animation
+        import matplotlib
+        matplotlib.use('qtagg')
+        import matplotlib.pyplot as plt
+        import matplotlib.animation as animation
+        fig = plt.figure(figsize=(14,8))
+        fig.subplots_adjust(left=0.05, bottom=0.05, top=0.95, right=0.95)
+        vmin = comm.reduce(scalefact*model.pvbar.min(),op=MPI.MIN)
+        vmax = comm.reduce(scalefact*model.pvbar.max(),op=MPI.MAX)
+        def initfig():
+            global im1,im2
+            ax1 = fig.add_subplot(121)
+            ax1.axis('off')
+            pv = model.advance(timesteps=0)
+            im1 = ax1.imshow(scalefact*pv[0],cmap=plt.cm.jet,interpolation='nearest',origin='lower',vmin=vmin,vmax=vmax)
+            ax2 = fig.add_subplot(122)
+            ax2.axis('off')
+            im2 = ax2.imshow(scalefact*pv[1],cmap=plt.cm.jet,interpolation='nearest',origin='lower',vmin=vmin,vmax=vmax)
+            return im1,im2,
+        def updatefig(*args):
+            pv = model.advance(timesteps=ntimesteps)
+            print(model.t/3600.,scalefact*pv.min(),scalefact*pv.max())
+            im1.set_data(scalefact*pv[0])
+            im2.set_data(scalefact*pv[1])
+            return im1,im2,
+        
+        # interval=0 means draw as fast as possible
+        ani = animation.FuncAnimation(fig, updatefig, frames=nsteps, repeat=False,\
+              init_func=initfig,interval=0,blit=True)
+        plt.show()
