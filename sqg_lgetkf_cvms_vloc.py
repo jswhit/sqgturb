@@ -5,8 +5,12 @@ import numpy as np
 from netCDF4 import Dataset
 import sys, time, os
 from sqgturb import SQG, fft_forward, fft_backward, cartdist, lgetkf_ms_vloc, gaspcohn, newDistArrayGrid, newDistArraySpec, MPI
-from numpy.linalg import eigh
-from numpy.fft import rfft2, ifft2
+from scipy.linalg import eigh
+from pyfftw.interfaces import numpy_fft, cache
+cache.enable()
+rfft2 = numpy_fft.rfft2
+irfft2 = numpy_fft.irfft2
+
 
 comm = MPI.COMM_WORLD
 num_processes = comm.Get_size()
@@ -73,8 +77,8 @@ read_restart = False
 savedata = None
 #nassim = 101
 #nassim_spinup = 1
-nassim = 1100 # assimilation times to run
-nassim_spinup = 100
+nassim = 1320 # assimilation times to run
+nassim_spinup = 120
 
 nanals = 16 # ensemble members
 ngroups = nanals//2  # number of groups for cross-validation (ngroups=nanals//N is "leave N out")
@@ -233,7 +237,7 @@ if savedata is not None and rank == 0:
    nc.nanals = nanals
    nc.hcovlocal_scales = hcovlocal_scales
    nc.band_cutoffs = band_cutoffs
-   nc.crossbandcov_facts = crossband_covfacts
+   nc.crossbandcov_facts = crossbandcov_facts
    nc.oberrstdev = oberrstdev
    nc.g = nc_climo.g; nc.theta0 = nc_climo.theta0
    nc.nsq = models[0].nsq
