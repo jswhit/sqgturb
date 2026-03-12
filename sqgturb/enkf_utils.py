@@ -161,6 +161,7 @@ def lgetkf_vloc(xens, xens2, hxens, hxens2, obs, oberrs, covlocal, nanal_index, 
     hxprime2 = hxens2 - hxmean # modulated ens
     nanals = hxens.shape[0]
     nanals2 = hxens2.shape[0] # modulated ens size
+    neig = nanals2//nanals
     ndim = covlocal.shape[-1]
     xmean = xens.mean(axis=0)
     xprime = xens - xmean
@@ -172,8 +173,11 @@ def lgetkf_vloc(xens, xens2, hxens, hxens2, obs, oberrs, covlocal, nanal_index, 
     else:
         nanals_per_group = nanals//ngroups
 
-    def getYbvecs(hx, Rlocal, oberrvar, nerger=True):
-        normfact = np.array(np.sqrt(hx.shape[0]-1),dtype=np.float32)
+    def getYbvecs(neig, hx, Rlocal, oberrvar, nerger=True):
+        nanals = hx.shape[0]
+        nanals_orig = nanals//neig
+        # don't know why, but neig*(nanals-2) is the number of nonzero eigs of np.dot(hx,hx.T)
+        normfact = np.array(np.sqrt(neig*(nanals-2)),dtype=np.float32)
         if nerger:
             # Nerger regularization
             hpbht = (hx**2).sum(axis=0)/normfact**2
@@ -187,7 +191,7 @@ def lgetkf_vloc(xens, xens2, hxens, hxens2, obs, oberrs, covlocal, nanal_index, 
             YbRinv = hx*(Rlocal/oberrvar)/normfact
         return YbsqrtRinv, YbRinv
 
-    def calcwts_mean(nens, hx, Rlocal, oberrvar, ominusf,nerger=True):
+    def calcwts_mean(neig, nens, hx, Rlocal, oberrvar, ominusf,nerger=True):
         # nens is the original (unmodulated) ens size
         nobs = hx.shape[1]
         normfact = np.array(np.sqrt(nens-1),dtype=np.float32)
@@ -196,7 +200,7 @@ def lgetkf_vloc(xens, xens2, hxens, hxens2, obs, oberrs, covlocal, nanal_index, 
         # compute eigenvectors/eigenvalues of A = HZ^T HZ (C=left SV)
         # (in Bishop paper HZ is nobs, nanals, here is it nanals, nobs)
         # normalize so dot product is covariance
-        YbsqrtRinv, YbRinv = getYbvecs(hx,Rlocal,oberrvar,nerger=nerger)
+        YbsqrtRinv, YbRinv = getYbvecs(neig,hx,Rlocal,oberrvar,nerger=nerger)
         if nobs >= nens:
             a = np.dot(YbsqrtRinv,YbsqrtRinv.T)
             evals, evecs, info = lapack.dsyevd(a)
@@ -217,7 +221,7 @@ def lgetkf_vloc(xens, xens2, hxens, hxens2, obs, oberrs, covlocal, nanal_index, 
         pa = np.dot(evecs/gammapI[np.newaxis,:],evecs.T)
         return np.dot(pa, np.dot(YbRinv,ominusf))/normfact
 
-    def calcwts_perts(nens, hx_orig, hx, Rlocal, oberrvar,nerger=True):
+    def calcwts_perts(neig, nens, hx_orig, hx, Rlocal, oberrvar,nerger=True):
         # hx_orig contains the ensemble for the witheld member
         # nens is the original (unmodulated) ens size
         nobs = hx.shape[1]
@@ -227,7 +231,7 @@ def lgetkf_vloc(xens, xens2, hxens, hxens2, obs, oberrs, covlocal, nanal_index, 
         # compute eigenvectors/eigenvalues of A = HZ^T HZ (C=left SV)
         # (in Bishop paper HZ is nobs, nanals, here is it nanals, nobs)
         # normalize so dot product is covariance
-        YbsqrtRinv, YbRinv = getYbvecs(hx,Rlocal,oberrvar,nerger=nerger)
+        YbsqrtRinv, YbRinv = getYbvecs(neig,hx,Rlocal,oberrvar,nerger=nerger)
         if nobs >= nens:
             a = np.dot(YbsqrtRinv,YbsqrtRinv.T)
             evals, evecs, info = lapack.dsyevd(a)
@@ -256,7 +260,7 @@ def lgetkf_vloc(xens, xens2, hxens, hxens2, obs, oberrs, covlocal, nanal_index, 
             ominusf_local = (obs-hxmean)[mask]
             hxprime2_local = hxprime2[:,mask]
             hxprime_local = hxprime[:,mask]
-            wts_ensmean = calcwts_mean(nanals, hxprime2_local, Rlocal, oberrvar_local, ominusf_local, nerger=nerger)
+            wts_ensmean = calcwts_mean(neig, nanals, hxprime2_local, Rlocal, oberrvar_local, ominusf_local, nerger=nerger)
             for k in range(2):
                 xmean[k,n] += np.dot(wts_ensmean,xprime2[:,k,n])
             # update sub-ensemble groups, using cross validation.
@@ -265,7 +269,7 @@ def lgetkf_vloc(xens, xens2, hxens, hxens2, obs, oberrs, covlocal, nanal_index, 
                 nanal_cv = [na + ngrp*nanals_per_group for na in range(nanals_per_group)]
                 nanals_sub = np.nonzero(np.isin(nanal_index,nanal_cv))
                 hxprime_cv = np.delete(hxprime2_local,nanals_sub,axis=0); xprime_cv = np.delete(xprime2[:,:,n],nanals_sub,axis=0)
-                wts_ensperts_cv = calcwts_perts(nanals-nanals//ngroups, hxprime_local[nanal_cv], hxprime_cv, Rlocal, oberrvar_local, nerger=nerger)
+                wts_ensperts_cv = calcwts_perts(neig, nanals-nanals//ngroups, hxprime_local[nanal_cv], hxprime_cv, Rlocal, oberrvar_local, nerger=nerger)
                 for k in range(2):
                     xprime[nanal_cv,k,n] += np.dot(wts_ensperts_cv,xprime_cv[:,k])
             xprime_mean = xprime[:,:,n].mean(axis=0) 
@@ -311,6 +315,10 @@ def lgetkf_ms(nlscales, xens, xprime, hxprime, hxprime_orig, omf, oberrs, covloc
                rij = hpbht[0]
             else:
                rij += Rlocal[nl]*hpbht[nl]
+            #if nl == 0:
+            #   rij = Rlocal[0]*hpbht[0]
+            #else:
+            #   rij += Rlocal[nl]*hpbht[nl]
         hpbht_tot = hpbht.sum(axis=0)
         rij = rij/hpbht_tot
         for nl in range(nlscales):
@@ -446,9 +454,9 @@ def lgetkf_ms_vloc(nlscales, xens, xens2, hxprime, hxprime2, omf, oberrs, covloc
         nanals_per_group = nanals//ngroups
 
     def getYbvecs(nlscales,hx,Rlocal,oberrvar):
-        normfact = np.array(np.sqrt(hx.shape[0]-1),dtype=np.float32)
         nanalstot, nobs = hx.shape
         nanals_orig = nanalstot//nlscales
+        normfact = np.array(np.sqrt(nlscales*(nanals_orig-1)),dtype=np.float64)
         YbsqrtRinv = np.empty((nanalstot,nobs),np.float32)
         YbRinv = np.empty((nanalstot,nobs),np.float32)
         hpbht = np.empty((nlscales,nobs),np.float32)
