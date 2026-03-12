@@ -247,6 +247,7 @@ for ntime in range(nassim):
     for nanal in range(nanals):
         hxens[nanal] = scalefact*pvens[nanal,...].reshape(2*nx*ny)[indxob] # surface pv obs
     hxensmean_b = hxens.mean(axis=0)
+    hxprime_orig = hxens - hxensmean_b
     obsprd = ((hxens-hxensmean_b)**2).sum(axis=0)/(nanals-1)
     # innov stats for background
     obfits = pvob - hxensmean_b
@@ -285,8 +286,17 @@ for ntime in range(nassim):
         #plt.show()
         #raise SystemExit
     pvens_filtered = np.asarray(pvens_filtered_lst)
-    pvens = np.dot(pvens_filtered.T,crossband_covmat).T
-    pvens += pvensmean_b  # mean added back to all scales.
+    pvprime = np.dot(pvens_filtered.T,crossband_covmat).T
+    #pvsprd_b2 = np.empty(nlscales, np.float32)
+    #for nl in range(nlscales):
+    #    pvsprd_tmp = ((scalefact*pvprime[nl])**2).sum(axis=0)/(nanals-1)
+    #    print(nl,pvsprd_tmp.shape,pvsprd_tmp.min(),pvsprd_tmp.max())
+    #    pvsprd_b2[nl] = pvsprd_tmp.mean()
+    #print('pvsprd_b',pvsprd_b.mean())
+    #print('pvsprd_b2',pvsprd_b2)
+    #print('pvsprd_b2_sum',pvsprd_b2.sum())
+    #raise SystemExit
+    
 
     if savedata is not None:
         if savedata == 'restart' and ntime != nassim-1:
@@ -301,9 +311,9 @@ for ntime in range(nassim):
     # EnKF update
     # create 1d state vector.
     # concatenate along ensemble dimension (nanals*nlscales)
-    xens = pvens.reshape(nlscales*nanals,2,nx*ny)
+    xens = pvens.reshape(nanals,2,nx*ny)
+    xprime = pvprime.reshape(nlscales*nanals,2,nx*ny)
     xmean = xens.mean(axis=0)
-    xprime = xens - xmean
     hxprime = np.empty((nanals*nlscales,nobs),np.float32)
     for nanal in range(nanals*nlscales):
         hxprime[nanal] = (scalefact*xprime[nanal].reshape(2*nx*ny))[indxob] # surface pv obs
@@ -311,19 +321,15 @@ for ntime in range(nassim):
     # update state vector.
 
     # hxens,pvob are in PV units, xens is not
-    xens = lgetkf_ms(nlscales,xens,hxprime,pvob-hxensmean_b,oberrvar,covlocal_tmp,ngroups=ngroups)
+    # (note xens contains unfiltered (original) ensemble, xprime has filtered perturbations separated into wave bands).
+    xens = lgetkf_ms(nlscales,xens,xprime,hxprime,hxprime_orig,pvob-hxensmean_b,oberrvar,covlocal_tmp,ngroups=ngroups)
 
     # back to 3d state vector
-    pvens = xens.reshape((nlscales*nanals,2,ny,nx))
+    pvens = xens.reshape((nanals,2,ny,nx))
     pvensmean_a = pvens.mean(axis=0) 
-    pvens_filtered = pvens - pvensmean_a
-    pvens_filtered = pvens_filtered.reshape(nlscales,nanals,2,ny,nx)
-    pvprime = np.dot(pvens_filtered.T,crossband_covmatr).T
-    pvens = pvprime.sum(axis=0) + pvensmean_a
     t2 = time.time()
     if profile: print('cpu time for EnKF update',t2-t1)
 
-    pvensmean_a = pvens.mean(axis=0)
     pvprime = pvens - pvensmean_a
     asprd = (pvprime**2).sum(axis=0)/(nanals-1)
     asprd_over_fsprd = asprd.mean()/fsprd.mean()

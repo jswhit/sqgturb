@@ -140,13 +140,12 @@ def lgetkf(xens, hxens, obs, oberrs, covlocal, nerger=True, ngroups=None):
             for k in range(2):
                 xmean[k,n] += np.dot(wts_ensmean,xprime_b[:,k,n])
             # update sub-ensemble groups, using cross validation.
-            if nobs_local > 1:
-                for ngrp in range(ngroups):
-                    nanal_cv = [na + ngrp*nanals_per_group for na in range(nanals_per_group)]
-                    hxprime_cv = np.delete(hxprime_local,nanal_cv,axis=0); xprime_cv = np.delete(xprime_b[:,:,n],nanal_cv,axis=0)
-                    wts_ensperts_cv = calcwts_perts(nanals-nanals//ngroups, hxprime_local[nanal_cv], hxprime_cv, Rlocal, oberrvar_local, nerger=nerger)
-                    for k in range(2):
-                        xprime[nanal_cv,k,n] += np.dot(wts_ensperts_cv,xprime_cv[:,k])
+            for ngrp in range(ngroups):
+                nanal_cv = [na + ngrp*nanals_per_group for na in range(nanals_per_group)]
+                hxprime_cv = np.delete(hxprime_local,nanal_cv,axis=0); xprime_cv = np.delete(xprime_b[:,:,n],nanal_cv,axis=0)
+                wts_ensperts_cv = calcwts_perts(nanals-nanals//ngroups, hxprime_local[nanal_cv], hxprime_cv, Rlocal, oberrvar_local, nerger=nerger)
+                for k in range(2):
+                    xprime[nanal_cv,k,n] += np.dot(wts_ensperts_cv,xprime_cv[:,k])
             xprime_mean = xprime[:,:,n].mean(axis=0) 
             xprime[:,:,n] -= xprime_mean # ensure zero mean
             xens[:,:,n] = xmean[:,n]+xprime[:,:,n]
@@ -275,20 +274,18 @@ def lgetkf_vloc(xens, xens2, hxens, hxens2, obs, oberrs, covlocal, nanal_index, 
 
     return xens
 
-def lgetkf_ms(nlscales, xens, hxprime, omf, oberrs, covlocal, ngroups=None):
+def lgetkf_ms(nlscales, xens, xprime, hxprime, hxprime_orig, omf, oberrs, covlocal, ngroups=None):
 
     """returns ensemble updated by LGETKF with cross-validation and multi-scale R localization"""
 
-    nanals = hxprime.shape[0]
-    nanals_orig = nanals//nlscales
+    nanals = hxprime_orig.shape[0]
     ndim = covlocal.shape[-1]
     xmean = xens.mean(axis=0)
-    xprime = xens - xmean
-    xprime_b = xprime.copy()
-    nanal_index = np.empty(nanals)
+    xprime_orig = xens - xmean
+    nanal_index = np.empty(nanals*nlscales)
     nanal2 = 0
     for nl in range(nlscales):
-        for nanal in range(nanals_orig):
+        for nanal in range(nanals):
             nanal_index[nanal2]=nanal
             nanal2 += 1
     if ngroups is None: # default is "leave one out" (nanals must be multiple of ngroups)
@@ -299,9 +296,9 @@ def lgetkf_ms(nlscales, xens, hxprime, omf, oberrs, covlocal, ngroups=None):
         nanals_per_group = nanals//ngroups
 
     def getYbvecs(nlscales,hx,Rlocal,oberrvar):
-        normfact = np.array(np.sqrt(hx.shape[0]-1),dtype=np.float32)
         nanalstot, nobs = hx.shape
         nanals_orig = nanalstot//nlscales
+        normfact = np.array(np.sqrt(nlscales*(nanals_orig-1)),dtype=np.float64)
         YbsqrtRinv = np.empty((nanalstot,nobs),np.float32)
         YbRinv = np.empty((nanalstot,nobs),np.float32)
         hpbht = np.empty((nlscales,nobs),np.float32)
@@ -393,22 +390,22 @@ def lgetkf_ms(nlscales, xens, hxprime, omf, oberrs, covlocal, ngroups=None):
                 Rlocal[nl] = covlocal[nl,mask,n].clip(min=np.finfo(np.float32).eps)
             ominusf_local = omf[mask]
             hxprime_local = hxprime[:,mask]
+            hxprime_orig_local = hxprime_orig[:,mask]
             wts_ensmean = calcwts_mean(nanals, nlscales, hxprime_local, oberrvar_local, Rlocal, ominusf_local)
             for k in range(2):
-                xmean[k,n] += np.dot(wts_ensmean,xprime_b[:,k,n])
+                xmean[k,n] += np.dot(wts_ensmean,xprime[:,k,n])
             # update one member at a time (one member for each scale), using cross validation.
             for ngrp in range(ngroups):
                 nanal_cv = [na + ngrp*nanals_per_group for na in range(nanals_per_group)]
                 nanals_sub = np.nonzero(np.isin(nanal_index,nanal_cv))
                 hxprime_cv = np.delete(hxprime_local,nanals_sub,axis=0)
-                xprime_cv = np.delete(xprime_b[:,:,n],nanals_sub,axis=0)
-                hxprime_orig = hxprime_local[nanals_sub]
-                wts_ensperts_cv = calcwts_perts(nanals-nanals//ngroups, nlscales, hxprime_orig, hxprime_cv, oberrvar_local, Rlocal)
+                xprime_cv = np.delete(xprime[:,:,n],nanals_sub,axis=0)
+                wts_ensperts_cv = calcwts_perts(nanals-nanals//ngroups, nlscales, hxprime_orig_local[nanal_cv], hxprime_cv, oberrvar_local, Rlocal)
                 for k in range(2):
-                    xprime[nanals_sub,k,n] += np.dot(wts_ensperts_cv,xprime_cv[:,k])
-            xprime_mean = xprime[:,:,n].mean(axis=0) 
-            xprime[:,:,n] -= xprime_mean # ensure zero mean
-            xens[:,:,n] = xmean[:,n]+xprime[:,:,n]
+                    xprime_orig[nanal_cv,k,n] += np.dot(wts_ensperts_cv,xprime_cv[:,k])
+            xprime_mean = xprime_orig[:,:,n].mean(axis=0) 
+            xprime_orig[:,:,n] -= xprime_mean # ensure zero mean
+            xens[:,:,n] = xmean[:,n]+xprime_orig[:,:,n]
 
     return xens
 
