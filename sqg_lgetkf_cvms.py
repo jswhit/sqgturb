@@ -31,12 +31,10 @@ crossbandcov_facts = eval(sys.argv[3])
 if len(crossbandcov_facts) != nband_cutoffs:
     raise SystemExit('band_cutoffs and crossbandcov_facts should be same length')
 crossband_covmat = np.ones((nlscales,nlscales),np.float32)
-crossband_covmatr = np.ones((nlscales,nlscales),np.float32)
 for i in range(nlscales):
     for j in range(nlscales):
         if j != i:
             crossband_covmat[j,i] = crossbandcov_facts[np.abs(i-j)-1] 
-            crossband_covmatr[j,i] = -crossbandcov_facts[np.abs(i-j)-1] 
 
 exptname = os.getenv('exptname','test')
 threads = int(os.getenv('OMP_NUM_THREADS','1'))
@@ -287,6 +285,8 @@ for ntime in range(nassim):
         #raise SystemExit
     pvens_filtered = np.asarray(pvens_filtered_lst)
     pvprime = np.dot(pvens_filtered.T,crossband_covmat).T
+    # check that sum of variances in wavebands equals total variance of unfiltered perts
+    # (it should for straight truncation filter)
     #pvsprd_b2 = np.empty(nlscales, np.float32)
     #for nl in range(nlscales):
     #    pvsprd_tmp = ((scalefact*pvprime[nl])**2).sum(axis=0)/(nanals-1)
