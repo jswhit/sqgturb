@@ -138,9 +138,11 @@ covlocal_tmp = np.empty((nlscales,nobs,nx*ny),np.float32)
 vcovlocal_facts = np.asarray(vcovlocal_facts)
 if np.all(vcovlocal_facts > 0.99): # no vertical localization
     vcovlocal_sqrt = np.ones((nlscales,2,1),np.float32)
+    neig = 1
 else:
     # number of eigenvectores for each scale must be the same
     vcovlocal_sqrt = np.empty((nlscales,2,2),np.float32)
+    neig = 2
     for nl in range(nlscales):
         vloc = np.array([(1,vcovlocal_facts[nl]),(vcovlocal_facts[nl],1)],np.float32)
         evals, evecs = eigh(vloc)
@@ -264,6 +266,7 @@ for ntime in range(nassim):
     for nanal in range(nanals):
         hxens[nanal] = scalefact*pvens[nanal,...].reshape(2*nx*ny)[indxob] # surface pv obs
     hxensmean_b = hxens.mean(axis=0)
+    hxprime_orig = hxens - hxensmean_b
     obsprd = ((hxens-hxensmean_b)**2).sum(axis=0)/(nanals-1)
     # innov stats for background
     obfits = pvob - hxensmean_b
@@ -295,7 +298,6 @@ for ntime in range(nassim):
         pvens_filtered_lst.append(pvpert-pvsum)
     pvprime = np.asarray(pvens_filtered_lst)
     pvprime = np.dot(pvprime.T,crossband_covmat).T
-    pvens = pvprime + pvensmean_b  # mean added back to all scales.
 
     # modulate ensemble
     def modens(pvprime, vcovlocal_sqrt):
@@ -312,8 +314,6 @@ for ntime in range(nassim):
                     nanal2 += 1
         return pvprime2
     pvprime2 = modens(pvprime, vcovlocal_sqrt)
-    nanals2 = pvprime2.shape[1]
-    pvens2 = pvprime2 + pvensmean_b 
     ## check modulation works
     #for nl in range(nlscales):
     #    nlp1 = nl+1
@@ -336,35 +336,24 @@ for ntime in range(nassim):
     # EnKF update
     # create 1d state vector.
     # concatenate along ensemble dimension (nanals*nlscales)
-    xens = pvens.reshape(nlscales*nanals,2,nx*ny)
+    xens = pvens.reshape(nanals,2,nx*ny)
     xmean = xens.mean(axis=0)
-    xprime = xens - xmean
-    hxprime = np.empty((nanals*nlscales,nobs),np.float32)
-    for nanal in range(nanals*nlscales):
+    xprime = pvprime2.reshape(nanals*nlscales*neig,2,nx*ny)
+    hxprime = np.empty((nanals*nlscales*neig,nobs),np.float32)
+    for nanal in range(nanals*nlscales*neig):
         hxprime[nanal] = (scalefact*xprime[nanal].reshape(2*nx*ny))[indxob] # surface pv obs
-    xens2 = pvens2.reshape(nlscales*nanals2,2,nx*ny)
-    xprime2 = xens2 - xmean
-    hxprime2 = np.empty((nanals2*nlscales,nobs),np.float32)
-    for nanal in range(nanals2*nlscales):
-        hxprime2[nanal] = (scalefact*xprime2[nanal].reshape(2*nx*ny))[indxob] # surface pv obs
 
     # update state vector.
 
     # hxens,pvob are in PV units, xens is not
-    xens = lgetkf_ms_vloc(nlscales,xens,xens2,hxprime,hxprime2,pvob-hxensmean_b,oberrvar,covlocal_tmp,ngroups=ngroups)
+    xens = lgetkf_ms_vloc(nlscales,neig,xens,xprime,hxprime,hxprime_orig,pvob-hxensmean_b,oberrvar,covlocal_tmp,ngroups=ngroups)
 
     # back to 3d state vector
-    pvens = xens.reshape((nlscales*nanals,2,ny,nx))
+    pvens = xens.reshape((nanals,2,ny,nx))
     pvensmean_a = pvens.mean(axis=0) 
-    pvens_filtered = pvens - pvensmean_a
-    pvens_filtered = pvens_filtered.reshape(nlscales,nanals,2,ny,nx)
-    pvprime = np.dot(pvens_filtered.T,crossband_covmatr).T
-    pvens = pvprime.sum(axis=0) + pvensmean_a
-
     t2 = time.time()
     if profile: print('cpu time for EnKF update',t2-t1)
 
-    pvensmean_a = pvens.mean(axis=0)
     pvprime = pvens - pvensmean_a
     asprd = (pvprime**2).sum(axis=0)/(nanals-1)
     asprd_over_fsprd = asprd.mean()/fsprd.mean()
