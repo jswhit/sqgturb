@@ -620,7 +620,7 @@ def lgetkf_bloc(xens, omf, oberrs, sqrtcovlocal_local, covlocal_ob, indxob, covl
         # (in Bishop paper HZ is nobs, nanals, here is it nanals, nobs)
         # normalize so dot product is covariance
         YbsqrtRinv, YbRinv = getYbvecs(ndgf, hx,oberrvar,nerger=nerger)
-        if nobs >= ndgf:
+        if nobs >= hx.shape[0]:
             a = np.dot(YbsqrtRinv,YbsqrtRinv.T)
             evals, evecs = eigh(a)
             evals = evals.clip(min=np.finfo(evals.dtype).eps)
@@ -714,7 +714,6 @@ def lgetkf_bloc(xens, omf, oberrs, sqrtcovlocal_local, covlocal_ob, indxob, covl
             xprime_mean = xprime[:,:,n].mean(axis=0) 
             xprime[:,:,n] -= xprime_mean # ensure zero mean
             xens[:,:,n] = xmean[:,n]+xprime[:,:,n]
-        raise SystemExit
         nc += 1
 
     return xens
@@ -728,8 +727,8 @@ def lgetkfms_bloc(xmean, xprime, omf, oberrs, sqrtcovlocal_local, covlocal_ob, i
     ndim = xprime.shape[-1]
     if npts_dist is None:
         npts_dist = np.arange(ndim)
+    xprime_updated = xprime.sum(axis=2) # sum over wavebands
     xprime_b = xprime.copy()
-    xprime_updated = xprime_b.sum(axis=2) # sum over wavebands
     indx_ens=np.ones(nanals,np.bool_); indx_lev=np.ones(2,np.bool_)
     if ngroups is None: # default is "leave one out" (nanals must be multiple of ngroups)
         ngroups = nanals
