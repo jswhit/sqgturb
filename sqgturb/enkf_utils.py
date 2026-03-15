@@ -35,6 +35,29 @@ def gaspcohn(r):
     )
     return taper
 
+# ensemble modulator
+def modens(enspert, sqrtcovlocal):
+    nanals = enspert.shape[0]
+    neig = sqrtcovlocal.shape[0]
+    return np.multiply(np.repeat(sqrtcovlocal[:,np.newaxis,:],nanals,axis=0),np.tile(enspert,(neig,1,1)))
+def get_nanal_index(nanals, neig):
+    return np.multiply(np.repeat(np.ones(neig),nanals,axis=0),np.tile(np.arange(nanals),(neig,)))
+
+# ensemble modulator
+#def modens(enspert, sqrtcovlocal):
+#    neig = sqrtcovlocal.shape[0]
+#    nanals = enspert.shape[0]
+#    enspert2 = np.empty((neig*nanals,)+enspert.shape[1:],enspert.dtype)
+#    nanal2 = 0
+#    for j in range(neig):
+#        for nanal in range(nanals):
+#            for k in range(2):
+#                enspert2[nanal2,k,...] =\
+#                enspert[nanal,k,...]*sqrtcovlocal[j,np.newaxis,...]
+##               enspert[nanal,k,...]*sqrtcovlocal[neig-j-1,np.newaxis,...]
+#            nanal2 += 1
+#    return enspert2
+
 def lgetkf(xens, hxens, obs, oberrs, covlocal, nerger=True, ngroups=None, npts_dist=None):
 
     """returns ensemble updated by LGETKF with cross-validation"""
@@ -602,15 +625,15 @@ def lgetkf_bloc(xens, omf, oberrs, sqrtcovlocal_local, covlocal_ob, indxob, covl
             hpbht = (hx*2).sum(axis=0)/(nens-1)
             hpbhtplusR = hpbht+oberrvar
             Rlocalfact = (oberrvar/hpbhtplusR)/(1.-hpbht/hpbhtplusR)
-            Rinvsqrt = np.sqrt(Rlocalct/oberrvar)
+            Rinvsqrt = np.sqrt(Rlocalfact/oberrvar)
             YbRinv = hx*Rinvsqrt**2/normfact
-            YbsqrtRinv = hxRinvsqrt/normfact
+            YbsqrtRinv = hx*Rinvsqrt/normfact
         else:
             YbsqrtRinv = (hx/normfact)*np.sqrt(1./oberrvar)
             YbRinv = (hx/normfact)*(1./oberrvar)
         return YbsqrtRinv, YbRinv
 
-    def calcwts_mean(ndgf, hx, oberrvar, ominusf):
+    def calcwts_mean(ndgf, hx, oberrvar, ominusf, nerger=nerger):
         # nens is the original (unmodulated) ens size
         nobs = hx.shape[1]
         normfact = np.array(np.sqrt(ndgf),dtype=np.float32)
@@ -690,7 +713,6 @@ def lgetkf_bloc(xens, omf, oberrs, sqrtcovlocal_local, covlocal_ob, indxob, covl
         nmindist = np.argmax(covlocal_model[indx_local,n])
         nanal_index = get_nanal_index(nanals, nanals2//nanals)
         if nobs_local > 0:
-            print('nobs_local = ',nobs_local,' neig = ',nanals2//nanals)
             hxprime_local = np.empty((nanals,nobs_local),np.float32)
             hxprime2_local = np.empty((nanals2,nobs_local),np.float32)
             for nanal in range(nanals):
@@ -720,7 +742,7 @@ def lgetkf_bloc(xens, omf, oberrs, sqrtcovlocal_local, covlocal_ob, indxob, covl
 
 def lgetkfms_bloc(xmean, xprime, omf, oberrs, sqrtcovlocal_local, covlocal_ob, indxob, covlocal_model, scalefact, nerger=True, ngroups=None, npts_dist=None):
 
-    """returns ensemble updated by LGETKF with cross-validation and model-space localization"""
+    """returns ensemble updated by LGETKF with cross-validation and multi-scale model-space localization"""
 
     nanals = xprime.shape[0]
     nlscales = xprime.shape[2]
