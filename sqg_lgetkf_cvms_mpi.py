@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from netCDF4 import Dataset
 import sys, time, os
-from sqgturb import SQG_mpi, rfft2, ifft2, fft_forward, fft_backward, cartdist, lgetkf_ms, gaspcohn, newDistArrayGrid, newDistArraySpec, MPI
+from sqgturb import SQG_mpi, rfft2, irfft2, fft_forward, fft_backward, cartdist, lgetkf_ms, gaspcohn, newDistArrayGrid, newDistArraySpec, MPI
 
 comm = MPI.COMM_WORLD
 num_processes = comm.Get_size()

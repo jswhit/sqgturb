@@ -57,6 +57,13 @@ def get_nanal_index(nanals, neig):
 ##               enspert[nanal,k,...]*sqrtcovlocal[neig-j-1,np.newaxis,...]
 #            nanal2 += 1
 #    return enspert2
+#def get_nanal_index(nanals, neig):
+#    nanal_index=np.empty(nanals, np.int32)
+#    for j in range(neig):
+#        for nanal in range(nanals):
+#            nanal_index[nanal2]=nanal
+#            nanal2 += 1
+#    return nanal_index
 
 def lgetkf(xens, hxens, obs, oberrs, covlocal, nerger=True, ngroups=None, npts_dist=None):
 
