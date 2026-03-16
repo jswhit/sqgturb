@@ -80,9 +80,9 @@ percentvar_cutoff = 0.95 # threshold for eigenvalues used in ensemble modulation
 oberrstdev = 1. # ob error standard deviation in K
 
 # nature run created using sqg_run.py.
-filename_climo = 'sqgu20_N64_6hrly_24hdiff.nc' # file name for forecast model climo
+filename_climo = 'sqgu20_N64_6hrly_24hdiff_mpi.nc' # file name for forecast model climo
 # perfect model
-filename_truth = 'sqgu20_N64_6hrly_24hdiff.nc' # file name for nature run to draw obs
+filename_truth = 'sqgu20_N64_6hrly_24hdiff_mpi.nc' # file name for nature run to draw obs
 #filename_truth = 'sqg_N256_N96_12hrly.nc' # file name for nature run to draw obs
 
 if rank==0:

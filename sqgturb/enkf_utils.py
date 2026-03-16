@@ -812,7 +812,7 @@ def lgetkfms_bloc(xmean, xprime, omf, oberrs, sqrtcovlocal_local, covlocal_ob, i
         pa = np.dot(evecs/gammapI[np.newaxis,:],evecs.T)
         return np.dot(pa, np.dot(YbRinv,ominusf))/normfact
 
-    def calcwts_perts(ndgfs, hx_orig, hx, oberrvar):
+    def calcwts_perts(ndgf, hx_orig, hx, oberrvar, nerger=nerger):
         # hx_orig contains the ensemble for the witheld member
         # nens is the original (unmodulated) ens size
         nobs = hx.shape[1]
