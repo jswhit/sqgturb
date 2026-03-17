@@ -391,7 +391,7 @@ for ntime in range(nassim):
     pvpert = pvens-pvensmean_b
     pverr_b = (scalefact*(pvensmean_b-pv_truth[ntime+ntstart]))**2
     pvsprd_b = ((scalefact*pvpert)**2).sum(axis=0)/(nanals-1)
-    xens = pvens.reshape(nanals,2,nx*ny).copy()
+    xens = pvens.reshape(nanals,2,nx*ny)
 
     # filter background perturbations into different scale bands
     if nlscales > 1:
@@ -453,14 +453,12 @@ for ntime in range(nassim):
 
     # hxens,pvob are in PV units, xens is not
     xens_updated = np.ascontiguousarray(np.zeros_like(xens))
-    xens = lgetkfms_bloc(xmean, xprime, pvob-hxensmean_b, oberrvar, sqrtcovlocal_local, covlocal_ob, indxob, covlocal_model[0], scalefact, nerger=nerger, ngroups=ngroups, npts_dist=npts_dist)
+    xens = lgetkfms_bloc(xens, xprime, pvob-hxensmean_b, oberrvar, sqrtcovlocal_local, covlocal_ob, indxob, covlocal_model[0], scalefact, nerger=nerger, ngroups=ngroups, npts_dist=npts_dist)
     xens_updated[:,:,npts_dist] = xens[:,:,npts_dist]
     comm.Allreduce(MPI.IN_PLACE, xens_updated, op=MPI.SUM)
-    xens = xens_updated
 
     # back to 3d state vector
-    pvens = xens.reshape((nanals,2,ny,nx))
-    pvensmean_a = pvens.mean(axis=0)
+    pvens = xens_updated.reshape((nanals,2,ny,nx))
     t2 = time.time()
     if profile and rank == 0: print('cpu time for EnKF update',t2-t1)
 
