@@ -31,6 +31,8 @@ if rank == 0:
     nlscales = len(hcovlocal_scales)
     band_cutoffs = eval(sys.argv[2])
     nband_cutoffs = len(band_cutoffs)
+    if nlscales > 2:
+        raise SystemExit('only 1 or 2 scales currently supported')
     if nband_cutoffs != nlscales-1:
         raise SystemExit('band_cutoffs should be one less than hcovlocal_scales')
     crossbandcov_facts = eval(sys.argv[3])
