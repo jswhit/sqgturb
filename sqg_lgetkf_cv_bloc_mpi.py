@@ -54,6 +54,7 @@ nerger = True # use Nerger regularization for R localization
 ngroups = nanals//2  # number of groups for cross-validation (ngroups=nanals//N is "leave N out")
 
 percentvar_cutoff = 0.95 # threshold for eigenvalues used in ensemble modulation
+lapack_driver='evd'
 
 oberrstdev = 1. # ob error standard deviation in K
 
@@ -173,7 +174,7 @@ for n in npts_dist:
         dist = cartdist(x1[nn],y1[nn],x1[indx],y1[indx],L,L)
         covlocal_local[nrow,:] = gaspcohn(dist/hcovlocal_scale)
         nrow += 1
-    evals, evecs = eigh(covlocal_local)
+    evals, evecs = eigh(covlocal_local,driver=lapack_driver)
     evals = evals.clip(min=np.finfo(evals.dtype).eps)
     neig = 1
     for i in range(1,npts):

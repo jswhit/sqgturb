@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from netCDF4 import Dataset
 import sys, time, os
-from scipy.linalg import lapack, inv, eigh
+from scipy.linalg import eigh
 from sqgturb import SQG_mpi, rfft2, irfft2, fft_forward, fft_backward, cartdist, lgetkfms_bloc, gaspcohn, newDistArrayGrid, newDistArraySpec, MPI
 
 comm = MPI.COMM_WORLD
@@ -56,12 +56,12 @@ profile = False # turn on profiling?
 # if savedata not None, netcdf filename will be defined by env var 'exptname'
 # if savedata = 'restart', only last time is saved (so expt can be restarted)
 #savedata = True
-#savedata = 'restart'
-savedata = None
-#nassim = 101
+savedata = 'restart'
+##savedata = None
+nassim = 101
 #nassim_spinup = 1
 
-nassim = 1320 # assimilation times to run
+nassim = 1000 # assimilation times to run
 
 nassim_spinup = 120
 read_restart = False
@@ -76,6 +76,7 @@ nerger = True # use Nerger regularization for R localization
 ngroups = nanals//2  # number of groups for cross-validation (ngroups=nanals//N is "leave N out")
 
 percentvar_cutoff = 0.95 # threshold for eigenvalues used in ensemble modulation
+lapack_driver='evd'
 
 oberrstdev = 1. # ob error standard deviation in K
 
@@ -197,7 +198,7 @@ for n in npts_dist:
         dist = cartdist(x1[nn],y1[nn],x1[indx],y1[indx],L,L)
         covlocal11[nrow,:] = gaspcohn(dist/hcovlocal_scales[0])
         nrow += 1
-    evals, evecs = eigh(covlocal11)
+    evals, evecs = eigh(covlocal11,driver=lapack_driver)
     evals = evals.clip(min=np.finfo(evals.dtype).eps)
     sqrtcovlocal11 = np.dot(evecs, np.diag(np.sqrt(evals)))
     if nlscales == 2:
@@ -207,7 +208,7 @@ for n in npts_dist:
             dist = cartdist(x1[nn],y1[nn],x1[indx],y1[indx],L,L)
             covlocal22[nrow,:] = gaspcohn(dist/hcovlocal_scales[1])
             nrow += 1
-        evals, evecs = eigh(covlocal22)
+        evals, evecs = eigh(covlocal22,driver=lapack_driver)
         evals = evals.clip(min=np.finfo(evals.dtype).eps)
         sqrtcovlocal22 = np.dot(evecs, np.diag(np.sqrt(evals)))
         covlocal12 = crossbandcov_facts[0]*np.dot(sqrtcovlocal11,sqrtcovlocal22.T)
@@ -215,7 +216,7 @@ for n in npts_dist:
         #plt.imshow(covlocal_local, cmap=plt.cm.bwr)
         #plt.show()
         #raise SystemExit
-        evals, evecs = eigh(covlocal_local)
+        evals, evecs = eigh(covlocal_local,driver=lapack_driver)
         evals = evals.clip(min=np.finfo(evals.dtype).eps)
         neig = 1
         for i in range(1,npts):

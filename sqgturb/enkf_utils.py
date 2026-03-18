@@ -2,7 +2,7 @@ import numpy as np
 from scipy.linalg import lapack, inv, eigh
 
 # function definitions.
-
+lapack_driver='evd'
 
 def cartdist(x1, y1, x2, y2, xmax, ymax):
     """cartesian distance on doubly periodic plane"""
@@ -113,11 +113,13 @@ def lgetkf(xens, hxens, obs, oberrs, covlocal, nerger=True, ngroups=None, npts_d
         YbsqrtRinv, YbRinv = getYbvecs(ndgf,hx,Rlocal,oberrvar,nerger=nerger)
         if nobs >= hx.shape[0]:
             a = np.dot(YbsqrtRinv,YbsqrtRinv.T)
-            evals, evecs, info = lapack.dsyevd(a)
+            evals, evecs = eigh(a,driver=lapack_driver)
+            #evals, evecs, info = lapack.dsyevd(a)
             evals = evals.clip(min=np.finfo(evals.dtype).eps)
         else:
             a = np.dot(YbsqrtRinv.T,YbsqrtRinv)
-            evals, evecs, info = lapack.dsyevd(a)
+            evals, evecs = eigh(a,driver=lapack_driver)
+            #evals, evecs, info = lapack.dsyevd(a)
             evals = evals.clip(min=np.finfo(evals.dtype).eps)
             evecs = np.dot(YbsqrtRinv,evecs/np.sqrt(evals))
         # gammapI used in calculation of posterior cov in ensemble space
@@ -143,11 +145,13 @@ def lgetkf(xens, hxens, obs, oberrs, covlocal, nerger=True, ngroups=None, npts_d
         YbsqrtRinv, YbRinv = getYbvecs(ndgf,hx,Rlocal,oberrvar,nerger=nerger)
         if nobs >= hx.shape[0]:
             a = np.dot(YbsqrtRinv,YbsqrtRinv.T)
-            evals, evecs, info = lapack.dsyevd(a)
+            evals, evecs = eigh(a,driver=lapack_driver)
+            #evals, evecs, info = lapack.dsyevd(a)
             evals = evals.clip(min=np.finfo(evals.dtype).eps)
         else:
             a = np.dot(YbsqrtRinv.T,YbsqrtRinv)
-            evals, evecs, info = lapack.dsyevd(a)
+            evals, evecs = eigh(a,driver=lapack_driver)
+            #evals, evecs, info = lapack.dsyevd(a)
             evals = evals.clip(min=np.finfo(evals.dtype).eps)
             evecs = np.dot(YbsqrtRinv,evecs/np.sqrt(evals))
         # gammapI used in calculation of posterior cov in ensemble space
@@ -238,11 +242,13 @@ def lgetkf_vloc(xens, xens2, hxens, hxens2, obs, oberrs, covlocal, nanal_index, 
         YbsqrtRinv, YbRinv = getYbvecs(ndgf,hx,Rlocal,oberrvar,nerger=nerger)
         if nobs >= hx.shape[0]:
             a = np.dot(YbsqrtRinv,YbsqrtRinv.T)
-            evals, evecs, info = lapack.dsyevd(a)
+            evals, evecs = eigh(a,driver=lapack_driver)
+            #evals, evecs, info = lapack.dsyevd(a)
             evals = evals.clip(min=np.finfo(evals.dtype).eps)
         else:
             a = np.dot(YbsqrtRinv.T,YbsqrtRinv)
-            evals, evecs, info = lapack.dsyevd(a)
+            evals, evecs = eigh(a,driver=lapack_driver)
+            #evals, evecs, info = lapack.dsyevd(a)
             evals = evals.clip(min=np.finfo(evals.dtype).eps)
             evecs = np.dot(YbsqrtRinv,evecs/np.sqrt(evals))
         # gammapI used in calculation of posterior cov in ensemble space
@@ -269,11 +275,13 @@ def lgetkf_vloc(xens, xens2, hxens, hxens2, obs, oberrs, covlocal, nanal_index, 
         YbsqrtRinv, YbRinv = getYbvecs(ndgf,hx,Rlocal,oberrvar,nerger=nerger)
         if nobs >= hx.shape[0]:
             a = np.dot(YbsqrtRinv,YbsqrtRinv.T)
-            evals, evecs, info = lapack.dsyevd(a)
+            evals, evecs = eigh(a,driver=lapack_driver)
+            #evals, evecs, info = lapack.dsyevd(a)
             evals = evals.clip(min=np.finfo(evals.dtype).eps)
         else:
             a = np.dot(YbsqrtRinv.T,YbsqrtRinv)
-            evals, evecs, info = lapack.dsyevd(a)
+            evals, evecs = eigh(a,driver=lapack_driver)
+            #evals, evecs, info = lapack.dsyevd(a)
             evals = evals.clip(min=np.finfo(evals.dtype).eps)
             evecs = np.dot(YbsqrtRinv,evecs/np.sqrt(evals))
         # gammapI used in calculation of posterior cov in ensemble space
@@ -381,11 +389,13 @@ def lgetkf_ms(nlscales, xens, xprime, hxprime, hxprime_orig, omf, oberrs, covloc
         YbsqrtRinv, YbRinv = getYbvecs(ndgf,nlscales,hx,Rlocal,oberrvar)
         if nobs >= hx.shape[0]:
             a = np.dot(YbsqrtRinv,YbsqrtRinv.T)
-            evals, evecs, info = lapack.dsyevd(a)
+            evals, evecs = eigh(a,driver=lapack_driver)
+            #evals, evecs, info = lapack.dsyevd(a)
             evals = evals.clip(min=np.finfo(evals.dtype).eps)
         else:
             a = np.dot(YbsqrtRinv.T,YbsqrtRinv)
-            evals, evecs, info = lapack.dsyevd(a)
+            evals, evecs = eigh(a,driver=lapack_driver)
+            #evals, evecs, info = lapack.dsyevd(a)
             evals = evals.clip(min=np.finfo(evals.dtype).eps)
             evecs = np.dot(YbsqrtRinv,evecs/np.sqrt(evals))
         gamma_inv = 1./evals
@@ -411,11 +421,13 @@ def lgetkf_ms(nlscales, xens, xprime, hxprime, hxprime_orig, omf, oberrs, covloc
         YbsqrtRinv, YbRinv = getYbvecs(ndgf,nlscales,hx,Rlocal,oberrvar)
         if nobs >= hx.shape[0]:
             a = np.dot(YbsqrtRinv,YbsqrtRinv.T)
-            evals, evecs, info = lapack.dsyevd(a)
+            evals, evecs = eigh(a,driver=lapack_driver)
+            #evals, evecs, info = lapack.dsyevd(a)
             evals = evals.clip(min=np.finfo(evals.dtype).eps)
         else:
             a = np.dot(YbsqrtRinv.T,YbsqrtRinv)
-            evals, evecs, info = lapack.dsyevd(a)
+            evals, evecs = eigh(a,driver=lapack_driver)
+            #evals, evecs, info = lapack.dsyevd(a)
             evals = evals.clip(min=np.finfo(evals.dtype).eps)
             evecs = np.dot(YbsqrtRinv,evecs/np.sqrt(evals))
         # gammapI used in calculation of posterior cov in ensemble space
@@ -524,11 +536,13 @@ def lgetkf_ms_vloc(nlscales, neig, xens, xprime, hxprime, hxprime_orig, omf, obe
         YbsqrtRinv, YbRinv = getYbvecs(ndgf,nlscales,neig,hx,Rlocal,oberrvar)
         if nobs >= hx.shape[0]:
             a = np.dot(YbsqrtRinv,YbsqrtRinv.T)
-            evals, evecs, info = lapack.dsyevd(a)
+            evals, evecs = eigh(a,driver=lapack_driver)
+            #evals, evecs, info = lapack.dsyevd(a)
             evals = evals.clip(min=np.finfo(evals.dtype).eps)
         else:
             a = np.dot(YbsqrtRinv.T,YbsqrtRinv)
-            evals, evecs, info = lapack.dsyevd(a)
+            evals, evecs = eigh(a,driver=lapack_driver)
+            #evals, evecs, info = lapack.dsyevd(a)
             evals = evals.clip(min=np.finfo(evals.dtype).eps)
             evecs = np.dot(YbsqrtRinv,evecs/np.sqrt(evals))
         gamma_inv = 1./evals
@@ -554,11 +568,13 @@ def lgetkf_ms_vloc(nlscales, neig, xens, xprime, hxprime, hxprime_orig, omf, obe
         YbsqrtRinv, YbRinv = getYbvecs(ndgf,nlscales,neig,hx,Rlocal,oberrvar)
         if nobs >= hx.shape[0]:
             a = np.dot(YbsqrtRinv,YbsqrtRinv.T)
-            evals, evecs, info = lapack.dsyevd(a)
+            evals, evecs = eigh(a,driver=lapack_driver)
+            #evals, evecs, info = lapack.dsyevd(a)
             evals = evals.clip(min=np.finfo(evals.dtype).eps)
         else:
             a = np.dot(YbsqrtRinv.T,YbsqrtRinv)
-            evals, evecs, info = lapack.dsyevd(a)
+            evals, evecs = eigh(a,driver=lapack_driver)
+            #evals, evecs, info = lapack.dsyevd(a)
             evals = evals.clip(min=np.finfo(evals.dtype).eps)
             evecs = np.dot(YbsqrtRinv,evecs/np.sqrt(evals))
         # gammapI used in calculation of posterior cov in ensemble space
@@ -649,11 +665,11 @@ def lgetkf_bloc(xens, omf, oberrs, sqrtcovlocal_local, covlocal_ob, indxob, covl
         YbsqrtRinv, YbRinv = getYbvecs(ndgf, hx,oberrvar,nerger=nerger)
         if nobs >= hx.shape[0]:
             a = np.dot(YbsqrtRinv,YbsqrtRinv.T)
-            evals, evecs = eigh(a)
+            evals, evecs = eigh(a,driver=lapack_driver)
             evals = evals.clip(min=np.finfo(evals.dtype).eps)
         else:
             a = np.dot(YbsqrtRinv.T,YbsqrtRinv)
-            evals, evecs = eigh(a)
+            evals, evecs = eigh(a,driver=lapack_driver)
             evals = evals.clip(min=np.finfo(evals.dtype).eps)
             evecs = np.dot(YbsqrtRinv,evecs/np.sqrt(evals))
         # gammapI used in calculation of posterior cov in ensemble space
@@ -679,11 +695,11 @@ def lgetkf_bloc(xens, omf, oberrs, sqrtcovlocal_local, covlocal_ob, indxob, covl
         YbsqrtRinv, YbRinv = getYbvecs(ndgf,hx,oberrvar,nerger=nerger)
         if nobs >= ndgf:
             a = np.dot(YbsqrtRinv,YbsqrtRinv.T)
-            evals, evecs = eigh(a)
+            evals, evecs = eigh(a,driver=lapack_driver)
             evals = evals.clip(min=np.finfo(evals.dtype).eps)
         else:
             a = np.dot(YbsqrtRinv.T,YbsqrtRinv)
-            evals, evecs = eigh(a)
+            evals, evecs = eigh(a,driver=lapack_driver)
             evals = evals.clip(min=np.finfo(evals.dtype).eps)
             evecs = np.dot(YbsqrtRinv,evecs/np.sqrt(evals))
         # gammapI used in calculation of posterior cov in ensemble space
@@ -726,6 +742,7 @@ def lgetkf_bloc(xens, omf, oberrs, sqrtcovlocal_local, covlocal_ob, indxob, covl
             oberrvar_local = oberrs[mask]
             ominusf_local = omf[mask]
             wts_ensmean = calcwts_mean(nanals-1, hxprime2_local, oberrvar_local, ominusf_local, nerger=nerger)
+            #wts_ensmean = calcwts_mean(hxprime2_local.shape[0]-1, hxprime2_local, oberrvar_local, ominusf_local, nerger=nerger)
             for k in range(2):
                 xmean[k,n] += np.dot(wts_ensmean,xprime2_local[:,k,nmindist])
             # update sub-ensemble groups, using cross validation.
@@ -735,6 +752,7 @@ def lgetkf_bloc(xens, omf, oberrs, sqrtcovlocal_local, covlocal_ob, indxob, covl
                 hxprime_cv = np.delete(hxprime2_local,nanals_sub,axis=0)
                 xprime_cv = np.delete(xprime2_local[:,:,nmindist],nanals_sub,axis=0)
                 wts_ensperts_cv = calcwts_perts((nanals-nanals//ngroups)-1, hxprime_local[nanal_cv], hxprime_cv, oberrvar_local, nerger=nerger)
+                #wts_ensperts_cv = calcwts_perts(hxprime_cv.shape[0]-1, hxprime_local[nanal_cv], hxprime_cv, oberrvar_local, nerger=nerger)
                 for k in range(2):
                     xprime[nanal_cv,k,n] += np.dot(wts_ensperts_cv,xprime_cv[:,k])
             xprime_mean = xprime[:,:,n].mean(axis=0) 
@@ -792,11 +810,13 @@ def lgetkfms_bloc(xens, xprime, omf, oberrs, sqrtcovlocal_local, covlocal_ob, in
         YbsqrtRinv, YbRinv = getYbvecs(ndgf,hx,oberrvar,nerger=nerger)
         if nobs >= hx.shape[0]:
             a = np.dot(YbsqrtRinv,YbsqrtRinv.T)
-            evals, evecs = eigh(a)
+            evals, evecs = eigh(a,driver=lapack_driver)
+            #evals, evecs, info = lapack.dsyevd(a)
             evals = evals.clip(min=np.finfo(evals.dtype).eps)
         else:
             a = np.dot(YbsqrtRinv.T,YbsqrtRinv)
-            evals, evecs = eigh(a)
+            evals, evecs = eigh(a,driver=lapack_driver)
+            #evals, evecs, info = lapack.dsyevd(a)
             evals = evals.clip(min=np.finfo(evals.dtype).eps)
             evecs = np.dot(YbsqrtRinv,evecs/np.sqrt(evals))
         # gammapI used in calculation of posterior cov in ensemble space
@@ -823,11 +843,13 @@ def lgetkfms_bloc(xens, xprime, omf, oberrs, sqrtcovlocal_local, covlocal_ob, in
         YbsqrtRinv, YbRinv = getYbvecs(ndgf,hx,oberrvar,nerger=nerger)
         if nobs >= hx.shape[0]:
             a = np.dot(YbsqrtRinv,YbsqrtRinv.T)
-            evals, evecs = eigh(a)
+            evals, evecs = eigh(a,driver=lapack_driver)
+            #evals, evecs, info = lapack.dsyevd(a)
             evals = evals.clip(min=np.finfo(evals.dtype).eps)
         else:
             a = np.dot(YbsqrtRinv.T,YbsqrtRinv)
-            evals, evecs = eigh(a)
+            evals, evecs = eigh(a,driver=lapack_driver)
+            #evals, evecs, info = lapack.dsyevd(a)
             evals = evals.clip(min=np.finfo(evals.dtype).eps)
             evecs = np.dot(YbsqrtRinv,evecs/np.sqrt(evals))
         # gammapI used in calculation of posterior cov in ensemble space
