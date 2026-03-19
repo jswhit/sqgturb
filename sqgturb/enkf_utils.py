@@ -92,7 +92,7 @@ def lgetkf(xens, hxens, obs, oberrs, covlocal, nerger=True, ngroups=None, npts_d
         if nerger:
             # Nerger regularization
             hpbht = (hx**2).sum(axis=0)/(nens-1)
-            hpbhtplusR = hpbht+oberrvar
+            #hpbhtplusR = hpbht+oberrvar
             #Rlocalfact = (Rlocal*oberrvar/hpbhtplusR)/(1.-Rlocal*hpbht/hpbhtplusR)
             #Rinvsqrt = np.sqrt(Rlocalfact/oberrvar)
             Rinvsqrt = np.sqrt(Rlocal/(hpbht*(1.-Rlocal)+oberrvar))
@@ -221,7 +221,7 @@ def lgetkf_vloc(xens, xens2, hxens, hxens2, obs, oberrs, covlocal, nanal_index, 
         if nerger:
             # Nerger regularization
             hpbht = (hx**2).sum(axis=0)/(nens-1)
-            hpbhtplusR = hpbht+oberrvar
+            #hpbhtplusR = hpbht+oberrvar
             #Rlocalfact = (Rlocal*oberrvar/hpbhtplusR)/(1.-Rlocal*hpbht/hpbhtplusR)
             #Rinvsqrt = np.sqrt(Rlocalfact/oberrvar)
             Rinvsqrt = np.sqrt(Rlocal/(hpbht*(1.-Rlocal)+oberrvar))
@@ -651,9 +651,10 @@ def lgetkf_bloc(xens, omf, oberrs, sqrtcovlocal_local, covlocal_ob, indxob, covl
         if nerger:
             # Nerger regularization
             hpbht = (hx*2).sum(axis=0)/(nens-1)
-            hpbhtplusR = hpbht+oberrvar
-            Rlocalfact = (oberrvar/hpbhtplusR)/(1.-hpbht/hpbhtplusR)
-            Rinvsqrt = np.sqrt(Rlocalfact/oberrvar)
+            #hpbhtplusR = hpbht+oberrvar
+            #Rlocalfact = (oberrvar/hpbhtplusR)/(1.-hpbht/hpbhtplusR)
+            #Rinvsqrt = np.sqrt(Rlocalfact/oberrvar)
+            Rinvsqrt = np.sqrt(Rlocal/(hpbht*(1.-Rlocal)+oberrvar))
             YbRinv = hx*Rinvsqrt**2/normfact
             YbsqrtRinv = hx*Rinvsqrt/normfact
         else:
@@ -796,9 +797,10 @@ def lgetkfms_bloc(xens, xprime, omf, oberrs, sqrtcovlocal_local, covlocal_ob, in
         if nerger:
             # Nerger regularization
             hpbht = (hx**2).sum(axis=0)/(nens-1)
-            hpbhtplusR = hpbht+oberrvar
-            Rlocalfact = (oberrvar/hpbhtplusR)/(1.-hpbht/hpbhtplusR)
-            Rinvsqrt = np.sqrt(Rlocalfact/oberrvar)
+            #hpbhtplusR = hpbht+oberrvar
+            #Rlocalfact = (oberrvar/hpbhtplusR)/(1.-hpbht/hpbhtplusR)
+            #Rinvsqrt = np.sqrt(Rlocalfact/oberrvar)
+            Rinvsqrt = np.sqrt(Rlocal/(hpbht*(1.-Rlocal)+oberrvar))
             YbRinv = hx*Rinvsqrt**2/normfact
             YbsqrtRinv = hx*Rinvsqrt/normfact
         else:
