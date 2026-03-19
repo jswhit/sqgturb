@@ -241,6 +241,7 @@ for n in npts_dist:
     else:
         raise ValueError('only nlscales=1 or 2 supported')
 
+if rank == 0: print('# neig = %s' % neig)
 # nature run
 if rank == 0:
     nc_truth = Dataset(filename_truth)
