@@ -363,14 +363,10 @@ def lgetkf_ms(nlscales, xens, xprime, hxprime, hxprime_orig, omf, oberrs, covloc
                rij = hpbht[0]
             else:
                rij += Rlocal[nl]*hpbht[nl]
-            #if nl == 0:
-            #   rij = Rlocal[0]*hpbht[0]
-            #else:
-            #   rij += Rlocal[nl]*hpbht[nl]
         hpbht_tot = hpbht.sum(axis=0)
         rij = rij/hpbht_tot
         for nl in range(nlscales):
-            Rinvsqrt_nerger[nl] = np.sqrt(Rlocal[nl]/(rij*hpbht_tot*(1.-Rlocal[nl])+oberrvar))
+            Rinvsqrt_nerger[nl] = np.sqrt(Rlocal[nl]/(rij*(hpbht_tot*(1.-Rlocal[nl])+oberrvar)))
         Rdsqrt = (Rinvsqrt_nerger*hpbht).sum(axis=0)/hpbht_tot
         for nl in range(nlscales):
             nanal1=nl*nanals_orig; nanal2=(nl+1)*nanals_orig
@@ -517,7 +513,7 @@ def lgetkf_ms_vloc(nlscales, neig, xens, xprime, hxprime, hxprime_orig, omf, obe
         hpbht_tot = hpbht.sum(axis=0)
         rij = rij/hpbht_tot
         for nl in range(nlscales):
-            Rinvsqrt_nerger[nl] = np.sqrt(Rlocal[nl]/(rij*hpbht_tot*(1.-Rlocal[nl])+oberrvar))
+            Rinvsqrt_nerger[nl] = np.sqrt(Rlocal[nl]/(rij*(hpbht_tot*(1.-Rlocal[nl])+oberrvar)))
         Rdsqrt = (Rinvsqrt_nerger*hpbht).sum(axis=0)/hpbht_tot
         for nl in range(nlscales):
             nanal1=nl*nanals_orig; nanal2=(nl+1)*nanals_orig
