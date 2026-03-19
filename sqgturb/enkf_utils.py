@@ -93,8 +93,9 @@ def lgetkf(xens, hxens, obs, oberrs, covlocal, nerger=True, ngroups=None, npts_d
             # Nerger regularization
             hpbht = (hx**2).sum(axis=0)/(nens-1)
             hpbhtplusR = hpbht+oberrvar
-            Rlocalfact = (Rlocal*oberrvar/hpbhtplusR)/(1.-Rlocal*hpbht/hpbhtplusR)
-            Rinvsqrt = np.sqrt(Rlocalfact/oberrvar)
+            #Rlocalfact = (Rlocal*oberrvar/hpbhtplusR)/(1.-Rlocal*hpbht/hpbhtplusR)
+            #Rinvsqrt = np.sqrt(Rlocalfact/oberrvar)
+            Rinvsqrt = np.sqrt(Rlocal/(hpbht*(1.-Rlocal)+oberrvar))
             YbRinv = hx*Rinvsqrt**2/normfact
             YbsqrtRinv = hx*Rinvsqrt/normfact
         else:
@@ -221,8 +222,9 @@ def lgetkf_vloc(xens, xens2, hxens, hxens2, obs, oberrs, covlocal, nanal_index, 
             # Nerger regularization
             hpbht = (hx**2).sum(axis=0)/(nens-1)
             hpbhtplusR = hpbht+oberrvar
-            Rlocalfact = (Rlocal*oberrvar/hpbhtplusR)/(1.-Rlocal*hpbht/hpbhtplusR)
-            Rinvsqrt = np.sqrt(Rlocalfact/oberrvar)
+            #Rlocalfact = (Rlocal*oberrvar/hpbhtplusR)/(1.-Rlocal*hpbht/hpbhtplusR)
+            #Rinvsqrt = np.sqrt(Rlocalfact/oberrvar)
+            Rinvsqrt = np.sqrt(Rlocal/(hpbht*(1.-Rlocal)+oberrvar))
             YbRinv = hx*Rinvsqrt**2/normfact
             YbsqrtRinv = hx*Rinvsqrt/normfact
         else:
@@ -354,11 +356,11 @@ def lgetkf_ms(nlscales, xens, xprime, hxprime, hxprime_orig, omf, oberrs, covloc
         YbsqrtRinv = np.empty((nanalstot,nobs),np.float32)
         YbRinv = np.empty((nanalstot,nobs),np.float32)
         hpbht = np.empty((nlscales,nobs),np.float32)
-        rij = np.empty(nobs,np.float32)
+        rij = np.zeros(nobs,np.float32)
         Rinvsqrt_nerger = np.empty_like(hpbht)
         for nl in range(nlscales):
             nanal1=nl*nanals_orig; nanal2=(nl+1)*nanals_orig
-            hpbht[nl] =  (hx[nanal1:nanal2]**2).sum(axis=0)/(nanals_orig-1)
+            hpbht[nl] = (hx[nanal1:nanal2]**2).sum(axis=0)/(nanals_orig-1)
             if nl == 0:
                rij = hpbht[0]
             else:
@@ -366,7 +368,12 @@ def lgetkf_ms(nlscales, xens, xprime, hxprime, hxprime_orig, omf, oberrs, covloc
         hpbht_tot = hpbht.sum(axis=0)
         rij = rij/hpbht_tot
         for nl in range(nlscales):
-            Rinvsqrt_nerger[nl] = np.sqrt(Rlocal[nl]/(rij*(hpbht_tot*(1.-Rlocal[nl])+oberrvar)))
+            # CB's original version (no rij factor)
+            Rinvsqrt_nerger[nl] = np.sqrt(Rlocal[nl]/(hpbht_tot*(1.-Rlocal[nl])+oberrvar))
+            # CB's adjusted version
+            #Rinvsqrt_nerger[nl] = np.sqrt(Rlocal[nl]/(rij*(hpbht_tot*(1.-Rlocal[nl])+oberrvar)))
+            # alternative version (with typo, but seems to perform slightly better than above)
+            #Rinvsqrt_nerger[nl]  = np.sqrt(Rlocal[nl]/(rij*hpbht_tot*(1.-Rlocal[nl])+oberrvar))
         Rdsqrt = (Rinvsqrt_nerger*hpbht).sum(axis=0)/hpbht_tot
         for nl in range(nlscales):
             nanal1=nl*nanals_orig; nanal2=(nl+1)*nanals_orig
@@ -513,7 +520,12 @@ def lgetkf_ms_vloc(nlscales, neig, xens, xprime, hxprime, hxprime_orig, omf, obe
         hpbht_tot = hpbht.sum(axis=0)
         rij = rij/hpbht_tot
         for nl in range(nlscales):
-            Rinvsqrt_nerger[nl] = np.sqrt(Rlocal[nl]/(rij*(hpbht_tot*(1.-Rlocal[nl])+oberrvar)))
+            # CB's original version (no rij factor)
+            Rinvsqrt_nerger[nl] = np.sqrt(Rlocal[nl]/(hpbht_tot*(1.-Rlocal[nl])+oberrvar))
+            # CB's adjusted version
+            #Rinvsqrt_nerger[nl] = np.sqrt(Rlocal[nl]/(rij*(hpbht_tot*(1.-Rlocal[nl])+oberrvar)))
+            # alternative version (with typo, but seems to perform slightly better than above)
+            #Rinvsqrt_nerger[nl]  = np.sqrt(Rlocal[nl]/(rij*hpbht_tot*(1.-Rlocal[nl])+oberrvar))
         Rdsqrt = (Rinvsqrt_nerger*hpbht).sum(axis=0)/hpbht_tot
         for nl in range(nlscales):
             nanal1=nl*nanals_orig; nanal2=(nl+1)*nanals_orig
