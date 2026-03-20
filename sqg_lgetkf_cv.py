@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from netCDF4 import Dataset
 import sys, time, os
-from sqgturb import SQG, rfft2, irfft2, cartdist, lgetkf, gaspcohn
+from sqgturb import SQG_mpi, rfft2, irfft2, cartdist, lgetkf, gaspcohn
 
 # LGETKF cycling for SQG turbulence model with boundary temp obs,
 # ob space horizontal localization, no vertical localization.
@@ -45,9 +45,9 @@ ngroups = nanals//2  # number of groups for cross-validation (ngroups=nanals//n 
 oberrstdev = 1. # ob error standard deviation in K
 
 # nature run created using sqg_run.py.
-filename_climo = 'sqgu20_N64_6hrly_24hdiff.nc' # file name for forecast model climo
+filename_climo = 'sqgu20_N64_6hrly_24hdiff_mpi.nc' # file name for forecast model climo
 # perfect model
-filename_truth = 'sqgu20_N64_6hrly_24hdiff.nc' # file name for nature run to draw obs
+filename_truth = 'sqgu20_N64_6hrly_24hdiff_mpi.nc' # file name for nature run to draw obs
 #filename_truth = 'sqg_N256_N96_12hrly.nc' # file name for nature run to draw obs
 
 print('# filename_modelclimo=%s' % filename_climo)
@@ -87,7 +87,7 @@ for nanal in range(nanals):
         pvens[nanal] = pv_climo[indxran[nanal]]
         #print(nanal, pvens[nanal].min(), pvens[nanal].max())
     models.append(\
-    SQG(pvens[nanal],
+    SQG_mpi(pvens[nanal],
     nsq=nc_climo.nsq,f=nc_climo.f,dt=dt,U=nc_climo.U,H=nc_climo.H,\
     r=nc_climo.r,tdiab=nc_climo.tdiab,\
     diff_order=nc_climo.diff_order,diff_efold=diff_efold,threads=threads))

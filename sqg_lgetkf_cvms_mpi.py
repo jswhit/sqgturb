@@ -64,7 +64,7 @@ read_restart = False
 savedata = None
 #nassim = 101
 #nassim_spinup = 1
-nassim = 1320 # assimilation times to run
+nassim = 1000 # assimilation times to run
 nassim_spinup = 120
 
 nanals = 16 # ensemble members
@@ -160,7 +160,7 @@ if rank==0:
 
 # each ob time nobs ob locations are randomly sampled (without
 # replacement) from the model grid
-nobs = 820   
+nobs = 820
 
 # nature run
 if rank == 0:

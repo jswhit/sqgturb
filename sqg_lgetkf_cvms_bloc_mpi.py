@@ -74,7 +74,6 @@ read_restart = False
 if read_restart: nassim += 1
 
 nanals = 16 # ensemble members
-nerger = True # use Nerger regularization for R localization
 ngroups = nanals//2  # number of groups for cross-validation (ngroups=nanals//N is "leave N out")
 
 percentvar_cutoff = 0.95 # threshold for eigenvalues used in ensemble modulation
@@ -457,7 +456,7 @@ for ntime in range(nassim):
 
     # hxens,pvob are in PV units, xens is not
     xens_updated = np.ascontiguousarray(np.zeros_like(xens))
-    xens = lgetkfms_bloc(xens, xprime, pvob-hxensmean_b, oberrvar, sqrtcovlocal_local, covlocal_ob, indxob, covlocal_model[0], scalefact, nerger=nerger, ngroups=ngroups, npts_dist=npts_dist)
+    xens = lgetkfms_bloc(xens, xprime, pvob-hxensmean_b, oberrvar, sqrtcovlocal_local, covlocal_ob, indxob, covlocal_model[0], scalefact, ngroups=ngroups, npts_dist=npts_dist)
     xens_updated[:,:,npts_dist] = xens[:,:,npts_dist]
     comm.Allreduce(MPI.IN_PLACE, xens_updated, op=MPI.SUM)
 
