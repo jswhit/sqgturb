@@ -220,7 +220,7 @@ for n in npts_dist:
         evals, evecs = eigh(covlocal_local,driver=lapack_driver)
         evals = evals.clip(min=np.finfo(evals.dtype).eps)
         neig = 1
-        for i in range(1,npts):
+        for i in range(1,nlscales*npts):
             percentvar = evals[-i:].sum()/evals.sum()
             if percentvar > percentvar_cutoff: # perc variance cutoff truncation
                 neig = i
