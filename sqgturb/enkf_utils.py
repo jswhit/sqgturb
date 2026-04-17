@@ -180,6 +180,8 @@ def lgetkf(xens, hxens, obs, oberrs, covlocal, nerger=True, ngroups=None, npts_d
             for ngrp in range(ngroups):
                 nanal_cv = [na + ngrp*nanals_per_group for na in range(nanals_per_group)]
                 hxprime_cv = np.delete(hxprime_local,nanal_cv,axis=0); xprime_cv = np.delete(xprime_b[:,:,n],nanal_cv,axis=0)
+                #hxprime_cv_mean = hxprime_cv.mean(axis=0); xprime_cv_mean = xprime_cv.mean(axis=0)
+                #hxprime_cv -= hxprime_cv_mean; xprime_cv -= xprime_cv_mean
                 wts_ensperts_cv = calcwts_perts(nanals-nanals//ngroups, hxprime_local[nanal_cv], hxprime_cv, Rlocal, oberrvar_local, nerger=nerger)
                 for k in range(2):
                     xprime[nanal_cv,k,n] += np.dot(wts_ensperts_cv,xprime_cv[:,k])
@@ -233,7 +235,6 @@ def lgetkf_vloc(xens, xens2, hxens, hxens2, obs, oberrs, covlocal, nanal_index, 
         return YbsqrtRinv, YbRinv
 
     def calcwts_mean(ndgf, hx, Rlocal, oberrvar, ominusf, nerger=True):
-        # nens is the original (unmodulated) ens size
         nobs = hx.shape[1]
         normfact = np.array(np.sqrt(ndgf),dtype=np.float32)
         # gain-form etkf solution
@@ -266,7 +267,6 @@ def lgetkf_vloc(xens, xens2, hxens, hxens2, obs, oberrs, covlocal, nanal_index, 
 
     def calcwts_perts(ndgf, hx_orig, hx, Rlocal, oberrvar,nerger=True):
         # hx_orig contains the ensemble for the witheld member
-        # nens is the original (unmodulated) ens size
         nobs = hx.shape[1]
         normfact = np.array(np.sqrt(ndgf),dtype=np.float32)
         # gain-form etkf solution
@@ -314,6 +314,8 @@ def lgetkf_vloc(xens, xens2, hxens, hxens2, obs, oberrs, covlocal, nanal_index, 
                 nanal_cv = [na + ngrp*nanals_per_group for na in range(nanals_per_group)]
                 nanals_sub = np.nonzero(np.isin(nanal_index,nanal_cv))
                 hxprime_cv = np.delete(hxprime2_local,nanals_sub,axis=0); xprime_cv = np.delete(xprime2[:,:,n],nanals_sub,axis=0)
+                #hxprime_cv_mean = hxprime_cv.mean(axis=0); xprime_cv_mean = xprime_cv.mean(axis=0)
+                #hxprime_cv -= hxprime_cv_mean; xprime_cv -= xprime_cv_mean
                 wts_ensperts_cv = calcwts_perts((nanals-nanals//ngroups)-1, hxprime_local[nanal_cv], hxprime_cv, Rlocal, oberrvar_local, nerger=nerger)
                 for k in range(2):
                     xprime[nanal_cv,k,n] += np.dot(wts_ensperts_cv,xprime_cv[:,k])
@@ -461,6 +463,8 @@ def lgetkf_ms(nlscales, xens, xprime, hxprime, hxprime_orig, omf, oberrs, covloc
                 nanals_sub = np.nonzero(np.isin(nanal_index,nanal_cv))
                 hxprime_cv = np.delete(hxprime_local,nanals_sub,axis=0)
                 xprime_cv = np.delete(xprime[:,:,n],nanals_sub,axis=0)
+                #hxprime_cv_mean = hxprime_cv.mean(axis=0); xprime_cv_mean = xprime_cv.mean(axis=0)
+                #hxprime_cv -= hxprime_cv_mean; xprime_cv -= xprime_cv_mean
                 wts_ensperts_cv = calcwts_perts((nanals-nanals//ngroups)-1, nlscales, hxprime_orig_local[nanal_cv], hxprime_cv, oberrvar_local, Rlocal)
                 for k in range(2):
                     xprime_orig[nanal_cv,k,n] += np.dot(wts_ensperts_cv,xprime_cv[:,k])
@@ -613,6 +617,8 @@ def lgetkf_ms_vloc(nlscales, neig, xens, xprime, hxprime, hxprime_orig, omf, obe
                 nanals_sub = np.nonzero(np.isin(nanal_index,nanal_cv))
                 hxprime_cv = np.delete(hxprime_local,nanals_sub,axis=0)
                 xprime_cv = np.delete(xprime[:,:,n],nanals_sub,axis=0)
+                #hxprime_cv_mean = hxprime_cv.mean(axis=0); xprime_cv_mean = xprime_cv.mean(axis=0)
+                #hxprime_cv -= hxprime_cv_mean; xprime_cv -= xprime_cv_mean
                 #wts_ensperts_cv = calcwts_perts(nlscales*neig*(nanals-nanals//ngroups),nlscales,neig,hxprime_orig_local[nanal_cv],hxprime_cv,oberrvar_local,Rlocal)
                 wts_ensperts_cv = calcwts_perts((nanals-nanals//ngroups)-1,nlscales,neig,hxprime_orig_local[nanal_cv],hxprime_cv,oberrvar_local,Rlocal)
                 for k in range(2):
@@ -643,13 +649,11 @@ def lgetkf_bloc(xens, omf, oberrs, sqrtcovlocal_local, covlocal_ob, indxob, covl
 
     def getYbvecs(ndgf, hx, oberrvar):
         normfact = np.array(np.sqrt(ndgf),dtype=np.float32)
-        nens = hx.shape[0]
         YbsqrtRinv = (hx/normfact)*np.sqrt(1./oberrvar)
         YbRinv = (hx/normfact)*(1./oberrvar)
         return YbsqrtRinv, YbRinv
 
     def calcwts_mean(ndgf, hx, oberrvar, ominusf):
-        # nens is the original (unmodulated) ens size
         nobs = hx.shape[1]
         normfact = np.array(np.sqrt(ndgf),dtype=np.float32)
         # gain-form etkf solution
@@ -745,6 +749,8 @@ def lgetkf_bloc(xens, omf, oberrs, sqrtcovlocal_local, covlocal_ob, indxob, covl
                 nanals_sub = np.nonzero(np.isin(nanal_index,nanal_cv))
                 hxprime_cv = np.delete(hxprime2_local,nanals_sub,axis=0)
                 xprime_cv = np.delete(xprime2_local[:,:,nmindist],nanals_sub,axis=0)
+                #hxprime_cv_mean = hxprime_cv.mean(axis=0); xprime_cv_mean = xprime_cv.mean(axis=0)
+                #hxprime_cv -= hxprime_cv_mean; xprime_cv -= xprime_cv_mean
                 wts_ensperts_cv = calcwts_perts((nanals-nanals//ngroups)-1, hxprime_local[nanal_cv], hxprime_cv, oberrvar_local)
                 for k in range(2):
                     xprime[nanal_cv,k,n] += np.dot(wts_ensperts_cv,xprime_cv[:,k])
@@ -777,13 +783,11 @@ def lgetkfms_bloc(xens, xprime, omf, oberrs, sqrtcovlocal_local, covlocal_ob, in
 
     def getYbvecs(ndgf, hx, oberrvar):
         normfact = np.array(np.sqrt(ndgf),dtype=np.float32)
-        nens = hx.shape[0]
         YbsqrtRinv = (hx/normfact)*np.sqrt(1./oberrvar)
         YbRinv = (hx/normfact)*(1./oberrvar)
         return YbsqrtRinv, YbRinv
 
     def calcwts_mean(ndgf, hx, oberrvar, ominusf):
-        # nens is the original (unmodulated) ens size
         nobs = hx.shape[1]
         normfact = np.array(np.sqrt(ndgf),dtype=np.float32)
         # gain-form etkf solution
@@ -816,7 +820,6 @@ def lgetkfms_bloc(xens, xprime, omf, oberrs, sqrtcovlocal_local, covlocal_ob, in
 
     def calcwts_perts(ndgf, hx_orig, hx, oberrvar):
         # hx_orig contains the ensemble for the witheld member
-        # nens is the original (unmodulated) ens size
         nobs = hx.shape[1]
         normfact = np.array(np.sqrt(ndgf),dtype=np.float32)
         # gain-form etkf solution
@@ -887,6 +890,8 @@ def lgetkfms_bloc(xens, xprime, omf, oberrs, sqrtcovlocal_local, covlocal_ob, in
                 nanals_sub = np.nonzero(np.isin(nanal_index,nanal_cv))
                 hxprime_cv = np.delete(hxprime2_local,nanals_sub,axis=0)
                 xprime_cv = np.delete(xprime2_local[:,:,nmindist],nanals_sub,axis=0)
+                #hxprime_cv_mean = hxprime_cv.mean(axis=0); xprime_cv_mean = xprime_cv.mean(axis=0)
+                #hxprime_cv -= hxprime_cv_mean; xprime_cv -= xprime_cv_mean
                 wts_ensperts_cv = calcwts_perts((nanals-nanals//ngroups)-1, hxprime_local[nanal_cv], hxprime_cv, oberrvar_local)
                 for k in range(2):
                     xprime_orig[nanal_cv,k,n] += np.dot(wts_ensperts_cv,xprime_cv[:,k])
