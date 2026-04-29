@@ -64,11 +64,12 @@ read_restart = False
 savedata = None
 #nassim = 101
 #nassim_spinup = 1
-nassim = 1000 # assimilation times to run
+nassim = 1320 # assimilation times to run
 nassim_spinup = 120
 
 nanals = 16 # ensemble members
 ngroups = nanals//2  # number of groups for cross-validation (ngroups=nanals//N is "leave N out")
+recen=False
 
 oberrstdev = 1. # ob error standard deviation in K
 
@@ -392,7 +393,7 @@ for ntime in range(nassim):
 
     # hxens,pvob are in PV units, xens is not
     xens_updated = np.ascontiguousarray(np.zeros_like(xens))
-    xens = lgetkf_ms(nlscales,xens,xprime,hxprime,hxprime_orig,pvob-hxensmean_b,oberrvar,covlocal_tmp,ngroups=ngroups,npts_dist=npts_dist)
+    xens = lgetkf_ms(nlscales,xens,xprime,hxprime,hxprime_orig,pvob-hxensmean_b,oberrvar,covlocal_tmp,ngroups=ngroups,npts_dist=npts_dist,recen=recen)
     xens_updated[:,:,npts_dist] = xens[:,:,npts_dist]
     comm.Allreduce(MPI.IN_PLACE, xens_updated, op=MPI.SUM)
     xens = xens_updated
