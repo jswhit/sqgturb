@@ -358,15 +358,13 @@ def lgetkf_ms(nlscales, xens, xprime, hxprime, hxprime_orig, omf, oberrs, covloc
         YbsqrtRinv = np.empty((nanalstot,nobs),np.float32)
         YbRinv = np.empty((nanalstot,nobs),np.float32)
         hpbht = np.empty((nlscales,nobs),np.float32)
-        rij = np.zeros(nobs,np.float32)
         Rinvsqrt_nerger = np.empty_like(hpbht)
         for nl in range(nlscales):
             nanal1=nl*nanals_orig; nanal2=(nl+1)*nanals_orig
             hpbht[nl] = (hx[nanal1:nanal2]**2).sum(axis=0)/(nanals_orig-1)
-            if nl == 0:
-               rij = hpbht[0]
-            else:
-               rij += Rlocal[nl]*hpbht[nl]
+        rij = hpbht[0]
+        for nl in range(1,nlscales):
+            rij = rij + Rlocal[nl]*hpbht[nl]
         hpbht_tot = hpbht.sum(axis=0)
         rij = rij/hpbht_tot
         for nl in range(nlscales):
@@ -510,15 +508,13 @@ def lgetkf_ms_vloc(nlscales, neig, xens, xprime, hxprime, hxprime_orig, omf, obe
         YbsqrtRinv = np.empty((nanalstot,nobs),np.float32)
         YbRinv = np.empty((nanalstot,nobs),np.float32)
         hpbht = np.empty((nlscales,nobs),np.float32)
-        rij = np.empty(nobs,np.float32)
         Rinvsqrt_nerger = np.empty_like(hpbht)
         for nl in range(nlscales):
             nanal1=nl*nanals_orig; nanal2=(nl+1)*nanals_orig
             hpbht[nl] =  (hx[nanal1:nanal2]**2).sum(axis=0)/(nanals_orig-1)
-            if nl == 0:
-               rij = hpbht[0]
-            else:
-               rij += Rlocal[nl]*hpbht[nl]
+        rij = hpbht[0]
+        for nl in range(1,nlscales):
+            rij = rij + Rlocal[nl]*hpbht[nl]
         hpbht_tot = hpbht.sum(axis=0)
         rij = rij/hpbht_tot
         for nl in range(nlscales):
