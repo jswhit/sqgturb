@@ -56,6 +56,7 @@ nassim_spinup = 120
 
 nanals = 16 # ensemble members
 ngroups = nanals//2  # number of groups for cross-validation (ngroups=nanals//N is "leave N out")
+recen = False
 
 oberrstdev = 1. # ob error standard deviation in K
 
@@ -322,7 +323,7 @@ for ntime in range(nassim):
 
     # hxens,pvob are in PV units, xens is not
     # (note xens contains unfiltered (original) ensemble, xprime has filtered perturbations separated into wave bands).
-    xens = lgetkf_ms(nlscales,xens,xprime,hxprime,hxprime_orig,pvob-hxensmean_b,oberrvar,covlocal_tmp,ngroups=ngroups)
+    xens = lgetkf_ms(nlscales,xens,xprime,hxprime,hxprime_orig,pvob-hxensmean_b,oberrvar,covlocal_tmp,ngroups=ngroups,recen=recen)
 
     # back to 3d state vector
     pvens = xens.reshape((nanals,2,ny,nx))
