@@ -368,6 +368,17 @@ for ntime in range(nassim):
 
         pvens_filtered = np.asarray(pvens_filtered_lst)
         pvprime = np.dot(pvens_filtered.T,crossband_covmat).T
+        # pvprime is (nlscales, nanals, 2, ny, nx)
+        pvvar = np.zeros((nlscales,2,ny,nx), pvprime.dtype)
+        for nl in range(nlscales):
+            pvvar[nl] = ((scalefact*pvprime[nl])**2).sum(axis=0)/(nanals-1)
+        scale_fact = np.sqrt(pvsprd_b.mean()/(pvvar[0].mean()+pvvar[1].mean()))
+        pvprime = scale_fact*pvprime
+        #print(pvsprd_b.mean(),pvvar[0].mean()+pvvar[1].mean(),scalefact)
+        #for nl in range(nlscales):
+        #    pvvar[nl] = ((scalefact*pvprime[nl])**2).sum(axis=0)/(nanals-1)
+        #print(pvsprd_b.mean(),pvvar[0].mean()+pvvar[1].mean(),scalefact)
+        #raise SystemExit
 
     if savedata is not None and rank == 0:
         if savedata == 'restart' and ntime != nassim-1:
