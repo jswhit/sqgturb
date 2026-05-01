@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from netCDF4 import Dataset
 import sys, time, os
-from sqgturb import SQG_mpi, rfft2, irfft2, cartdist, lgetkf, gaspcohn
+from sqgturb import SQG, rfft2, irfft2, cartdist, lgetkf, gaspcohn
 
 # LGETKF cycling for SQG turbulence model with boundary temp obs,
 # ob space horizontal localization, no vertical localization.
