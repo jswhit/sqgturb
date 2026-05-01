@@ -87,7 +87,7 @@ for nanal in range(nanals):
         pvens[nanal] = pv_climo[indxran[nanal]]
         #print(nanal, pvens[nanal].min(), pvens[nanal].max())
     models.append(\
-    SQG_mpi(pvens[nanal],
+    SQG(pvens[nanal],
     nsq=nc_climo.nsq,f=nc_climo.f,dt=dt,U=nc_climo.U,H=nc_climo.H,\
     r=nc_climo.r,tdiab=nc_climo.tdiab,\
     diff_order=nc_climo.diff_order,diff_efold=diff_efold,threads=threads))
