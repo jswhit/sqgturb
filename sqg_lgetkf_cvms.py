@@ -297,6 +297,18 @@ for ntime in range(nassim):
     #print('pvsprd_b2',pvsprd_b2)
     #print('pvsprd_b2_sum',pvsprd_b2.sum())
     #raise SystemExit
+
+    # pvprime is (nlscales, nanals, 2, ny, nx)
+    pvvar = np.zeros((nlscales,2,ny,nx), pvprime.dtype)
+    for nl in range(nlscales):
+        pvvar[nl] = ((scalefact*pvprime[nl])**2).sum(axis=0)/(nanals-1)
+    scale_fact = np.sqrt(pvsprd_b.mean()/pvvar.sum(axis=0).mean())
+    pvprime = scale_fact*pvprime
+    #print(pvsprd_b.mean(),pvvar.sum(axis=0).mean(),scale_fact)
+    #for nl in range(nlscales):
+    #    pvvar[nl] = ((scalefact*pvprime[nl])**2).sum(axis=0)/(nanals-1)
+    #print(pvsprd_b.mean(),pvvar.sum(axis=0).mean(),scale_fact)
+    #raise SystemExit
     
 
     if savedata is not None:
