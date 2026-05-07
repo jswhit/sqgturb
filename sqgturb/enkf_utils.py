@@ -79,12 +79,13 @@ def lgetkf(xens, hxens, obs, oberrs, covlocal, nerger=True, ngroups=None, npts_d
     xmean = xens.mean(axis=0)
     xprime = xens - xmean
     xprime_b = xprime.copy()
-    if ngroups is None: # default is "leave one out" (nanals must be multiple of ngroups)
-        ngroups = nanals
-    if nanals % ngroups:
-        raise ValueError('nanals must be a multiple of ngroups')
-    else:
-        nanals_per_group = nanals//ngroups
+    if ngroups != 0: # ngroups=0 means no cross-validation
+        if ngroups is None: # default is "leave one out" (nanals must be multiple of ngroups)
+            ngroups = nanals
+        if nanals % ngroups:
+            raise ValueError('nanals must be a multiple of ngroups')
+        else:
+            nanals_per_group = nanals//ngroups
 
     def getYbvecs(hx, Rlocal, oberrvar, nerger=True):
         normfact = np.array(np.sqrt(hx.shape[0]-1),dtype=np.float32)
@@ -132,9 +133,9 @@ def lgetkf(xens, hxens, obs, oberrs, covlocal, nerger=True, ngroups=None, npts_d
         # pa = C (Gamma + I)**-1 C^T (analysis error cov in ensemble space)
         # wts_ensmean = C (Gamma + I)**-1 C^T (HZ)^ T R**-1/2 (y - HXmean)
         pa = np.dot(evecs/gammapI[np.newaxis,:],evecs.T)
-        return np.dot(pa, np.dot(YbRinv,ominusf))/normfact
+        return np.dot(pa, np.dot(YbRinv,ominusf))/normfact,evals,evecs
 
-    def calcwts_perts(hx_orig, hx, Rlocal, oberrvar,nerger=True):
+    def calcwts_perts(hx_orig, hx, Rlocal, oberrvar,evals=None,evecs=None,nerger=True):
         # hx_orig contains the ensemble for the witheld member
         nanals, nobs = hx.shape
         ndgf = nanals - 1
@@ -145,17 +146,18 @@ def lgetkf(xens, hxens, obs, oberrs, covlocal, nerger=True, ngroups=None, npts_d
         # (in Bishop paper HZ is nobs, nanals, here is it nanals, nobs)
         # normalize so dot product is covariance
         YbsqrtRinv, YbRinv = getYbvecs(hx,Rlocal,oberrvar,nerger=nerger)
-        if nobs >= hx.shape[0]:
-            a = np.dot(YbsqrtRinv,YbsqrtRinv.T)
-            evals, evecs = eigh(a,driver=lapack_driver)
-            #evals, evecs, info = lapack.dsyevd(a)
-            evals = evals.clip(min=np.finfo(evals.dtype).eps)
-        else:
-            a = np.dot(YbsqrtRinv.T,YbsqrtRinv)
-            evals, evecs = eigh(a,driver=lapack_driver)
-            #evals, evecs, info = lapack.dsyevd(a)
-            evals = evals.clip(min=np.finfo(evals.dtype).eps)
-            evecs = np.dot(YbsqrtRinv,evecs/np.sqrt(evals))
+        if evals is None or evecs is None:
+            if nobs >= hx.shape[0]:
+                a = np.dot(YbsqrtRinv,YbsqrtRinv.T)
+                evals, evecs = eigh(a,driver=lapack_driver)
+                #evals, evecs, info = lapack.dsyevd(a)
+                evals = evals.clip(min=np.finfo(evals.dtype).eps)
+            else:
+                a = np.dot(YbsqrtRinv.T,YbsqrtRinv)
+                evals, evecs = eigh(a,driver=lapack_driver)
+                #evals, evecs, info = lapack.dsyevd(a)
+                evals = evals.clip(min=np.finfo(evals.dtype).eps)
+                evecs = np.dot(YbsqrtRinv,evecs/np.sqrt(evals))
         # gammapI used in calculation of posterior cov in ensemble space
         gamma_inv = 1./evals; gammapI = evals+1.
         # compute factor to multiply with model space ensemble perturbations
@@ -174,19 +176,25 @@ def lgetkf(xens, hxens, obs, oberrs, covlocal, nerger=True, ngroups=None, npts_d
             oberrvar_local = oberrs[mask]
             ominusf_local = (obs-hxmean)[mask]
             hxprime_local = hxprime[:,mask]
-            wts_ensmean = calcwts_mean(hxprime_local, Rlocal, oberrvar_local, ominusf_local, nerger=nerger)
+            wts_ensmean,evals,evecs = calcwts_mean(hxprime_local, Rlocal, oberrvar_local, ominusf_local, nerger=nerger)
             for k in range(2):
                 xmean[k,n] += np.dot(wts_ensmean,xprime_b[:,k,n])
             # update sub-ensemble groups, using cross validation.
-            for ngrp in range(ngroups):
-                nanal_cv = [na + ngrp*nanals_per_group for na in range(nanals_per_group)]
-                hxprime_cv = np.delete(hxprime_local,nanal_cv,axis=0); xprime_cv = np.delete(xprime_b[:,:,n],nanal_cv,axis=0)
-                if recen:
-                    hxprime_cv_mean = hxprime_cv.mean(axis=0); xprime_cv_mean = xprime_cv.mean(axis=0)
-                    hxprime_cv -= hxprime_cv_mean; xprime_cv -= xprime_cv_mean
-                wts_ensperts_cv = calcwts_perts(hxprime_local[nanal_cv], hxprime_cv, Rlocal, oberrvar_local, nerger=nerger)
+            if ngroups == 0:
+                # no cross-validation
+                wts_ensperts = calcwts_perts(hxprime_local, hxprime_local, Rlocal, oberrvar_local, evals=evals, evecs=evecs, nerger=nerger)
                 for k in range(2):
-                    xprime[nanal_cv,k,n] += np.dot(wts_ensperts_cv,xprime_cv[:,k])
+                    xprime[:,k,n] += np.dot(wts_ensperts,xprime[:,k,n])
+            else:
+                for ngrp in range(ngroups):
+                    nanal_cv = [na + ngrp*nanals_per_group for na in range(nanals_per_group)]
+                    hxprime_cv = np.delete(hxprime_local,nanal_cv,axis=0); xprime_cv = np.delete(xprime_b[:,:,n],nanal_cv,axis=0)
+                    if recen:
+                        hxprime_cv_mean = hxprime_cv.mean(axis=0); xprime_cv_mean = xprime_cv.mean(axis=0)
+                        hxprime_cv -= hxprime_cv_mean; xprime_cv -= xprime_cv_mean
+                    wts_ensperts_cv = calcwts_perts(hxprime_local[nanal_cv], hxprime_cv, Rlocal, oberrvar_local, nerger=nerger)
+                    for k in range(2):
+                        xprime[nanal_cv,k,n] += np.dot(wts_ensperts_cv,xprime_cv[:,k])
             xprime_mean = xprime[:,:,n].mean(axis=0) 
             xprime[:,:,n] -= xprime_mean # ensure zero mean
             xens[:,:,n] = xmean[:,n]+xprime[:,:,n]
@@ -340,12 +348,13 @@ def lgetkf_ms(nlscales, xens, xprime, hxprime, hxprime_orig, omf, oberrs, covloc
         for nanal in range(nanals):
             nanal_index[nanal2]=nanal
             nanal2 += 1
-    if ngroups is None: # default is "leave one out" (nanals must be multiple of ngroups)
-        ngroups = nanals
-    if nanals % ngroups:
-        raise ValueError('nanals must be a multiple of ngroups')
-    else:
-        nanals_per_group = nanals//ngroups
+    if ngroups != 0: # ngroups=0 means no cross-validation
+        if ngroups is None: # default is "leave one out" (nanals must be multiple of ngroups)
+            ngroups = nanals
+        if nanals % ngroups:
+            raise ValueError('nanals must be a multiple of ngroups')
+        else:
+            nanals_per_group = nanals//ngroups
 
     def getYbvecs(nlscales,hx,Rlocal,oberrvar):
         nanalstot, nobs = hx.shape
@@ -408,9 +417,9 @@ def lgetkf_ms(nlscales, xens, xprime, hxprime, hxprime_orig, omf, oberrs, covloc
         # pa = C (Gamma + I)**-1 C^T (analysis error cov in ensemble space)
         pa = np.dot(evecs/gammapI[np.newaxis,:],evecs.T)
         # wts_ensmean = C (Gamma + I)**-1 C^T (HZ)^ T R**-1/2 (y - HXmean)
-        return np.dot(pa, np.dot(YbRinv,ominusf))/normfact
+        return np.dot(pa, np.dot(YbRinv,ominusf))/normfact,evals,evecs
 
-    def calcwts_perts(nlscales, hx_orig, hx, oberrvar, Rlocal):
+    def calcwts_perts(nlscales, hx_orig, hx, oberrvar, Rlocal, evals=None, evecs=None):
         nanalstot, nobs = hx.shape
         nanals_orig = nanalstot//nlscales
         ndgf = nanals_orig-1
@@ -421,17 +430,18 @@ def lgetkf_ms(nlscales, xens, xprime, hxprime, hxprime_orig, omf, oberrs, covloc
         # (in Bishop paper HZ is nobs, nanals, here is it nanals, nobs)
         # normalize so dot product is covariance
         YbsqrtRinv, YbRinv = getYbvecs(nlscales,hx,Rlocal,oberrvar)
-        if nobs >= hx.shape[0]:
-            a = np.dot(YbsqrtRinv,YbsqrtRinv.T)
-            evals, evecs = eigh(a,driver=lapack_driver)
-            #evals, evecs, info = lapack.dsyevd(a)
-            evals = evals.clip(min=np.finfo(evals.dtype).eps)
-        else:
-            a = np.dot(YbsqrtRinv.T,YbsqrtRinv)
-            evals, evecs = eigh(a,driver=lapack_driver)
-            #evals, evecs, info = lapack.dsyevd(a)
-            evals = evals.clip(min=np.finfo(evals.dtype).eps)
-            evecs = np.dot(YbsqrtRinv,evecs/np.sqrt(evals))
+        if evals is None or evecs is None:
+            if nobs >= hx.shape[0]:
+                a = np.dot(YbsqrtRinv,YbsqrtRinv.T)
+                evals, evecs = eigh(a,driver=lapack_driver)
+                #evals, evecs, info = lapack.dsyevd(a)
+                evals = evals.clip(min=np.finfo(evals.dtype).eps)
+            else:
+                a = np.dot(YbsqrtRinv.T,YbsqrtRinv)
+                evals, evecs = eigh(a,driver=lapack_driver)
+                #evals, evecs, info = lapack.dsyevd(a)
+                evals = evals.clip(min=np.finfo(evals.dtype).eps)
+                evecs = np.dot(YbsqrtRinv,evecs/np.sqrt(evals))
         # gammapI used in calculation of posterior cov in ensemble space
         gammapI = evals+1.; gamma_inv = 1./evals
         # compute factor to multiply with model space ensemble perturbations
@@ -453,21 +463,26 @@ def lgetkf_ms(nlscales, xens, xprime, hxprime, hxprime_orig, omf, oberrs, covloc
             ominusf_local = omf[mask]
             hxprime_local = hxprime[:,mask]
             hxprime_orig_local = hxprime_orig[:,mask]
-            wts_ensmean = calcwts_mean(nlscales, hxprime_local, oberrvar_local, Rlocal, ominusf_local)
+            wts_ensmean,evals,evecs = calcwts_mean(nlscales, hxprime_local, oberrvar_local, Rlocal, ominusf_local)
             for k in range(2):
                 xmean[k,n] += np.dot(wts_ensmean,xprime[:,k,n])
             # update one member at a time (one member for each scale), using cross validation.
-            for ngrp in range(ngroups):
-                nanal_cv = [na + ngrp*nanals_per_group for na in range(nanals_per_group)]
-                nanals_sub = np.nonzero(np.isin(nanal_index,nanal_cv))
-                hxprime_cv = np.delete(hxprime_local,nanals_sub,axis=0)
-                xprime_cv = np.delete(xprime[:,:,n],nanals_sub,axis=0)
-                if recen:
-                    hxprime_cv_mean = hxprime_cv.mean(axis=0); xprime_cv_mean = xprime_cv.mean(axis=0)
-                    hxprime_cv -= hxprime_cv_mean; xprime_cv -= xprime_cv_mean
-                wts_ensperts_cv = calcwts_perts(nlscales, hxprime_orig_local[nanal_cv], hxprime_cv, oberrvar_local, Rlocal)
+            if ngroups == 0:
+                wts_ensperts = calcwts_perts(nlscales, hxprime_orig_local, hxprime_local, oberrvar_local, Rlocal, evals=evals, evecs=evecs)
                 for k in range(2):
-                    xprime_orig[nanal_cv,k,n] += np.dot(wts_ensperts_cv,xprime_cv[:,k])
+                    xprime_orig[:,k,n] += np.dot(wts_ensperts,xprime[:,k,n])
+            else:
+                for ngrp in range(ngroups):
+                    nanal_cv = [na + ngrp*nanals_per_group for na in range(nanals_per_group)]
+                    nanals_sub = np.nonzero(np.isin(nanal_index,nanal_cv))
+                    hxprime_cv = np.delete(hxprime_local,nanals_sub,axis=0)
+                    xprime_cv = np.delete(xprime[:,:,n],nanals_sub,axis=0)
+                    if recen:
+                        hxprime_cv_mean = hxprime_cv.mean(axis=0); xprime_cv_mean = xprime_cv.mean(axis=0)
+                        hxprime_cv -= hxprime_cv_mean; xprime_cv -= xprime_cv_mean
+                    wts_ensperts_cv = calcwts_perts(nlscales, hxprime_orig_local[nanal_cv], hxprime_cv, oberrvar_local, Rlocal)
+                    for k in range(2):
+                        xprime_orig[nanal_cv,k,n] += np.dot(wts_ensperts_cv,xprime_cv[:,k])
             xprime_mean = xprime_orig[:,:,n].mean(axis=0) 
             xprime_orig[:,:,n] -= xprime_mean # ensure zero mean
             xens[:,:,n] = xmean[:,n]+xprime_orig[:,:,n]
@@ -636,12 +651,13 @@ def lgetkf_bloc(xens, omf, oberrs, sqrtcovlocal_local, covlocal_ob, indxob, covl
     xmean = xens.mean(axis=0)
     xprime = xens - xmean
     xprime_b = xprime.copy()
-    if ngroups is None: # default is "leave one out" (nanals must be multiple of ngroups)
-        ngroups = nanals
-    if nanals % ngroups:
-        raise ValueError('nanals must be a multiple of ngroups')
-    else:
-        nanals_per_group = nanals//ngroups
+    if ngroups != 0:
+        if ngroups is None: # default is "leave one out" (nanals must be multiple of ngroups)
+            ngroups = nanals
+        if nanals % ngroups:
+            raise ValueError('nanals must be a multiple of ngroups')
+        else:
+            nanals_per_group = nanals//ngroups
 
     def getYbvecs(ndgf, hx, oberrvar):
         normfact = np.array(np.sqrt(ndgf),dtype=np.float32)
@@ -676,9 +692,9 @@ def lgetkf_bloc(xens, omf, oberrs, sqrtcovlocal_local, covlocal_ob, indxob, covl
         # pa = C (Gamma + I)**-1 C^T (analysis error cov in ensemble space)
         # wts_ensmean = C (Gamma + I)**-1 C^T (HZ)^ T R**-1/2 (y - HXmean)
         pa = np.dot(evecs/gammapI[np.newaxis,:],evecs.T)
-        return np.dot(pa, np.dot(YbRinv,ominusf))/normfact
+        return np.dot(pa, np.dot(YbRinv,ominusf))/normfact,evals,evecs
 
-    def calcwts_perts(ndgf, hx_orig, hx, oberrvar):
+    def calcwts_perts(ndgf, hx_orig, hx, oberrvar, evals=None, evecs=None):
         # hx_orig contains the ensemble for the witheld member
         nobs = hx.shape[1]
         normfact = np.array(np.sqrt(ndgf),dtype=np.float32)
@@ -688,15 +704,16 @@ def lgetkf_bloc(xens, omf, oberrs, sqrtcovlocal_local, covlocal_ob, indxob, covl
         # (in Bishop paper HZ is nobs, nanals, here is it nanals, nobs)
         # normalize so dot product is covariance
         YbsqrtRinv, YbRinv = getYbvecs(ndgf,hx,oberrvar)
-        if nobs >= ndgf:
-            a = np.dot(YbsqrtRinv,YbsqrtRinv.T)
-            evals, evecs = eigh(a,driver=lapack_driver)
-            evals = evals.clip(min=np.finfo(evals.dtype).eps)
-        else:
-            a = np.dot(YbsqrtRinv.T,YbsqrtRinv)
-            evals, evecs = eigh(a,driver=lapack_driver)
-            evals = evals.clip(min=np.finfo(evals.dtype).eps)
-            evecs = np.dot(YbsqrtRinv,evecs/np.sqrt(evals))
+        if evals is None or evecs is None:
+            if nobs >= ndgf:
+                a = np.dot(YbsqrtRinv,YbsqrtRinv.T)
+                evals, evecs = eigh(a,driver=lapack_driver)
+                evals = evals.clip(min=np.finfo(evals.dtype).eps)
+            else:
+                a = np.dot(YbsqrtRinv.T,YbsqrtRinv)
+                evals, evecs = eigh(a,driver=lapack_driver)
+                evals = evals.clip(min=np.finfo(evals.dtype).eps)
+                evecs = np.dot(YbsqrtRinv,evecs/np.sqrt(evals))
         # gammapI used in calculation of posterior cov in ensemble space
         gamma_inv = 1./evals; gammapI = evals+1.
         # compute factor to multiply with model space ensemble perturbations
@@ -736,21 +753,26 @@ def lgetkf_bloc(xens, omf, oberrs, sqrtcovlocal_local, covlocal_ob, indxob, covl
                 hxprime2_local[nanal] = (scalefact*xprime2_local[nanal].reshape(2*npts_local))[indxob_local_local]
             oberrvar_local = oberrs[mask]
             ominusf_local = omf[mask]
-            wts_ensmean = calcwts_mean(nanals-1, hxprime2_local, oberrvar_local, ominusf_local)
+            wts_ensmean,evals,evecs = calcwts_mean(nanals-1, hxprime2_local, oberrvar_local, ominusf_local)
             for k in range(2):
                 xmean[k,n] += np.dot(wts_ensmean,xprime2_local[:,k,nmindist])
-            # update sub-ensemble groups, using cross validation.
-            for ngrp in range(ngroups):
-                nanal_cv = [na + ngrp*nanals_per_group for na in range(nanals_per_group)]
-                nanals_sub = np.nonzero(np.isin(nanal_index,nanal_cv))
-                hxprime_cv = np.delete(hxprime2_local,nanals_sub,axis=0)
-                xprime_cv = np.delete(xprime2_local[:,:,nmindist],nanals_sub,axis=0)
-                if recen:
-                    hxprime_cv_mean = hxprime_cv.mean(axis=0); xprime_cv_mean = xprime_cv.mean(axis=0)
-                    hxprime_cv -= hxprime_cv_mean; xprime_cv -= xprime_cv_mean
-                wts_ensperts_cv = calcwts_perts((nanals-nanals//ngroups)-1, hxprime_local[nanal_cv], hxprime_cv, oberrvar_local)
+            if ngroups == 0: # no cross-validation
+                wts_ensperts = calcwts_perts(nanals-1, hxprime_local, hxprime2_local, oberrvar_local, evals=evals, evecs=evecs)
                 for k in range(2):
-                    xprime[nanal_cv,k,n] += np.dot(wts_ensperts_cv,xprime_cv[:,k])
+                    xprime[:,k,n] += np.dot(wts_ensperts,xprime2_local[:,k,nmindist])
+            else:
+                # update sub-ensemble groups, using cross validation.
+                for ngrp in range(ngroups):
+                    nanal_cv = [na + ngrp*nanals_per_group for na in range(nanals_per_group)]
+                    nanals_sub = np.nonzero(np.isin(nanal_index,nanal_cv))
+                    hxprime_cv = np.delete(hxprime2_local,nanals_sub,axis=0)
+                    xprime_cv = np.delete(xprime2_local[:,:,nmindist],nanals_sub,axis=0)
+                    if recen:
+                        hxprime_cv_mean = hxprime_cv.mean(axis=0); xprime_cv_mean = xprime_cv.mean(axis=0)
+                        hxprime_cv -= hxprime_cv_mean; xprime_cv -= xprime_cv_mean
+                    wts_ensperts_cv = calcwts_perts((nanals-nanals//ngroups)-1, hxprime_local[nanal_cv], hxprime_cv, oberrvar_local)
+                    for k in range(2):
+                        xprime[nanal_cv,k,n] += np.dot(wts_ensperts_cv,xprime_cv[:,k])
             xprime_mean = xprime[:,:,n].mean(axis=0) 
             xprime[:,:,n] -= xprime_mean # ensure zero mean
             xens[:,:,n] = xmean[:,n]+xprime[:,:,n]
@@ -771,12 +793,13 @@ def lgetkfms_bloc(xens, xprime, omf, oberrs, sqrtcovlocal_local, covlocal_ob, in
     if npts_dist is None:
         npts_dist = np.arange(ndim)
     xprime_orig = xens - xmean
-    if ngroups is None: # default is "leave one out" (nanals must be multiple of ngroups)
-        ngroups = nanals
-    if nanals % ngroups:
-        raise ValueError('nanals must be a multiple of ngroups')
-    else:
-        nanals_per_group = nanals//ngroups
+    if ngroups == 0:
+        if ngroups is None: # default is "leave one out" (nanals must be multiple of ngroups)
+            ngroups = nanals
+        if nanals % ngroups:
+            raise ValueError('nanals must be a multiple of ngroups')
+        else:
+            nanals_per_group = nanals//ngroups
 
     def getYbvecs(ndgf, hx, oberrvar):
         normfact = np.array(np.sqrt(ndgf),dtype=np.float32)
@@ -813,9 +836,9 @@ def lgetkfms_bloc(xens, xprime, omf, oberrs, sqrtcovlocal_local, covlocal_ob, in
         # pa = C (Gamma + I)**-1 C^T (analysis error cov in ensemble space)
         # wts_ensmean = C (Gamma + I)**-1 C^T (HZ)^ T R**-1/2 (y - HXmean)
         pa = np.dot(evecs/gammapI[np.newaxis,:],evecs.T)
-        return np.dot(pa, np.dot(YbRinv,ominusf))/normfact
+        return np.dot(pa, np.dot(YbRinv,ominusf))/normfact,evals,evecs
 
-    def calcwts_perts(ndgf, hx_orig, hx, oberrvar):
+    def calcwts_perts(ndgf, hx_orig, hx, oberrvar, evals=None, evecs=None):
         # hx_orig contains the ensemble for the witheld member
         nobs = hx.shape[1]
         normfact = np.array(np.sqrt(ndgf),dtype=np.float32)
@@ -878,120 +901,28 @@ def lgetkfms_bloc(xens, xprime, omf, oberrs, sqrtcovlocal_local, covlocal_ob, in
                 hxprime2_local[nanal] = (scalefact*xprime2_local[nanal].reshape(2*npts_local))[indxob_local_local]
             oberrvar_local = oberrs[mask]
             ominusf_local = omf[mask]
-            wts_ensmean = calcwts_mean(nanals-1, hxprime2_local, oberrvar_local, ominusf_local)
+            wts_ensmean,evals,evecs = calcwts_mean(nanals-1, hxprime2_local, oberrvar_local, ominusf_local)
             for k in range(2):
                 xmean[k,n] += np.dot(wts_ensmean,xprime2_local[:,k,nmindist])
-            # update sub-ensemble groups, using cross validation.
-            for ngrp in range(ngroups):
-                nanal_cv = [na + ngrp*nanals_per_group for na in range(nanals_per_group)]
-                nanals_sub = np.nonzero(np.isin(nanal_index,nanal_cv))
-                hxprime_cv = np.delete(hxprime2_local,nanals_sub,axis=0)
-                xprime_cv = np.delete(xprime2_local[:,:,nmindist],nanals_sub,axis=0)
-                if recen:
-                    hxprime_cv_mean = hxprime_cv.mean(axis=0); xprime_cv_mean = xprime_cv.mean(axis=0)
-                    hxprime_cv -= hxprime_cv_mean; xprime_cv -= xprime_cv_mean
-                wts_ensperts_cv = calcwts_perts((nanals-nanals//ngroups)-1, hxprime_local[nanal_cv], hxprime_cv, oberrvar_local)
+            if ngroups == 0: # no cross-validation
+                wts_ensperts = calcwts_perts(nanals-1, hxprime_local, hxprime_local2, oberrvar_local)
                 for k in range(2):
-                    xprime_orig[nanal_cv,k,n] += np.dot(wts_ensperts_cv,xprime_cv[:,k])
+                    xprime_orig[:,k,n] += np.dot(wts_ensperts,xprime_local2[:,k,nmindist])
+            else:
+                # update sub-ensemble groups, using cross validation.
+                for ngrp in range(ngroups):
+                    nanal_cv = [na + ngrp*nanals_per_group for na in range(nanals_per_group)]
+                    nanals_sub = np.nonzero(np.isin(nanal_index,nanal_cv))
+                    hxprime_cv = np.delete(hxprime2_local,nanals_sub,axis=0)
+                    xprime_cv = np.delete(xprime2_local[:,:,nmindist],nanals_sub,axis=0)
+                    if recen:
+                        hxprime_cv_mean = hxprime_cv.mean(axis=0); xprime_cv_mean = xprime_cv.mean(axis=0)
+                        hxprime_cv -= hxprime_cv_mean; xprime_cv -= xprime_cv_mean
+                    wts_ensperts_cv = calcwts_perts((nanals-nanals//ngroups)-1, hxprime_local[nanal_cv], hxprime_cv, oberrvar_local)
+                    for k in range(2):
+                        xprime_orig[nanal_cv,k,n] += np.dot(wts_ensperts_cv,xprime_cv[:,k])
             xprime_mean = xprime_orig[:,:,n].mean(axis=0) 
             xprime_orig[:,:,n] -= xprime_mean # ensure zero mean
         nc += 1
 
     return xmean+xprime_orig
-
-def serial_enkf(xens, hxens, obs, oberrs, covlocal, obcovlocal, ngroups=None, recen=False, denkf=True):
-    """serial stochastic EnKF with cross-validation"""
-
-    nanals, nlevs, ndim = xens.shape
-    nobs = obs.shape[-1]
-    xmean = xens.mean(axis=0)
-    xprime = xens - xmean
-    hxmean = hxens.mean(axis=0)
-    hxprime = hxens - hxmean
-
-    if ngroups is None: # default is "leave one out" (nanals must be multiple of ngroups)
-        ngroups = nanals
-    if nanals % ngroups:
-        raise ValueError('nanals must be a multiple of ngroups')
-    else:
-        nanals_per_group = nanals//ngroups
-
-    gainfact = 0.5
-    for nob, ob, oberr in zip(np.arange(nobs), obs, oberrs):
-        ominusf = ob - hxmean[nob].copy()
-        hxens = hxprime[:, nob].copy()
-        hpbht = (hxens ** 2).sum() / (nanals - 1)
-        #gainfact = (
-        #    (hpbht + oberr)
-        #    / hpbht
-        #    * (1.0 - np.sqrt(oberr / (hpbht + oberr)))
-        #)
-        # state space update
-        # only update points closer than localization radius to ob
-        mask = covlocal[nob, :] > 1.0e-10
-        imask = np.nonzero(mask)[0]
-        if not denkf:
-            obnoise = np.random.normal(scale=np.sqrt(oberr),size=nanals)
-            obnoise -= obnoise.mean()
-
-        for k in range(2):
-            pbht = (xprime[:, k, mask].T * hxens).sum(axis=1) / float(
-                nanals - 1
-            )
-            kfgain = covlocal[nob, mask] * pbht / (hpbht + oberr)
-            xmean[k, mask] += kfgain * ominusf
-
-        # observation space update
-        # only update obs within localization radius
-        maskob = obcovlocal[nob, :] > 1.0e-10
-        imaskob = np.nonzero(maskob)[0]
-        pbht = (hxprime[:, maskob].T * hxens).sum(axis=1) / float(
-            nanals - 1
-        )
-        kfgain = obcovlocal[nob, maskob] * pbht / (hpbht + oberr)
-        hxmean[maskob] += kfgain * ominusf
-
-        # update sub-ensemble groups, using cross validation.
-        for ngrp in range(ngroups):
-            nanal_cv = [na + ngrp*nanals_per_group for na in range(nanals_per_group)]
-            hxens_cv = np.delete(hxens,nanal_cv,axis=0); xprime_cv = np.delete(xprime,nanal_cv,axis=0)
-            hxprime_cv = np.delete(hxprime,nanal_cv,axis=0)
-            ndgf = (nanals-nanals//ngroups)-1
-            if recen:
-                hxens_cv_mean = hxens_cv.mean(axis=0); xprime_cv_mean = xprime_cv.mean(axis=0)
-                hxens_cv -= hxens_cv_mean; xprime_cv -= xprime_cv_mean
-                hxprime_cv_mean = hxprime_cv.mean(axis=0); hxprime_cv -= hxprime_cv_mean
-            hpbht = (hxens_cv ** 2).sum() / ndgf
-            for k in range(2):
-                pbht = (xprime_cv[:, k, mask].T * hxens_cv).sum(axis=1) / ndgf
-                #pbht = (xprime_cv[:, k, mask].T * hxprime_cv[:,nob]).sum(axis=1) / ndgf
-                kfgain = covlocal[nob, mask] * pbht / (hpbht + oberr)
-                #nn = 0
-                #for n in imask:
-                #    xprime[nanal_cv, k, n] += kfgain[nn] * (obnoise[nanal_cv]-hxens[nanal_cv])
-                #    nn += 1
-                if denkf:
-                    xprime[np.ix_(nanal_cv,[k],imask)] -= gainfact*kfgain*hxens[nanal_cv,np.newaxis,np.newaxis]
-                else:
-                    xprime[np.ix_(nanal_cv,[k],imask)] += kfgain * (obnoise[nanal_cv,np.newaxis,np.newaxis]-hxens[nanal_cv,np.newaxis,np.newaxis])
-
-            # observation space perturbation update
-            pbht = (hxprime_cv[:, maskob].T * hxens_cv).sum(axis=1) / ndgf
-            #pbht = (hxprime_cv[:, maskob].T * hxprime_cv[:,nob]).sum(axis=1) / ndgf
-            kfgain = obcovlocal[nob, maskob] * pbht / (hpbht + oberr)
-            #nn = 0
-            #for n in imaskob:
-            #    hxprime[nanal_cv, n] += kfgain[nn] * (obnoise[nanal_cv]-hxens[nanal_cv])
-            #    nn += 1
-            if denkf:
-                hxprime[np.ix_(nanal_cv, imaskob)] -= gainfact*kfgain*hxens[nanal_cv,np.newaxis]
-            else:
-                hxprime[np.ix_(nanal_cv, imaskob)] += kfgain * (obnoise[nanal_cv,np.newaxis]-hxens[nanal_cv,np.newaxis])
-
-        # ensure zero mean perturbations
-        xprime_mean = xprime[:,:,imask].mean(axis=0) 
-        xprime[:,:,imask] = xprime[:,:,imask] - xprime_mean 
-        hxprime_mean = hxprime[:,imaskob].mean(axis=0) 
-        hxprime[:,imaskob] = hxprime[:,imaskob] - hxprime_mean 
-
-    return xmean + xprime
