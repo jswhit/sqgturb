@@ -793,7 +793,7 @@ def lgetkfms_bloc(xens, xprime, omf, oberrs, sqrtcovlocal_local, covlocal_ob, in
     if npts_dist is None:
         npts_dist = np.arange(ndim)
     xprime_orig = xens - xmean
-    if ngroups == 0:
+    if ngroups != 0:
         if ngroups is None: # default is "leave one out" (nanals must be multiple of ngroups)
             ngroups = nanals
         if nanals % ngroups:
