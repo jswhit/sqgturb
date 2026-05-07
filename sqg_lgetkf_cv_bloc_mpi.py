@@ -155,6 +155,7 @@ if rank==0:
     else:
         print("# hcovlocal=%s diff_efold=%s nanals=%s ngroups=%s" %\
              (hcovlocal_scale_km,diff_efold,nanals,ngroups))
+    print('eigcutoff=%s' % percentvar_cutoff)
 
 # each ob time nobs ob locations are randomly sampled (without
 # replacement) from the model grid
@@ -197,6 +198,7 @@ for n in npts_dist:
     evecs_norm = np.dot(evecs, np.diag(np.sqrt(evals/percentvar))).T
     sqrtcovlocal = evecs_norm[-neig:,:].astype(np.float32)
     sqrtcovlocal_local.append(sqrtcovlocal)
+if rank == 0: print('# neig = %s' % neig)
 
 # nature run
 if rank == 0:
