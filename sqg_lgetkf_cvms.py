@@ -36,6 +36,10 @@ for i in range(nlscales):
         if j != i:
             crossband_covmat[j,i] = crossbandcov_facts[np.abs(i-j)-1] 
 
+if len(sys.argv) > 4:
+    # rtps inflation used when ngroups=0 (no cross-validation)
+    rtps_coeff = float(sys.argv[4])/100.
+
 exptname = os.getenv('exptname','test')
 threads = int(os.getenv('OMP_NUM_THREADS','1'))
 
@@ -56,6 +60,7 @@ nassim_spinup = 120
 
 nanals = 16 # ensemble members
 ngroups = nanals//2  # number of groups for cross-validation (ngroups=nanals//N is "leave N out")
+ngroups = 0 # no cross-validation
 recen = False
 
 oberrstdev = 1. # ob error standard deviation in K
@@ -110,8 +115,12 @@ for nanal in range(nanals):
 if read_restart: ncinit.close()
 
 hcovlocal_scales_km = [lscale/1000. for lscale in hcovlocal_scales]
-print("# hcovlocal=%s diff_efold=%s nanals=%s ngroups=%s" %\
-     (repr(hcovlocal_scales_km),diff_efold,nanals,ngroups))
+if ngroups == 0:
+    print("# hcovlocal=%s diff_efold=%s nanals=%s ngroups=%s rtps_coeff=%s" %\
+         (repr(hcovlocal_scales_km),diff_efold,nanals,ngroups,rtps_coeff))
+else:
+    print("# hcovlocal=%s diff_efold=%s nanals=%s ngroups=%s" %\
+         (repr(hcovlocal_scales_km),diff_efold,nanals,ngroups))
 print('# band_cutoffs=%s crossbandcov_facts=%s' % (repr(band_cutoffs),repr(crossbandcov_facts)))
 
 # each ob time nobs ob locations are randomly sampled (without
@@ -346,6 +355,14 @@ for ntime in range(nassim):
     pvprime = pvens - pvensmean_a
     asprd = (pvprime**2).sum(axis=0)/(nanals-1)
     asprd_over_fsprd = asprd.mean()/fsprd.mean()
+
+    # posterior multiplicative inflation (if no cross validation used).
+    # relaxation to prior stdev (Whitaker & Hamill 2012)
+    if ngroups == 0:
+        asprd = np.sqrt(asprd); fsprd = np.sqrt(fsprd)
+        inflation_factor = 1.+rtps_coeff*(fsprd-asprd)/asprd
+        pvprime = pvprime*inflation_factor
+        pvens = pvprime + pvensmean_a
 
     # print out analysis error, spread and innov stats for background
     pverr_a = (scalefact*(pvensmean_a-pv_truth[ntime+ntstart]))**2

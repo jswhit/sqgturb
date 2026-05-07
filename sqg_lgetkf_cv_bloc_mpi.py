@@ -26,10 +26,17 @@ if rank == 0:
     
     # horizontal covariance localization length scale in meters.
     hcovlocal_scale = eval(sys.argv[1])
+    if len(sys.argv) > 2:
+        # rtps inflation used when ngroups=0 (no cross-validation)
+        rtps_coeff = float(sys.argv[2])/100.
+    else:
+        rtps_coeff = 0
 else:
     hcovlocal_scale=None
+    rtps_coeff=None
 
 hcovlocal_scale = comm.bcast(hcovlocal_scale, root=0)
+rtps_coeff = comm.bcast(rtps_coeff, root=0)
 
 exptname = os.getenv('exptname','test')
 threads = int(os.getenv('OMP_NUM_THREADS','1'))
@@ -51,6 +58,7 @@ nassim_spinup = 120
 
 nanals = 16 # ensemble members
 ngroups = nanals//2  # number of groups for cross-validation (ngroups=nanals//N is "leave N out")
+ngroups = 0
 
 percentvar_cutoff = 0.95 # threshold for eigenvalues used in ensemble modulation
 lapack_driver='evd'
@@ -141,8 +149,12 @@ if rank==0 and read_restart: ncinit.close()
 
 hcovlocal_scale_km = hcovlocal_scale/1000.
 if rank==0:
-    print("# hcovlocal=%s diff_efold=%s nanals=%s ngroups=%s" %\
-         (hcovlocal_scale_km,diff_efold,nanals,ngroups))
+    if ngroups == 0:
+        print("# hcovlocal=%s diff_efold=%s nanals=%s ngroups=%s rtps_coeff=%s" %\
+             (hcovlocal_scale_km,diff_efold,nanals,ngroups,rtps_coeff))
+    else:
+        print("# hcovlocal=%s diff_efold=%s nanals=%s ngroups=%s" %\
+             (hcovlocal_scale_km,diff_efold,nanals,ngroups))
 
 # each ob time nobs ob locations are randomly sampled (without
 # replacement) from the model grid
@@ -367,6 +379,14 @@ for ntime in range(nassim):
     pvprime = pvens - pvensmean_a
     asprd = (pvprime**2).sum(axis=0)/(nanals-1)
     asprd_over_fsprd = asprd.mean()/fsprd.mean()
+
+    # posterior multiplicative inflation (if no cross validation used).
+    # relaxation to prior stdev (Whitaker & Hamill 2012)
+    if ngroups == 0:
+        asprd = np.sqrt(asprd); fsprd = np.sqrt(fsprd)
+        inflation_factor = 1.+rtps_coeff*(fsprd-asprd)/asprd
+        pvprime = pvprime*inflation_factor
+        pvens = pvprime + pvensmean_a
 
     # print out analysis error, spread and innov stats for background
     pverr_a = (scalefact*(pvensmean_a-pv_truth[ntime+ntstart]))**2
