@@ -905,9 +905,9 @@ def lgetkfms_bloc(xens, xprime, omf, oberrs, sqrtcovlocal_local, covlocal_ob, in
             for k in range(2):
                 xmean[k,n] += np.dot(wts_ensmean,xprime2_local[:,k,nmindist])
             if ngroups == 0: # no cross-validation
-                wts_ensperts = calcwts_perts(nanals-1, hxprime_local, hxprime_local2, oberrvar_local)
+                wts_ensperts = calcwts_perts(nanals-1, hxprime_local, hxprime2_local, oberrvar_local)
                 for k in range(2):
-                    xprime_orig[:,k,n] += np.dot(wts_ensperts,xprime_local2[:,k,nmindist])
+                    xprime_orig[:,k,n] += np.dot(wts_ensperts,xprime2_local[:,k,nmindist])
             else:
                 # update sub-ensemble groups, using cross validation.
                 for ngrp in range(ngroups):
