@@ -35,10 +35,17 @@ if rank == 0:
     crossbandcov_facts = eval(sys.argv[3])
     if len(crossbandcov_facts) != nband_cutoffs:
         raise SystemExit('band_cutoffs and crossbandcov_facts should be same length')
+    if len(sys.argv) > 4:
+        # rtps inflation used when ngroups=0 (no cross-validation)
+        rtps_coeff = float(sys.argv[4])/100.
+    else:
+        rtps_coeff = 0
 else:
     hcovlocal_scales=None; band_cutoffs=None; nband_cutoffs=None; nlscales=None; crossbandcov_facts=None
+    rtps_coeff=None
 
 hcovlocal_scales = comm.bcast(hcovlocal_scales, root=0)
+rtps_coeff = comm.bcast(rtps_coeff, root=0)
 band_cutoffs = comm.bcast(band_cutoffs, root=0)
 nband_cutoffs = comm.bcast(nband_cutoffs, root=0)
 nlscales = comm.bcast(nlscales, root=0)
@@ -69,6 +76,7 @@ nassim_spinup = 120
 
 nanals = 16 # ensemble members
 ngroups = nanals//2  # number of groups for cross-validation (ngroups=nanals//N is "leave N out")
+#ngroups = 0 # no cross-validation (use RTPS inflation)
 recen=False
 
 oberrstdev = 1. # ob error standard deviation in K
@@ -155,13 +163,18 @@ if rank==0 and read_restart: ncinit.close()
 
 hcovlocal_scales_km = [lscale/1000. for lscale in hcovlocal_scales]
 if rank==0:
-    print("# hcovlocal=%s diff_efold=%s nanals=%s ngroups=%s" %\
-         (repr(hcovlocal_scales_km),diff_efold,nanals,ngroups))
+    if ngroups == 0:
+        print("# hcovlocal=%s diff_efold=%s nanals=%s ngroups=%s rtps_coeff=%s" %\
+             (repr(hcovlocal_scales_km),diff_efold,nanals,ngroups,rtps_coeff))
+    else:
+        print("# hcovlocal=%s diff_efold=%s nanals=%s ngroups=%s" %\
+             (repr(hcovlocal_scales_km),diff_efold,nanals,ngroups))
     print('# band_cutoffs=%s crossbandcov_facts=%s' % (repr(band_cutoffs),repr(crossbandcov_facts)))
 
 # each ob time nobs ob locations are randomly sampled (without
 # replacement) from the model grid
-nobs = 820
+#nobs = 820
+nobs = 1640
 
 # nature run
 if rank == 0:
@@ -420,6 +433,14 @@ for ntime in range(nassim):
     pvprime = pvens - pvensmean_a
     asprd = (pvprime**2).sum(axis=0)/(nanals-1)
     asprd_over_fsprd = asprd.mean()/fsprd.mean()
+
+    # posterior multiplicative inflation (if no cross validation used).
+    # relaxation to prior stdev (Whitaker & Hamill 2012)
+    if ngroups == 0:
+        asprd = np.sqrt(asprd); fsprd = np.sqrt(fsprd)
+        inflation_factor = 1.+rtps_coeff*(fsprd-asprd)/asprd
+        pvprime = pvprime*inflation_factor
+        pvens = pvprime + pvensmean_a
 
     # print out analysis error, spread and innov stats for background
     pverr_a = (scalefact*(pvensmean_a-pv_truth[ntime+ntstart]))**2
