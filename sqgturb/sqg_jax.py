@@ -18,7 +18,7 @@ class SQG:
 
     def __init__(
         self,
-        pv,
+        N,
         f=1.0e-4,
         nsq=1.0e-4,
         L=20.0e6,
@@ -34,10 +34,6 @@ class SQG:
         precision="single",
         tstart=0,
     ):
-        # --- validation -------------------------------------------------------
-        if pv.shape[0] != 2:
-            raise ValueError("1st dim of pv should be 2")
-        N = pv.shape[1]
         if N % 2:
             raise ValueError("N must be even (powers of 2 are fastest)")
         if dt is None:
@@ -130,12 +126,6 @@ class SQG:
         ktot        = jnp.sqrt(self.ksqlsq)
         ktotcutoff  = jnp.array(pi * N / self.L, dtype)
         self.hyperdiff = -(1.0 / self.diff_efold) * (ktot / ktotcutoff) ** self.diff_order
-
-        # --- initial state (SQGState) -----------------------------------------
-        self.initial_state = SQGState(
-            pvspec=jnp.fft.rfft2(jnp.array(pv, dtype)),
-            t=float(tstart),
-        )
 
     # ------------------------------------------------------------------
     # Pure helper methods (no side effects)
@@ -240,15 +230,14 @@ class SQG:
 
         return SQGState(pvspec=new_pvspec, t=new_t)
 
-    def advance(self, state: SQGState, timesteps: int = 1, pv=None) -> jnp.ndarray:
+    def advance(self, pv: jnp.ndarray, timesteps: int = 1) -> jnp.ndarray:
         """
-        Advance the model forward by `timesteps` steps.
+        Advance the model forward by `timesteps` steps given a physical-space PV array.
 
         Parameters
         ----------
-        state      : SQGState — current model state
-        timesteps  : number of RK4 steps to take
         pv         : optional physical-space PV array to restart from
+        timesteps  : number of RK4 steps to take
 
         Returns
         -------
