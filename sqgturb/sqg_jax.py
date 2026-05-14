@@ -12,24 +12,21 @@ Key speed improvements over the naive translation:
                                        into `linop` so each RK4 stage does one
                                        multiply instead of two separate terms.
 """
- 
 import jax
 import jax.numpy as jnp
 from typing import NamedTuple
- 
  
 class SQGState(NamedTuple):
     """Immutable state carried through time integration."""
     pvspec: jnp.ndarray   # spectral PV, shape (2, N, N//2+1)
     t: float              # current model time (seconds)
  
- 
 class SQG:
     """
     Optimised JAX implementation of the SQG model.
  
     All time-stepping methods are pure functions (no side effects).
-    The full RK4 loop is JIT-compiled and runs as a single XLA programme.
+    The full RK4 loop is JIT-compiled and runs as a single XLA program.
     """
  
     def __init__(
@@ -47,8 +44,7 @@ class SQG:
         theta0=300,
         g=9.8,
         dt=None,
-        precision="single",
-        tstart=0,
+        precision="single"
     ):
         # ── validation ────────────────────────────────────────────────────────
         if N % 2:
@@ -263,7 +259,7 @@ class SQG:
         Advance the model forward by `timesteps` RK4 steps.
  
         Uses jax.lax.scan so the entire loop is compiled into a single XLA
-        programme with no Python interpreter overhead between steps.
+        program with no Python interpreter overhead between steps.
  
         Parameters
         ----------

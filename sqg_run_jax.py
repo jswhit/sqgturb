@@ -59,13 +59,10 @@ pv[1] = pv[1]+2000.*(np.sin(x/2)**(2*nexp)*np.sin(y)**nexp)
 for k in range(2):
     pv[k] = pv[k] - pv[k].mean()
 
-# single or double precision
-precision='single' # pyfftw FFTs twice as fast as double
-
-# initialize qg model instance
+# initialize sqg model instance
 model = SQG(N,nsq=nsq,f=f,U=U,H=H,r=r,tdiab=tdiab,dt=dt,
             diff_order=norder,diff_efold=diff_efold,
-            precision=precision,tstart=0)
+            precision='single')
 
 #  initialize figure.
 outputinterval = 6.*3600. # interval between frames in seconds
