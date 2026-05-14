@@ -1,4 +1,4 @@
-from sqg_jax import SQG, SQGState
+from sqgturb import SQG_jax, SQGState
 import jax.numpy as jnp
 import numpy as np
 
@@ -60,9 +60,9 @@ for k in range(2):
     pv[k] = pv[k] - pv[k].mean()
 
 # initialize sqg model instance
-model = SQG(N,nsq=nsq,f=f,U=U,H=H,r=r,tdiab=tdiab,dt=dt,
-            diff_order=norder,diff_efold=diff_efold,
-            precision='single')
+model = SQG_jax(N,nsq=nsq,f=f,U=U,H=H,r=r,tdiab=tdiab,dt=dt,
+                diff_order=norder,diff_efold=diff_efold,
+                precision='single')
 
 #  initialize figure.
 outputinterval = 6.*3600. # interval between frames in seconds
@@ -118,7 +118,7 @@ while t < tmax:
     hr = t/3600.
     print(hr,scalefact*pv.min(),scalefact*pv.max())
     if savedata is not None and t >= tmin:
-        print('saving data at t = t = %g hours' % hr)
+        print('saving data at t = %g hours' % hr)
         pvvar[nout,:,:,:] = np.asarray(pv)
         tvar[nout] = t
         nc.sync()

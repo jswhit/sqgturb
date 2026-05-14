@@ -153,8 +153,24 @@ class SQG:
         self.Npad = Npad
  
         # ── JIT-compile the hot path once at construction time ────────────────
+        # _gettend / _timestep are the raw implementations; the JIT-compiled
+        # versions are stored as self.gettend / self.timestep.
         self.gettend  = jax.jit(self._gettend)
         self.timestep = jax.jit(self._timestep)
+
+        # _run_scan: JIT-compiled kernel that owns ALL FFT calls for advance().
+        # Built here so the closure captures a fully-initialised `self`.
+        # static_argnums=(0,) makes `timesteps` a compile-time constant for
+        # lax.scan; same value reuses the kernel, different value retraces.
+        def _run(pvspec, t, timesteps):
+            def scan_body(carry, _):
+                return self._timestep(carry), None
+            state = SQGState(pvspec=pvspec, t=t)
+            final_state, _ = jax.lax.scan(scan_body, state, None, length=timesteps)
+            pv_out = jnp.fft.irfft2(final_state.pvspec)
+            return final_state.pvspec, final_state.t, pv_out
+
+        self._run_scan = jax.jit(_run, static_argnums=(2,))
  
     # ── pure spectral helpers ─────────────────────────────────────────────────
  
@@ -219,7 +235,7 @@ class SQG:
         phys    = jnp.fft.irfft2(merged)                  # (4, Npad, Npad)
         phys    = phys.reshape(2, 2, self.Npad, self.Npad)
         return phys[0], phys[1]                            # xderiv, yderiv
- 
+
     def _gettend(self, pvspec: jnp.ndarray) -> jnp.ndarray:
         """
         Compute spectral PV tendency.  Pure; JIT-compiled via self.gettend.
@@ -252,36 +268,37 @@ class SQG:
         new_pvspec = pvspec + (dt / 6.0) * (k1 + 2.0 * k2 + 2.0 * k3 + k4)
         return SQGState(pvspec=new_pvspec, t=state.t + float(dt))
  
-    # ── public API ────────────────────────────────────────────────────────────
- 
+# ── public API ────────────────────────────────────────────────────────────
+
     def advance(self, state: SQGState, timesteps: int = 1, pv=None) -> tuple:
         """
         Advance the model forward by `timesteps` RK4 steps.
- 
-        Uses jax.lax.scan so the entire loop is compiled into a single XLA
-        program with no Python interpreter overhead between steps.
- 
+
+        The entire operation — optional rfft2 of a physical-space restart,
+        the lax.scan RK4 loop, and the final irfft2 — executes inside a
+        single JIT-compiled XLA programme.  This lets the compiler fuse and
+        schedule *all* FFTs together rather than issuing the boundary ones as
+        separate Python-dispatched kernels.
+
         Parameters
         ----------
         state      : SQGState  — current model state
-        timesteps  : int       — number of RK4 steps to take
-        pv         : ndarray   — optional restart from physical-space PV
- 
+        timesteps  : int       — number of RK4 steps (static; retraces on change)
+        pv         : ndarray   — optional physical-space PV restart
+
         Returns
         -------
         (new_state, pv_out) : (SQGState, jnp.ndarray)
         """
         if pv is not None:
-            state = SQGState(
-                pvspec=jnp.fft.rfft2(jnp.array(pv, self.dtype)),
-                t=state.t,
-            )
+            # rfft2 the restart input; this is a one-off host→device transfer
+            # so it need not be inside the scan kernel.
+            pvspec = jnp.fft.rfft2(jnp.array(pv, self.dtype))
+            state  = SQGState(pvspec=pvspec, t=state.t)
+
+        # Unpack SQGState so NamedTuple fields cross the JIT boundary cleanly
+        # (JAX treats NamedTuples as pytrees, but explicit unpacking makes the
+        # static/traced split unambiguous).
+        new_pvspec, new_t, pv_out = self._run_scan(state.pvspec, state.t, timesteps)
+        return SQGState(pvspec=new_pvspec, t=new_t), pv_out
  
-        def scan_body(carry: SQGState, _):
-            return self._timestep(carry), None
- 
-        # Entire loop compiled once by XLA — no Python overhead per step
-        final_state, _ = jax.lax.scan(scan_body, state, None, length=timesteps)
- 
-        pv_out = jnp.fft.irfft2(final_state.pvspec)
-        return final_state, pv_out
