@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from netCDF4 import Dataset
 import sys, time, os
-from sqgturb import SQG, rfft2, irfft2, cartdist, lgetkf, gaspcohn
+from sqgturb import SQG, cartdist, lgetkf, gaspcohn
 
 # LGETKF cycling for SQG turbulence model with boundary temp obs,
 # ob space horizontal localization, no vertical localization.
@@ -24,7 +24,6 @@ if len(sys.argv) > 2:
     # rtps inflation used when ngroups=0 (no cross-validation)
     rtps_coeff = float(sys.argv[2])/100.
 exptname = os.getenv('exptname','test')
-threads = int(os.getenv('OMP_NUM_THREADS','1'))
 
 diff_efold = None # use diffusion from climo file
 
@@ -44,7 +43,7 @@ nassim_spinup = 120
 nanals = 16 # ensemble members
 nerger = True # use Nerger regularization for R localization
 ngroups = nanals//2  # number of groups for cross-validation (ngroups=nanals//n is "leave n out")
-ngroups = 0 # no cross-validation
+#ngroups = 0 # no cross-validation
 
 oberrstdev = 1. # ob error standard deviation in K
 
@@ -84,17 +83,15 @@ else:
     tstart = ncinit.variables['t'][-1]
     #for nanal in range(nanals):
     #    print(nanal, pvens[nanal].min(), pvens[nanal].max())
-# get OMP_NUM_THREADS (threads to use) from environment.
 models = []
 for nanal in range(nanals):
     if not read_restart:
         pvens[nanal] = pv_climo[indxran[nanal]]
         #print(nanal, pvens[nanal].min(), pvens[nanal].max())
     models.append(\
-    SQG(pvens[nanal],
-    nsq=nc_climo.nsq,f=nc_climo.f,dt=dt,U=nc_climo.U,H=nc_climo.H,\
+    SQG(pvens[0].shape[-1],nsq=nc_climo.nsq,f=nc_climo.f,dt=dt,U=nc_climo.U,H=nc_climo.H,\
     r=nc_climo.r,tdiab=nc_climo.tdiab,\
-    diff_order=nc_climo.diff_order,diff_efold=diff_efold,threads=threads))
+    diff_order=nc_climo.diff_order,diff_efold=diff_efold))
 if read_restart: ncinit.close()
 
 hcovlocal_km = int(hcovlocal_scale/1000.)
@@ -312,14 +309,14 @@ for ntime in range(nassim):
     # compute spectra of error and spread
     if ntime >= nassim_spinup:
         pvfcstmean = pvens.mean(axis=0)
-        pverrspec = scalefact*rfft2(pvfcstmean - pv_truth[ntime+ntstart+1])
+        pverrspec = scalefact*np.fft.rfft2(pvfcstmean - pv_truth[ntime+ntstart+1])
         pverrspec_mag = (pverrspec*np.conjugate(pverrspec)).real
         if pvspec_errmean is None:
             pvspec_errmean = pverrspec_mag
         else:
             pvspec_errmean = pvspec_errmean + pverrspec_mag
         for nanal in range(nanals):
-            pvpertspec = scalefact*rfft2(pvens[nanal] - pvfcstmean)
+            pvpertspec = scalefact*np.fft.rfft2(pvens[nanal] - pvfcstmean)
             pvpertspec_mag = (pvpertspec*np.conjugate(pvpertspec)).real/(nanals-1)
             if pvspec_sprdmean is None:
                 pvspec_sprdmean = pvpertspec_mag
