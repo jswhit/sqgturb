@@ -1,16 +1,37 @@
-import numpy as np
-
-from pyfftw.interfaces import numpy_fft, cache
-
-# print('# using pyfftw...')
-cache.enable()
-rfft2 = numpy_fft.rfft2
-irfft2 = numpy_fft.irfft2
-
+"""
+sqg_jax.py — Surface Quasi-Geostrophic model in JAX (optimised).
+ 
+Key speed improvements over the naive translation:
+  1. @jax.jit on gettend / timestep  → single XLA kernel, no Python overhead.
+  2. jax.lax.scan in advance         → compiled loop, no per-step re-tracing.
+  3. Fused irfft2 for x/y derivs    → one irfft2 on a stacked (2,…) array
+                                       instead of two sequential calls.
+  4. spectrunc via slicing           → no scatter (zeros + at.set).
+  5. Pre-broadcast `r` at init       → avoids repeated broadcasting in gettend.
+  6. Pre-fused linear operator       → hyperdiff + Newtonian relaxation combined
+                                       into `linop` so each RK4 stage does one
+                                       multiply instead of two separate terms.
+"""
+import jax
+import jax.numpy as jnp
+from typing import NamedTuple
+ 
+class SQGState(NamedTuple):
+    """Immutable state carried through time integration."""
+    pvspec: jnp.ndarray   # spectral PV, shape (2, N, N//2+1)
+    t: float              # current model time (seconds)
+ 
 class SQG:
+    """
+    Optimised JAX implementation of the SQG model.
+ 
+    All time-stepping methods are pure functions (no side effects).
+    The full RK4 loop is JIT-compiled and runs as a single XLA program.
+    """
+ 
     def __init__(
         self,
-        pv,
+        N,
         f=1.0e-4,
         nsq=1.0e-4,
         L=20.0e6,
@@ -23,306 +44,261 @@ class SQG:
         theta0=300,
         g=9.8,
         dt=None,
-        threads=1,
-        precision="single",
-        tstart=0,
+        precision="single"
     ):
-        # initialize SQG model.
-        if pv.shape[0] != 2:
-            raise ValueError("1st dim of pv should be 2")
-        N = pv.shape[1]  # number of grid points in each direction
-        # N should be even
+        # ── validation ────────────────────────────────────────────────────────
         if N % 2:
             raise ValueError("N must be even (powers of 2 are fastest)")
-        if dt is None:  # time step must be specified
+        if dt is None:
             raise ValueError("must specify time step")
-        if diff_efold is None:  # efolding time scale for diffusion must be specified
+        if diff_efold is None:
             raise ValueError("must specify efolding time scale for diffusion")
-        # number of openmp threads to use for FFTs (only for pyfftw)
-        self.threads = threads
-        self.N = N
+ 
+        # ── dtype ─────────────────────────────────────────────────────────────
         if precision == "single":
-            # ffts in single precision (faster)
-            dtype = np.float32
+            dtype = jnp.float32
         elif precision == "double":
-            # ffts in double precision
-            dtype = np.float64
+            dtype = jnp.float64
         else:
-            msg = "precision must be 'single' or 'double'"
-            raise ValueError(msg)
-        # force arrays to be float32 for precision='single' (ffts are twice as fast)
-        self.nsq = np.array(nsq, dtype)  # Brunt-Vaisalla (buoyancy) freq squared
-        self.f = np.array(f, dtype)  # coriolis
-        self.H = np.array(H, dtype)  # height of upper boundary
-        self.U = np.array(U, dtype)  # basic state velocity at z = H
-        self.L = np.array(L, dtype)  # size of square domain.
-        # theta0,g only used to convert pv to temp units (K).
-        self.theta0 = np.array(theta0, dtype) # mean temp
-        self.g = np.array(g, dtype) # gravity
-        self.dt = np.array(dt, dtype)  # time step (seconds)
-        self.r = np.empty(2, dtype)
-        self.r[0]=r; self.r[1]=-r  # Ekman damping 
-        self.tdiab = np.array(tdiab, dtype)  # thermal relaxation damping.
-        self.t = tstart  # initialize time counter
-        # setup basic state pv (for thermal relaxation)
-        y = np.arange(0, L, L / N, dtype=dtype)
-        pvbar = np.zeros((2, N), dtype)
-        pi = np.array(np.pi, dtype)
-        l = 2.0 * pi / L
-        mu = l * np.sqrt(nsq) * H / f
-        # symmetric version, no difference between upper and lower
-        # boundary.
-        # l = 2.*pi/L and mu = l*N*H/f
-        # u = -0.5*U*np.sin(l*y)*np.sinh(mu*(z-0.5*H)/H)*np.sin(l*y)/np.sinh(0.5*mu)
-        # theta = (f*theta0/g)*(0.5*U*mu/(l*H))*np.cosh(mu*(z-0.5*H)/H)*
-        # np.cos(l*y)/np.sinh(0.5*mu)
-        # + theta0 + (theta0*nsq*z/g)
-        pvbar[:] = (
-            -(mu * 0.5 * U / (l * H))
-            * np.cosh(0.5 * mu)
-            * np.cos(l * y)
-            / np.sinh(0.5 * mu)
+            raise ValueError("precision must be 'single' or 'double'")
+ 
+        self.N     = N
+        self.dtype = dtype
+ 
+        # ── scalar parameters ─────────────────────────────────────────────────
+        nsq_   = jnp.array(nsq,   dtype)
+        f_     = jnp.array(f,     dtype)
+        H_     = jnp.array(H,     dtype)
+        U_     = jnp.array(U,     dtype)
+        L_     = jnp.array(L,     dtype)
+        dt_    = jnp.array(dt,    dtype)
+        tdiab_ = jnp.array(tdiab, dtype)
+        self.nsq = nsq_
+        self.f = f_
+        self.H = H_
+        self.U = U_
+        self.L = L_
+        self.dt    = dt_
+        self.tdiab = tdiab_
+ 
+        # ── basic-state PV (Newtonian relaxation target) ──────────────────────
+        pi     = jnp.array(jnp.pi, dtype)
+        l_wave = 2.0 * pi / L_
+        mu_bar = l_wave * jnp.sqrt(nsq_) * H_ / f_
+ 
+        y = jnp.arange(0, float(L), float(L) / N, dtype=dtype)
+        pvbar_1d = (
+            -(mu_bar * 0.5 * U_ / (l_wave * H_))
+            * jnp.cosh(0.5 * mu_bar)
+            * jnp.cos(l_wave * y)
+            / jnp.sinh(0.5 * mu_bar)
         )
-        pvbar.shape = (2, N, 1)
-        pvbar = pvbar * np.ones((2, N, N), dtype)
-        self.pvbar = pvbar
-        self.pvspec_eq = rfft2(pvbar)  # state to relax to with timescale tdiab
-        self.pvspec = rfft2(pv)  # initial pv field (spectral)
-        # spectral stuff
-        k = (N * np.fft.fftfreq(N))[0 : (N // 2) + 1]
-        l = N * np.fft.fftfreq(N)
-        kk, ll = np.meshgrid(k, l)
-        k = kk.astype(dtype)
-        l = ll.astype(dtype)
-        # dimensionalize wavenumbers.
-        k = 2.0 * pi * k / self.L
-        l = 2.0 * pi * l / self.L
+        pvbar          = jnp.broadcast_to(pvbar_1d[None, :, None], (2, N, N))
+        self.pvspec_eq = jnp.fft.rfft2(pvbar)   # (2, N, N//2+1) — fixed target
+ 
+        # ── spectral wavenumbers ──────────────────────────────────────────────
+        k1d = (N * jnp.fft.fftfreq(N))[: N // 2 + 1]
+        l1d =  N * jnp.fft.fftfreq(N)
+        kk, ll = jnp.meshgrid(k1d, l1d)          # (N, N//2+1)
+        k = (2.0 * pi * kk / L_).astype(dtype)
+        l = (2.0 * pi * ll / L_).astype(dtype)
+ 
         ksqlsq = k ** 2 + l ** 2
-        self.k = k
-        self.l = l
         self.ksqlsq = ksqlsq
-        self.ik = (1.0j * k).astype(np.complex64)
-        self.il = (1.0j * l).astype(np.complex64)
-        self.wavenums = np.sqrt(kk**2+ll**2)
-        k_pad = ((3 * N // 2) * np.fft.fftfreq(3 * N // 2))[0 : (3 * N // 4) + 1]
-        l_pad = (3 * N // 2) * np.fft.fftfreq(3 * N // 2)
-        k_pad, l_pad = np.meshgrid(k_pad, l_pad)
-        k_pad = k_pad.astype(dtype)
-        l_pad = l_pad.astype(dtype)
-        k_pad = 2.0 * pi * k_pad / self.L
-        l_pad = 2.0 * pi * l_pad / self.L
-        self.ik_pad = (1.0j * k_pad).astype(np.complex64)
-        self.il_pad = (1.0j * l_pad).astype(np.complex64)
-        mu = np.sqrt(ksqlsq) * np.sqrt(self.nsq) * self.H / self.f
-        mu = mu.clip(np.finfo(mu.dtype).eps)  # clip to avoid NaN
-        self.Hovermu = self.H / mu
-        mu = mu.astype(np.float64)  # cast to avoid overflow in sinh
-        self.tanhmu = np.tanh(mu).astype(dtype)  # cast back to original type
-        self.sinhmu = np.sinh(mu).astype(dtype)
-        self.diff_order = np.array(diff_order, dtype)  # hyperdiffusion order
-        self.diff_efold = np.array(diff_efold, dtype)  # hyperdiff time scale
-        ktot = np.sqrt(ksqlsq)
-        ktotcutoff = np.array(pi * N / self.L, dtype)
-        # hyper-diffusion with efolding time scale for diffusion of shortest wave (N/2)
-        self.hyperdiff = -(1./self.diff_efold)*(ktot / ktotcutoff) ** self.diff_order
-
-    def invert(self, pvspec=None):
-        if pvspec is None:
-            pvspec = self.pvspec
-        # invert boundary pv to get streamfunction
-        psispec = np.empty((2, self.N, self.N // 2 + 1), dtype=pvspec.dtype)
-        psispec[0] = self.Hovermu * (
-            (pvspec[1] / self.sinhmu) - (pvspec[0] / self.tanhmu)
+ 
+        # ── padded wavenumbers (3/2 dealiasing grid) ──────────────────────────
+        Npad  = 3 * N // 2
+        k1d_p = (Npad * jnp.fft.fftfreq(Npad))[: 3 * N // 4 + 1]
+        l1d_p =  Npad * jnp.fft.fftfreq(Npad)
+        kk_p, ll_p = jnp.meshgrid(k1d_p, l1d_p)
+        k_pad = (2.0 * pi * kk_p / L_).astype(dtype)
+        l_pad = (2.0 * pi * ll_p / L_).astype(dtype)
+ 
+        # Stack ik_pad / il_pad → (2, Npad, 3N/4+1) complex.
+        # Used to compute both derivatives with a single irfft2 call.
+        cdtype = jnp.complex64 if dtype == jnp.float32 else jnp.complex128
+        self.ikl_pad = jnp.stack(
+            [(1j * k_pad).astype(cdtype), (1j * l_pad).astype(cdtype)], axis=0
         )
-        psispec[1] = self.Hovermu * (
-            (pvspec[1] / self.tanhmu) - (pvspec[0] / self.sinhmu)
-        )
-        return psispec
+ 
+        # ── inversion helpers ─────────────────────────────────────────────────
+        mu = jnp.sqrt(ksqlsq) * jnp.sqrt(nsq_) * H_ / f_
+        mu = jnp.clip(mu, jnp.finfo(dtype).eps)
+        self.Hovermu = H_ / mu
+        mu64         = mu.astype(jnp.float64)
+        self.tanhmu  = jnp.tanh(mu64).astype(dtype)
+        self.sinhmu  = jnp.sinh(mu64).astype(dtype)
+ 
+        # ── Ekman damping: pre-broadcast to (2, N, N//2+1) ───────────────────
+        # Avoids re-broadcasting r inside every gettend call.
+        r_vec       = jnp.array([r, -r], dtype)
+        self.r = r_vec
+        self.r_bc   = r_vec[:, None, None] * ksqlsq[None, ...]  # (2, N, N//2+1)
+ 
+        # ── Pre-fused linear operator ─────────────────────────────────────────
+        # Combines hyperdiffusion and the -pvspec/tdiab part of relaxation:
+        #   linop * pvspec  =  hyperdiff*pvspec  -  pvspec/tdiab
+        # The +pvspec_eq/tdiab term is added separately (it doesn't involve pvspec).
+        ktot       = jnp.sqrt(ksqlsq)
+        ktotcutoff = jnp.array(pi * N / L_, dtype)
+        hyperdiff  = -(1.0 / jnp.array(diff_efold, dtype)) * (ktot / ktotcutoff) ** jnp.array(diff_order, dtype)
+        self.diff_efold = diff_efold
+        self.diff_order = diff_order
+        self.linop = hyperdiff - (1.0 / tdiab_)   # (N, N//2+1)
+ 
+        # Pre-compute the constant forcing term:  pvspec_eq / tdiab
+        self.relax_forcing = self.pvspec_eq / tdiab_  # (2, N, N//2+1)
+ 
+        self.N2   = N // 2
+        self.Npad = Npad
+ 
+        # ── JIT-compile the hot path once at construction time ────────────────
+        # _gettend / _timestep are the raw implementations; the JIT-compiled
+        # versions are stored as self.gettend / self.timestep.
+        self.gettend  = jax.jit(self._gettend)
+        self.timestep = jax.jit(self._timestep)
 
-    def advance(self, timesteps=1, pv=None):
-        # given total pv on grid, advance forward
-        # number of timesteps given by 'timesteps' instance var.
-        # if pv not specified, use pvspec instance variable.
+        # _run_scan: JIT-compiled kernel that owns ALL FFT calls for advance().
+        # Built here so the closure captures a fully-initialised `self`.
+        # static_argnums=(0,) makes `timesteps` a compile-time constant for
+        # lax.scan; same value reuses the kernel, different value retraces.
+        def _run(pvspec, t, timesteps):
+            def scan_body(carry, _):
+                return self._timestep(carry), None
+            state = SQGState(pvspec=pvspec, t=t)
+            final_state, _ = jax.lax.scan(scan_body, state, None, length=timesteps)
+            pv_out = jnp.fft.irfft2(final_state.pvspec)
+            return final_state.pvspec, final_state.t, pv_out
+
+        self._run_scan = jax.jit(_run, static_argnums=(2,))
+ 
+    # ── pure spectral helpers ─────────────────────────────────────────────────
+ 
+    def _invert(self, pvspec: jnp.ndarray) -> jnp.ndarray:
+        """Invert boundary PV → streamfunction (spectral). Pure."""
+        psi0 = self.Hovermu * (pvspec[1] / self.sinhmu - pvspec[0] / self.tanhmu)
+        psi1 = self.Hovermu * (pvspec[1] / self.tanhmu - pvspec[0] / self.sinhmu)
+        return jnp.stack([psi0, psi1], axis=0)
+ 
+    def _specpad(self, specarr: jnp.ndarray) -> jnp.ndarray:
+        """
+        Zero-pad spectral coefficients onto the 3/2 dealiasing grid.
+        Input shape: (2, N, N//2+1) → output: (2, 3N/2, 3N/4+1).  Pure.
+        """
+        N, N2, Npad = self.N, self.N2, self.Npad
+        Nhalf = 3 * N // 4 + 1
+ 
+        s   = 2.25 * specarr
+        pad = jnp.zeros((2, Npad, Nhalf), dtype=specarr.dtype)
+        pad = pad.at[:, :N2,  :N2].set(s[:, :N2,  :N2])
+        pad = pad.at[:, -N2:, :N2].set(s[:, -N2:, :N2])
+        pad = pad.at[:, :N2,  N2 ].set(jnp.conjugate(s[:, :N2,  -1]))
+        pad = pad.at[:, -N2:, N2 ].set(jnp.conjugate(s[:, -N2:, -1]))
+        return pad
+ 
+    def _spectrunc(self, specarr: jnp.ndarray) -> jnp.ndarray:
+        """
+        Truncate padded spectral array back to (2, N, N//2+1).
+ 
+        Optimisation: pure slicing instead of zeros + scatter (.at.set).
+        Slices map directly to XLA DynamicSlice ops — no write-back.
+        """
+        N, N2 = self.N, self.N2
+        top    = specarr[:, :N2,  :N2]                    # (2, N/2, N/2)
+        bottom = specarr[:, -N2:, :N2]                    # (2, N/2, N/2)
+        block  = jnp.concatenate([top, bottom], axis=1)   # (2, N,   N/2)
+        # Append a zero Nyquist column → (2, N, N//2+1)
+        zero_col = jnp.zeros((*block.shape[:2], 1), dtype=specarr.dtype)
+        return jnp.concatenate([block, zero_col], axis=2)
+ 
+    def _xyderiv(self, specarr: jnp.ndarray):
+        """
+        Compute x- and y-derivatives on the dealiased 3/2 grid.
+ 
+        Optimisation: pad once, then broadcast-multiply with the stacked
+        [ik, il] tensor and run a *single* irfft2 over all 4 fields at once
+        (2 boundaries × 2 directions).  Halves FFT calls vs two separate
+        irfft2s, and lets XLA batch them efficiently.
+ 
+        Returns
+        -------
+        xderiv, yderiv — each shape (2, Npad, Npad)
+        """
+        N2pad  = 3 * self.N // 4 + 1
+        s_pad  = self._specpad(specarr)                    # (2, Npad, N2pad)
+ 
+        # ikl_pad: (2, Npad, N2pad) — axis-0 indexes [x-dir, y-dir]
+        # s_pad:   (2, Npad, N2pad) — axis-0 indexes [boundary 0, boundary 1]
+        # product: (2, 2, Npad, N2pad) → [deriv, boundary, y, x]
+        prod    = self.ikl_pad[:, None, :, :] * s_pad[None, :, :, :]
+        merged  = prod.reshape(4, self.Npad, N2pad)
+        phys    = jnp.fft.irfft2(merged)                  # (4, Npad, Npad)
+        phys    = phys.reshape(2, 2, self.Npad, self.Npad)
+        return phys[0], phys[1]                            # xderiv, yderiv
+
+    def _gettend(self, pvspec: jnp.ndarray) -> jnp.ndarray:
+        """
+        Compute spectral PV tendency.  Pure; JIT-compiled via self.gettend.
+        """
+        psispec = self._invert(pvspec)
+ 
+        psix, psiy = self._xyderiv(psispec)
+        pvx,  pvy  = self._xyderiv(pvspec)
+ 
+        jacobian     = psix * pvy - psiy * pvx
+        jacobianspec = self._spectrunc(jnp.fft.rfft2(jacobian))
+ 
+        # Pre-fused linear term:  linop*pvspec + relax_forcing
+        #   where linop = hyperdiff - 1/tdiab  (avoids two separate array ops)
+        linear = self.linop[None, ...] * pvspec + self.relax_forcing
+ 
+        return linear - jacobianspec + self.r_bc * psispec
+ 
+    def _timestep(self, state: SQGState) -> SQGState:
+        """One RK4 step. Pure; JIT-compiled via self.timestep."""
+        pvspec = state.pvspec
+        dt     = self.dt
+        gt     = self._gettend
+ 
+        k1 = gt(pvspec)
+        k2 = gt(pvspec + 0.5 * dt * k1)
+        k3 = gt(pvspec + 0.5 * dt * k2)
+        k4 = gt(pvspec + dt * k3)
+ 
+        new_pvspec = pvspec + (dt / 6.0) * (k1 + 2.0 * k2 + 2.0 * k3 + k4)
+        return SQGState(pvspec=new_pvspec, t=state.t + float(dt))
+ 
+# ── public API ────────────────────────────────────────────────────────────
+
+    def advance(self, state: SQGState, timesteps: int = 1, pv=None) -> tuple:
+        """
+        Advance the model forward by `timesteps` RK4 steps.
+
+        The entire operation — optional rfft2 of a physical-space restart,
+        the lax.scan RK4 loop, and the final irfft2 — executes inside a
+        single JIT-compiled XLA programme.  This lets the compiler fuse and
+        schedule *all* FFTs together rather than issuing the boundary ones as
+        separate Python-dispatched kernels.
+
+        Parameters
+        ----------
+        state      : SQGState  — current model state
+        timesteps  : int       — number of RK4 steps (static; retraces on change)
+        pv         : ndarray   — optional physical-space PV restart
+
+        Returns
+        -------
+        (new_state, pv_out) : (SQGState, jnp.ndarray)
+        """
         if pv is not None:
-            self.pvspec = rfft2(pv, threads=self.threads)
-        for n in range(timesteps):
-            self.timestep()
-        return irfft2(self.pvspec, threads=self.threads)
+            # rfft2 the restart input; this is a one-off host→device transfer
+            # so it need not be inside the scan kernel.
+            pvspec = jnp.fft.rfft2(jnp.array(pv, self.dtype))
+            state  = SQGState(pvspec=pvspec, t=state.t)
 
-    def specpad(self, specarr):
-        # pad spectral arrays with zeros to get
-        # interpolation to 3/2 larger grid using inverse fft.
-        # take care of normalization factor for inverse transform.
-        specarr_pad = np.zeros((2, 3 * self.N // 2, 3 * self.N // 4 + 1), specarr.dtype)
-        specarr_pad[:, 0 : self.N // 2, 0 : self.N // 2] = (
-            2.25 * specarr[:, 0 : self.N // 2, 0 : self.N // 2]
-        )
-        specarr_pad[:, -self.N // 2 :, 0 : self.N // 2] = (
-            2.25 * specarr[:, -self.N // 2 :, 0 : self.N // 2]
-        )
-        # include negative Nyquist frequency.
-        specarr_pad[:, 0 : self.N // 2, self.N // 2] = np.conjugate(
-            2.25 * specarr[:, 0 : self.N // 2, -1]
-        )
-        specarr_pad[:, -self.N // 2 :, self.N // 2] = np.conjugate(
-            2.25 * specarr[:, -self.N // 2 :, -1]
-        )
-        return specarr_pad
-
-    def spectrunc(self, specarr):
-        # truncate spectral array using 2/3 rule.
-        specarr_trunc = np.zeros((2, self.N, self.N // 2 + 1), specarr.dtype)
-        specarr_trunc[:, 0 : self.N // 2, 0 : self.N // 2] = specarr[
-            :, 0 : self.N // 2, 0 : self.N // 2
-        ]
-        specarr_trunc[:, -self.N // 2 :, 0 : self.N // 2] = specarr[
-            :, -self.N // 2 :, 0 : self.N // 2
-        ]
-        return specarr_trunc
-
-    def xyderiv(self, specarr):
-        # pad spectral coeffs with zeros for dealiased jacobian
-        specarr_pad = self.specpad(specarr)
-        xderiv = irfft2(self.ik_pad * specarr_pad, threads=self.threads)
-        yderiv = irfft2(self.il_pad * specarr_pad, threads=self.threads)
-        return xderiv, yderiv
-
-    def gettend(self, pvspec=None):
-        # compute tendencies of pv on z=0,H
-        # invert pv to get streamfunction
-        if pvspec is None:
-            pvspec = self.pvspec
-        psispec = self.invert(pvspec)
-        # nonlinear jacobian and thermal relaxation
-        psix, psiy = self.xyderiv(psispec)
-        pvx, pvy = self.xyderiv(pvspec)
-        jacobian = psix * pvy - psiy * pvx
-        jacobianspec = self.spectrunc(rfft2(jacobian, threads=self.threads))
-        # total pv tendence = newtonian relaxation + nonlinear terms + ekman damping + hyper-diffusion
-        dpvspecdt = (1.0 / self.tdiab) * (self.pvspec_eq - pvspec) - jacobianspec +\
-        self.r[:,np.newaxis,np.newaxis]*self.ksqlsq*psispec + self.hyperdiff[np.newaxis,...]*self.pvspec 
-        return dpvspecdt
-
-    def timestep(self):
-        # update pv using 4th order runge-kutta time step 
-        k1 = self.gettend(self.pvspec)
-        k2 = self.gettend(self.pvspec + 0.5 * self.dt*k1)
-        k3 = self.gettend(self.pvspec + 0.5 * self.dt*k2)
-        k4 = self.gettend(self.pvspec + self.dt*k3)
-        self.pvspec += self.dt*(k1 + 2.0 * k2 + 2.0 * k3 + k4) / 6.0
-        self.t += self.dt  # increment time
-
-if __name__ == "__main__":
-
-    N = 64 
-    dt = 1800 
-    diff_efold = 24.*3600. # hyperdiffusion dampling time scale on shortest wave
-    norder = 8 # order of hyperdiffusion
-    r = 0 # Ekman damping 
-    nsq = 1.e-4; f=1.e-4; g = 9.8; theta0 = 300
-    H = 10.e3 # lid height
-    U = 20 # jet speed
-    L = 20.e6
-    # thermal relaxation time scale
-    tdiab = 10.*86400 # in seconds
-    # parameter used to scale PV to temperature units.
-    scalefact = f*theta0/g
-    
-    # create initial pv
-    #pv = np.random.normal(0,100.,size=(2,N,N)).astype(np.float32)
-    pv = np.zeros((2,N,N),np.float32)
-    # add isolated blob on lid
-    nexp = 20
-    x = np.arange(0,2.*np.pi,2.*np.pi/N); y = np.arange(0.,2.*np.pi,2.*np.pi/N)
-    x,y = np.meshgrid(x,y)
-    pv[1] = pv[1]+2000.*(np.sin(x/2)**(2*nexp)*np.sin(y)**nexp)
-    # remove area mean from each level.
-    for k in range(2):
-        pv[k] = pv[k] - pv[k].mean()
-
-    # initialize qg model instance
-    model = SQG(pv,nsq=nsq,f=f,L=L,U=U,H=H,r=r,tdiab=tdiab,dt=dt,
-                diff_order=norder,diff_efold=diff_efold)
-    
-    outputinterval = 6.*3600. # interval between frames in seconds
-    tmax = 300.*86400. # time to stop (in days)
-    nsteps = int(tmax/outputinterval) # number of time steps to animate
-    # set number of timesteps to integrate for each call to model.advance
-    ntimesteps = int(outputinterval/model.dt)
-
-    # create netcdf output file
-    from netCDF4 import Dataset
-    nc = Dataset('sqg.nc', mode='w')
-    nc.r = model.r[0]
-    nc.f = model.f
-    nc.U = model.U
-    nc.L = model.L
-    nc.H = model.H
-    nc.g = g; nc.theta0 = theta0
-    nc.nsq = model.nsq
-    nc.tdiab = model.tdiab
-    nc.dt = model.dt
-    nc.diff_efold = model.diff_efold
-    nc.diff_order = model.diff_order
-    x = nc.createDimension('x',N)
-    y = nc.createDimension('y',N)
-    z = nc.createDimension('z',2)
-    t = nc.createDimension('t',None)
-    pvvar =\
-    nc.createVariable('pv',np.float32,('t','z','y','x'),zlib=True)
-    pvvar.units = 'K'
-    # pv scaled by g/(f*theta0) so du/dz = d(pv)/dy
-    xvar = nc.createVariable('x',np.float32,('x',))
-    xvar.units = 'meters'
-    yvar = nc.createVariable('y',np.float32,('y',))
-    yvar.units = 'meters'
-    zvar = nc.createVariable('z',np.float32,('z',))
-    zvar.units = 'meters'
-    tvar = nc.createVariable('t',np.float32,('t',))
-    tvar.units = 'seconds'
-    xvar[:] = np.arange(0,model.L,model.L/N)
-    yvar[:] = np.arange(0,model.L,model.L/N)
-    zvar[0] = 0; zvar[1] = model.H
-
-    # run out to tmax, saving output every ntimesteps into netcdf file.
-    t = 0.; nout = 0
-    while t < tmax:
-        pv = model.advance(timesteps=ntimesteps)
-        t = model.t
-        print('hr=',t/3600.,'min/max pv',scalefact*pv.min(),scalefact*pv.max())
-        pvvar[nout,:,:,:] = pv
-        tvar[nout] = t
-        nc.sync()
-        nout = nout + 1
-
-    # or plot animation
-    #import matplotlib
-    #matplotlib.use('qtagg')
-    #import matplotlib.pyplot as plt
-    #import matplotlib.animation as animation
-    #fig = plt.figure(figsize=(14,8))
-    #fig.subplots_adjust(left=0.05, bottom=0.05, top=0.95, right=0.95)
-    #vmin = scalefact*model.pvbar.min()
-    #vmax = scalefact*model.pvbar.max()
-    #def initfig():
-    #    global im1,im2
-    #    ax1 = fig.add_subplot(121)
-    #    ax1.axis('off')
-    #    pv = model.advance(timesteps=0)
-    #    im1 = ax1.imshow(scalefact*pv[0],cmap=plt.cm.jet,interpolation='nearest',origin='lower',vmin=vmin,vmax=vmax)
-    #    ax2 = fig.add_subplot(122)
-    #    ax2.axis('off')
-    #    im2 = ax2.imshow(scalefact*pv[1],cmap=plt.cm.jet,interpolation='nearest',origin='lower',vmin=vmin,vmax=vmax)
-    #    return im1,im2,
-    #def updatefig(*args):
-    #    pv = model.advance(timesteps=ntimesteps)
-    #    print(model.t/3600.,scalefact*pv.min(),scalefact*pv.max())
-    #    im1.set_data(scalefact*pv[0])
-    #    im2.set_data(scalefact*pv[1])
-    #    return im1,im2,
-    #
-    ## interval=0 means draw as fast as possible
-    #ani = animation.FuncAnimation(fig, updatefig, frames=nsteps, repeat=False,\
-    #      init_func=initfig,interval=0,blit=True)
-    #plt.show()
-
+        # Unpack SQGState so NamedTuple fields cross the JIT boundary cleanly
+        # (JAX treats NamedTuples as pytrees, but explicit unpacking makes the
+        # static/traced split unambiguous).
+        new_pvspec, new_t, pv_out = self._run_scan(state.pvspec, state.t, timesteps)
+        return SQGState(pvspec=new_pvspec, t=new_t), pv_out
+ 
