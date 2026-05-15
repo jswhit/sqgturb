@@ -2,9 +2,10 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
+import jax.numpy as jnp
 from netCDF4 import Dataset
 import sys, time, os
-from sqgturb import SQG, cartdist, lgetkf, gaspcohn
+from sqgturb import SQG, SQGState, cartdist, lgetkf, gaspcohn
 
 # LGETKF cycling for SQG turbulence model with boundary temp obs,
 # ob space horizontal localization, no vertical localization.
@@ -128,9 +129,10 @@ assim_timesteps = int(np.round(assim_interval/models[0].dt))
 print('# assim interval = %s secs (%s time steps)' % (assim_interval,assim_timesteps))
 print('# ntime,pverr_a,pvsprd_a,pverr_b,pvsprd_b,obfits_b,osprd_b+R,obbias_b,tr(P^a)/tr(P^b)')
 
-# initialize model clock
+# initialize model states
+states = []
 for nanal in range(nanals):
-    models[nanal].t = obtimes[ntstart]
+    states.append( SQGState(pvspec=jnp.fft.rfft2(jnp.array(pvens[nanal])),t=obtimes[ntstart]) )
 
 # initialize output file.
 if savedata is not None:
@@ -202,7 +204,7 @@ ktotmax = (N//2)+1
 for ntime in range(nassim):
 
     # check model clock
-    if models[0].t != obtimes[ntime+ntstart]:
+    if states[0].t != obtimes[ntime+ntstart]:
         raise ValueError('model/ob time mismatch %s vs %s' %\
         (models[0].t, obtimes[ntime+ntstart]))
 
@@ -300,7 +302,7 @@ for ntime in range(nassim):
     # run forecast ensemble to next analysis time
     t1 = time.time()
     for nanal in range(nanals):
-        pvens[nanal] = models[nanal].advance(timesteps=assim_timesteps,pv=pvens[nanal])
+        states[nanal], pvens[nanal] = models[nanal].advance(states[nanal],timesteps=assim_timesteps,pv=pvens[nanal])
     t2 = time.time()
     if profile: print('cpu time for ens forecast',t2-t1)
     if not np.all(np.isfinite(pvens)):
