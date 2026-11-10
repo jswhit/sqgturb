@@ -91,7 +91,7 @@ def lgetkf(xens, hxens, obs, oberrs, covlocal, nerger=True, ngroups=None, npts_d
         normfact = np.array(np.sqrt(hx.shape[0]-1),dtype=np.float32)
         if nerger:
             # Nerger regularization
-            hpbht = (hx**2).sum(axis=0)/normfact
+            hpbht = (hx**2).sum(axis=0)/normfact**2 # var(Hx): normfact = sqrt(ndgf)
             #hpbhtplusR = hpbht+oberrvar
             #Rlocalfact = (Rlocal*oberrvar/hpbhtplusR)/(1.-Rlocal*hpbht/hpbhtplusR)
             #Rinvsqrt = np.sqrt(Rlocalfact/oberrvar)
@@ -228,7 +228,7 @@ def lgetkf_vloc(xens, xens2, hxens, hxens2, obs, oberrs, covlocal, nanal_index, 
         normfact = np.array(np.sqrt(ndgf),dtype=np.float32)
         if nerger:
             # Nerger regularization
-            hpbht = (hx**2).sum(axis=0)/normfact
+            hpbht = (hx**2).sum(axis=0)/normfact**2 # var(Hx): normfact = sqrt(ndgf)
             #hpbhtplusR = hpbht+oberrvar
             #Rlocalfact = (Rlocal*oberrvar/hpbhtplusR)/(1.-Rlocal*hpbht/hpbhtplusR)
             #Rinvsqrt = np.sqrt(Rlocalfact/oberrvar)
