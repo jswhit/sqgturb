@@ -66,9 +66,19 @@ def get_nanal_index(nanals, neig):
             nanal2 += 1
     return nanal_index
 
-def lgetkf(xens, hxens, obs, oberrs, covlocal, nerger=True, ngroups=None, npts_dist=None, recen=False, group_perm=None):
+def lgetkf(xens, hxens, obs, oberrs, covlocal, nerger=True, ngroups=None, npts_dist=None, recen=False, group_perm=None, cv_alpha=0.):
 
-    """returns ensemble updated by LGETKF with cross-validation"""
+    """returns ensemble updated by LGETKF with cross-validation
+
+    cv_alpha: weight of the withheld members in their own group's gain (0 <= cv_alpha <= 1).
+    The gain for group g is computed from the covariance
+        (sum_{j not in g} x_j x_j^T + cv_alpha * sum_{j in g} x_j x_j^T) / (n_cv + cv_alpha*n_g - 1),
+    i.e. the withheld members' perturbations, scaled by sqrt(cv_alpha), join the ensemble that
+    computes the gain (and the update is applied with those same weighted perturbations).
+    A member far from the ensemble mean then contributes variance in its own direction and is
+    pulled back, which prevents the slow divergence of individual members seen with pure
+    cross-validation (cv_alpha=0, the default, unchanged). cv_alpha=1 is equivalent to no
+    cross-validation (ngroups=0). The ensemble mean update is unchanged."""
 
     hxmean = hxens.mean(axis=0)
     hxprime = hxens - hxmean
@@ -186,6 +196,8 @@ def lgetkf(xens, hxens, obs, oberrs, covlocal, nerger=True, ngroups=None, npts_d
             for k in range(2):
                 xmean[k,n] += np.dot(wts_ensmean,xprime_b[:,k,n])
             # update sub-ensemble groups, using cross validation.
+            if recen and cv_alpha > 0:
+                raise ValueError('recen with cv_alpha > 0 not implemented')
             if ngroups == 0:
                 # no cross-validation
                 wts_ensperts = calcwts_perts(hxprime_local, hxprime_local, Rlocal, oberrvar_local, evals=evals, evecs=evecs, nerger=nerger)
@@ -198,6 +210,14 @@ def lgetkf(xens, hxens, obs, oberrs, covlocal, nerger=True, ngroups=None, npts_d
                     if recen:
                         hxprime_cv_mean = hxprime_cv.mean(axis=0); xprime_cv_mean = xprime_cv.mean(axis=0)
                         hxprime_cv -= hxprime_cv_mean; xprime_cv -= xprime_cv_mean
+                    if cv_alpha > 0:
+                        # add the withheld members to the gain's ensemble with weight cv_alpha; scale all
+                        # rows so the sample covariance denominator is n_cv + cv_alpha*n_g - 1
+                        n_cv = hxprime_cv.shape[0]; n_g = len(nanal_cv)
+                        c = np.sqrt((n_cv+n_g-1.)/(n_cv+cv_alpha*n_g-1.))
+                        wrow = np.concatenate([np.full(n_cv,c),np.full(n_g,c*np.sqrt(cv_alpha))]).astype(hxprime_cv.dtype)
+                        hxprime_cv = wrow[:,None]*np.concatenate([hxprime_cv,hxprime_local[nanal_cv]])
+                        xprime_cv = wrow[:,None]*np.concatenate([xprime_cv,xprime_b[nanal_cv,:,n]])
                     wts_ensperts_cv = calcwts_perts(hxprime_local[nanal_cv], hxprime_cv, Rlocal, oberrvar_local, nerger=nerger)
                     for k in range(2):
                         xprime[nanal_cv,k,n] += np.dot(wts_ensperts_cv,xprime_cv[:,k])

@@ -63,6 +63,10 @@ rsobs = np.random.RandomState(42) # fixed seed for observations
 # doi:10.1175/WAF-D-22-0108.1) instead of fixed contiguous groups, which let members
 # withheld together drift away from the obs. Same seed on every MPI rank.
 randomize_groups = True
+# weight of the withheld members in their own group's gain (0 = pure cross-validation,
+# 1 = no cross-validation); a small value (~0.1-0.2) stops individual members from slowly
+# diverging from the ensemble with large ensembles and broad localization.
+cv_alpha = 0.
 rsgroups = np.random.RandomState(4242)
 #rsics = np.random.RandomState() # varying seed for initial conditions
 rsics = np.random.RandomState(24) # fixed seed for initial conditions
@@ -107,8 +111,8 @@ if ngroups == 0:
     print("# hcovlocal=%g diff_efold=%s nanals=%s ngroups=%s rtps_coeff=%s" %\
          (hcovlocal_km,diff_efold,nanals,ngroups,rtps_coeff))
 else:
-    print("# hcovlocal=%g diff_efold=%s nanals=%s ngroups=%s" %\
-         (hcovlocal_km,diff_efold,nanals,ngroups))
+    print("# hcovlocal=%g diff_efold=%s nanals=%s ngroups=%s cv_alpha=%s" %\
+         (hcovlocal_km,diff_efold,nanals,ngroups,cv_alpha))
 
 # each ob time nobs ob locations are randomly sampled (without
 # replacement) from the model grid
@@ -273,7 +277,7 @@ for ntime in range(nassim):
 
     # hxens,pvob are in PV units, xens is not
     group_perm = rsgroups.permutation(nanals) if (randomize_groups and ngroups != 0) else None
-    xens = lgetkf(xens,hxens,pvob,oberrvar,covlocal_tmp,nerger=nerger,ngroups=ngroups,group_perm=group_perm)
+    xens = lgetkf(xens,hxens,pvob,oberrvar,covlocal_tmp,nerger=nerger,ngroups=ngroups,group_perm=group_perm,cv_alpha=cv_alpha)
 
     # back to 3d state vector
     pvens = xens.reshape((nanals,2,ny,nx))
