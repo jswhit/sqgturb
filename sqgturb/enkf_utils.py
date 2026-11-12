@@ -518,13 +518,14 @@ def lgetkf_ms_vloc(nlscales, neig, xens, xprime, hxprime, hxprime_orig, omf, obe
     def getYbvecs(ndgf, nlscales, neig, hx, Rlocal, oberrvar):
         nanalstot, nobs = hx.shape
         nanals_orig = nanalstot//(nlscales*neig)
+        nblk = nanalstot//nlscales # members per scale (neig modulated copies of nanals_orig)
         normfact = np.array(np.sqrt(ndgf),dtype=np.float64)
         YbsqrtRinv = np.empty((nanalstot,nobs),np.float32)
         YbRinv = np.empty((nanalstot,nobs),np.float32)
         hpbht = np.empty((nlscales,nobs),np.float32)
         Rinvsqrt_nerger = np.empty_like(hpbht)
         for nl in range(nlscales):
-            nanal1=nl*nanals_orig; nanal2=(nl+1)*nanals_orig
+            nanal1=nl*nblk; nanal2=(nl+1)*nblk
             hpbht[nl] =  (hx[nanal1:nanal2]**2).sum(axis=0)/(nanals_orig-1)
         rij = hpbht[0]
         for nl in range(1,nlscales):
@@ -538,7 +539,7 @@ def lgetkf_ms_vloc(nlscales, neig, xens, xprime, hxprime, hxprime_orig, omf, obe
             #Rinvsqrt_nerger[nl] = np.sqrt(Rlocal[nl]/(rij*(hpbht_tot*(1.-Rlocal[nl])+oberrvar)))
         Rdsqrt = (Rinvsqrt_nerger*hpbht).sum(axis=0)/hpbht_tot
         for nl in range(nlscales):
-            nanal1=nl*nanals_orig; nanal2=(nl+1)*nanals_orig
+            nanal1=nl*nblk; nanal2=(nl+1)*nblk
             YbRinv[nanal1:nanal2] = hx[nanal1:nanal2]*Rinvsqrt_nerger[nl]*Rdsqrt/normfact
             YbsqrtRinv[nanal1:nanal2] = hx[nanal1:nanal2]*Rinvsqrt_nerger[nl]/normfact
         return YbsqrtRinv, YbRinv
@@ -606,7 +607,6 @@ def lgetkf_ms_vloc(nlscales, neig, xens, xprime, hxprime, hxprime_orig, omf, obe
         return -np.dot(pa, np.dot(YbRinv,hx_orig.T)).T/normfact # use witheld ens member here
 
     for n in npts_dist:
-        npts_dist = np.arange(ndim)
         mask = covlocal[0,:,n] > 1.0e-10
         nobs_local = mask.sum()
         if nobs_local > 0:
@@ -618,7 +618,7 @@ def lgetkf_ms_vloc(nlscales, neig, xens, xprime, hxprime, hxprime_orig, omf, obe
             hxprime_local = hxprime[:,mask]
             hxprime_orig_local = hxprime_orig[:,mask]
             #wts_ensmean = calcwts_mean(nlscales*neig*(nanals-1), neig, nanals, hxprime_local, oberrvar_local, Rlocal, ominusf_local)
-            wts_ensmean = calcwts_mean(nanals-1, neig, nanals, hxprime_local, oberrvar_local, Rlocal, ominusf_local)
+            wts_ensmean = calcwts_mean(nanals-1, nlscales, neig, hxprime_local, oberrvar_local, Rlocal, ominusf_local)
             for k in range(2):
                 xmean[k,n] += np.dot(wts_ensmean,xprime[:,k,n])
             # update one member at a time (one member for each scale), using cross validation.
@@ -635,7 +635,7 @@ def lgetkf_ms_vloc(nlscales, neig, xens, xprime, hxprime, hxprime_orig, omf, obe
                 for k in range(2):
                     xprime_orig[nanal_cv,k,n] += np.dot(wts_ensperts_cv,xprime_cv[:,k])
             xprime_mean = xprime_orig[:,:,n].mean(axis=0) 
-            xprime[:,:,n] -= xprime_mean # ensure zero mean
+            xprime_orig[:,:,n] -= xprime_mean # ensure zero mean
             xens[:,:,n] = xmean[:,n]+xprime_orig[:,:,n]
 
     return xens
