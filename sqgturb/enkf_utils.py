@@ -66,7 +66,7 @@ def get_nanal_index(nanals, neig):
             nanal2 += 1
     return nanal_index
 
-def lgetkf(xens, hxens, obs, oberrs, covlocal, nerger=True, ngroups=None, npts_dist=None, recen=False):
+def lgetkf(xens, hxens, obs, oberrs, covlocal, nerger=True, ngroups=None, npts_dist=None, recen=False, group_perm=None):
 
     """returns ensemble updated by LGETKF with cross-validation"""
 
@@ -86,12 +86,18 @@ def lgetkf(xens, hxens, obs, oberrs, covlocal, nerger=True, ngroups=None, npts_d
             raise ValueError('nanals must be a multiple of ngroups')
         else:
             nanals_per_group = nanals//ngroups
+            # members of cross-validation group g are group_perm[g*nanals_per_group:(g+1)*nanals_per_group];
+            # pass a new random permutation each analysis to randomize the groups (Caron et al. 2022,
+            # WAF, doi:10.1175/WAF-D-22-0108.1). None = fixed contiguous groups.
+            group_perm = np.arange(nanals) if group_perm is None else np.asarray(group_perm)
+            if sorted(group_perm.tolist()) != list(range(nanals)):
+                raise ValueError('group_perm must be a permutation of range(nanals)')
 
     def getYbvecs(hx, Rlocal, oberrvar, nerger=True):
         normfact = np.array(np.sqrt(hx.shape[0]-1),dtype=np.float32)
         if nerger:
             # Nerger regularization
-            hpbht = (hx**2).sum(axis=0)/normfact
+            hpbht = (hx**2).sum(axis=0)/normfact**2 # var(Hx): normfact = sqrt(ndgf)
             #hpbhtplusR = hpbht+oberrvar
             #Rlocalfact = (Rlocal*oberrvar/hpbhtplusR)/(1.-Rlocal*hpbht/hpbhtplusR)
             #Rinvsqrt = np.sqrt(Rlocalfact/oberrvar)
@@ -187,7 +193,7 @@ def lgetkf(xens, hxens, obs, oberrs, covlocal, nerger=True, ngroups=None, npts_d
                     xprime[:,k,n] += np.dot(wts_ensperts,xprime[:,k,n])
             else:
                 for ngrp in range(ngroups):
-                    nanal_cv = [na + ngrp*nanals_per_group for na in range(nanals_per_group)]
+                    nanal_cv = group_perm[ngrp*nanals_per_group:(ngrp+1)*nanals_per_group]
                     hxprime_cv = np.delete(hxprime_local,nanal_cv,axis=0); xprime_cv = np.delete(xprime_b[:,:,n],nanal_cv,axis=0)
                     if recen:
                         hxprime_cv_mean = hxprime_cv.mean(axis=0); xprime_cv_mean = xprime_cv.mean(axis=0)
@@ -201,7 +207,7 @@ def lgetkf(xens, hxens, obs, oberrs, covlocal, nerger=True, ngroups=None, npts_d
 
     return xens
 
-def lgetkf_vloc(xens, xens2, hxens, hxens2, obs, oberrs, covlocal, nanal_index, nerger=True, ngroups=None, npts_dist=None, recen=False):
+def lgetkf_vloc(xens, xens2, hxens, hxens2, obs, oberrs, covlocal, nanal_index, nerger=True, ngroups=None, npts_dist=None, recen=False, group_perm=None):
 
     """returns ensemble updated by LGETKF with cross-validation and model-space vertical localization"""
 
@@ -223,12 +229,18 @@ def lgetkf_vloc(xens, xens2, hxens, hxens2, obs, oberrs, covlocal, nanal_index, 
         raise ValueError('nanals must be a multiple of ngroups')
     else:
         nanals_per_group = nanals//ngroups
+        # members of cross-validation group g are group_perm[g*nanals_per_group:(g+1)*nanals_per_group];
+        # pass a new random permutation each analysis to randomize the groups (Caron et al. 2022,
+        # WAF, doi:10.1175/WAF-D-22-0108.1). None = fixed contiguous groups.
+        group_perm = np.arange(nanals) if group_perm is None else np.asarray(group_perm)
+        if sorted(group_perm.tolist()) != list(range(nanals)):
+            raise ValueError('group_perm must be a permutation of range(nanals)')
 
     def getYbvecs(ndgf, hx, Rlocal, oberrvar, nerger=True):
         normfact = np.array(np.sqrt(ndgf),dtype=np.float32)
         if nerger:
             # Nerger regularization
-            hpbht = (hx**2).sum(axis=0)/normfact
+            hpbht = (hx**2).sum(axis=0)/normfact**2 # var(Hx): normfact = sqrt(ndgf)
             #hpbhtplusR = hpbht+oberrvar
             #Rlocalfact = (Rlocal*oberrvar/hpbhtplusR)/(1.-Rlocal*hpbht/hpbhtplusR)
             #Rinvsqrt = np.sqrt(Rlocalfact/oberrvar)
@@ -317,7 +329,7 @@ def lgetkf_vloc(xens, xens2, hxens, hxens2, obs, oberrs, covlocal, nanal_index, 
             # update sub-ensemble groups, using cross validation.
             for ngrp in range(ngroups):
                 # nanal_index has original ens index for modulated member
-                nanal_cv = [na + ngrp*nanals_per_group for na in range(nanals_per_group)]
+                nanal_cv = group_perm[ngrp*nanals_per_group:(ngrp+1)*nanals_per_group]
                 nanals_sub = np.nonzero(np.isin(nanal_index,nanal_cv))
                 hxprime_cv = np.delete(hxprime2_local,nanals_sub,axis=0); xprime_cv = np.delete(xprime2[:,:,n],nanals_sub,axis=0)
                 if recen:
@@ -332,7 +344,7 @@ def lgetkf_vloc(xens, xens2, hxens, hxens2, obs, oberrs, covlocal, nanal_index, 
 
     return xens
 
-def lgetkf_ms(nlscales, xens, xprime, hxprime, hxprime_orig, omf, oberrs, covlocal, ngroups=None, npts_dist=None, recen=False):
+def lgetkf_ms(nlscales, xens, xprime, hxprime, hxprime_orig, omf, oberrs, covlocal, ngroups=None, npts_dist=None, recen=False, group_perm=None):
 
     """returns ensemble updated by LGETKF with cross-validation and multi-scale R localization"""
 
@@ -355,6 +367,12 @@ def lgetkf_ms(nlscales, xens, xprime, hxprime, hxprime_orig, omf, oberrs, covloc
             raise ValueError('nanals must be a multiple of ngroups')
         else:
             nanals_per_group = nanals//ngroups
+            # members of cross-validation group g are group_perm[g*nanals_per_group:(g+1)*nanals_per_group];
+            # pass a new random permutation each analysis to randomize the groups (Caron et al. 2022,
+            # WAF, doi:10.1175/WAF-D-22-0108.1). None = fixed contiguous groups.
+            group_perm = np.arange(nanals) if group_perm is None else np.asarray(group_perm)
+            if sorted(group_perm.tolist()) != list(range(nanals)):
+                raise ValueError('group_perm must be a permutation of range(nanals)')
 
     def getYbvecs(nlscales,hx,Rlocal,oberrvar):
         nanalstot, nobs = hx.shape
@@ -473,7 +491,7 @@ def lgetkf_ms(nlscales, xens, xprime, hxprime, hxprime_orig, omf, oberrs, covloc
                     xprime_orig[:,k,n] += np.dot(wts_ensperts,xprime[:,k,n])
             else:
                 for ngrp in range(ngroups):
-                    nanal_cv = [na + ngrp*nanals_per_group for na in range(nanals_per_group)]
+                    nanal_cv = group_perm[ngrp*nanals_per_group:(ngrp+1)*nanals_per_group]
                     nanals_sub = np.nonzero(np.isin(nanal_index,nanal_cv))
                     hxprime_cv = np.delete(hxprime_local,nanals_sub,axis=0)
                     xprime_cv = np.delete(xprime[:,:,n],nanals_sub,axis=0)
@@ -489,7 +507,7 @@ def lgetkf_ms(nlscales, xens, xprime, hxprime, hxprime_orig, omf, oberrs, covloc
 
     return xens
 
-def lgetkf_ms_vloc(nlscales, neig, xens, xprime, hxprime, hxprime_orig, omf, oberrs, covlocal, ngroups=None, npts_dist=None, recen=False):
+def lgetkf_ms_vloc(nlscales, neig, xens, xprime, hxprime, hxprime_orig, omf, oberrs, covlocal, ngroups=None, npts_dist=None, recen=False, group_perm=None):
 
     """returns ensemble updated by LGETKF with cross-validation, multi-scale R localization and model-space vert localization"""
 
@@ -514,6 +532,12 @@ def lgetkf_ms_vloc(nlscales, neig, xens, xprime, hxprime, hxprime_orig, omf, obe
         raise ValueError('nanals must be a multiple of ngroups')
     else:
         nanals_per_group = nanals//ngroups
+        # members of cross-validation group g are group_perm[g*nanals_per_group:(g+1)*nanals_per_group];
+        # pass a new random permutation each analysis to randomize the groups (Caron et al. 2022,
+        # WAF, doi:10.1175/WAF-D-22-0108.1). None = fixed contiguous groups.
+        group_perm = np.arange(nanals) if group_perm is None else np.asarray(group_perm)
+        if sorted(group_perm.tolist()) != list(range(nanals)):
+            raise ValueError('group_perm must be a permutation of range(nanals)')
 
     def getYbvecs(ndgf, nlscales, neig, hx, Rlocal, oberrvar):
         nanalstot, nobs = hx.shape
@@ -623,7 +647,7 @@ def lgetkf_ms_vloc(nlscales, neig, xens, xprime, hxprime, hxprime_orig, omf, obe
                 xmean[k,n] += np.dot(wts_ensmean,xprime[:,k,n])
             # update one member at a time (one member for each scale), using cross validation.
             for ngrp in range(ngroups):
-                nanal_cv = [na + ngrp*nanals_per_group for na in range(nanals_per_group)]
+                nanal_cv = group_perm[ngrp*nanals_per_group:(ngrp+1)*nanals_per_group]
                 nanals_sub = np.nonzero(np.isin(nanal_index,nanal_cv))
                 hxprime_cv = np.delete(hxprime_local,nanals_sub,axis=0)
                 xprime_cv = np.delete(xprime[:,:,n],nanals_sub,axis=0)
@@ -640,7 +664,7 @@ def lgetkf_ms_vloc(nlscales, neig, xens, xprime, hxprime, hxprime_orig, omf, obe
 
     return xens
 
-def lgetkf_bloc(xens, omf, oberrs, sqrtcovlocal_local, covlocal_ob, indxob, covlocal_model, scalefact, ngroups=None, npts_dist=None, recen=False):
+def lgetkf_bloc(xens, omf, oberrs, sqrtcovlocal_local, covlocal_ob, indxob, covlocal_model, scalefact, ngroups=None, npts_dist=None, recen=False, group_perm=None):
 
     """returns ensemble updated by LGETKF with cross-validation and model-space localization"""
 
@@ -658,6 +682,12 @@ def lgetkf_bloc(xens, omf, oberrs, sqrtcovlocal_local, covlocal_ob, indxob, covl
             raise ValueError('nanals must be a multiple of ngroups')
         else:
             nanals_per_group = nanals//ngroups
+            # members of cross-validation group g are group_perm[g*nanals_per_group:(g+1)*nanals_per_group];
+            # pass a new random permutation each analysis to randomize the groups (Caron et al. 2022,
+            # WAF, doi:10.1175/WAF-D-22-0108.1). None = fixed contiguous groups.
+            group_perm = np.arange(nanals) if group_perm is None else np.asarray(group_perm)
+            if sorted(group_perm.tolist()) != list(range(nanals)):
+                raise ValueError('group_perm must be a permutation of range(nanals)')
 
     def getYbvecs(ndgf, hx, oberrvar):
         normfact = np.array(np.sqrt(ndgf),dtype=np.float32)
@@ -763,7 +793,7 @@ def lgetkf_bloc(xens, omf, oberrs, sqrtcovlocal_local, covlocal_ob, indxob, covl
             else:
                 # update sub-ensemble groups, using cross validation.
                 for ngrp in range(ngroups):
-                    nanal_cv = [na + ngrp*nanals_per_group for na in range(nanals_per_group)]
+                    nanal_cv = group_perm[ngrp*nanals_per_group:(ngrp+1)*nanals_per_group]
                     nanals_sub = np.nonzero(np.isin(nanal_index,nanal_cv))
                     hxprime_cv = np.delete(hxprime2_local,nanals_sub,axis=0)
                     xprime_cv = np.delete(xprime2_local[:,:,nmindist],nanals_sub,axis=0)
@@ -781,7 +811,7 @@ def lgetkf_bloc(xens, omf, oberrs, sqrtcovlocal_local, covlocal_ob, indxob, covl
 
     return xens
 
-def lgetkfms_bloc(xens, xprime, omf, oberrs, sqrtcovlocal_local, covlocal_ob, indxob, covlocal_model, scalefact, ngroups=None, npts_dist=None, recen=False):
+def lgetkfms_bloc(xens, xprime, omf, oberrs, sqrtcovlocal_local, covlocal_ob, indxob, covlocal_model, scalefact, ngroups=None, npts_dist=None, recen=False, group_perm=None):
 
     """returns ensemble updated by LGETKF with cross-validation and multi-scale model-space localization"""
 
@@ -800,6 +830,12 @@ def lgetkfms_bloc(xens, xprime, omf, oberrs, sqrtcovlocal_local, covlocal_ob, in
             raise ValueError('nanals must be a multiple of ngroups')
         else:
             nanals_per_group = nanals//ngroups
+            # members of cross-validation group g are group_perm[g*nanals_per_group:(g+1)*nanals_per_group];
+            # pass a new random permutation each analysis to randomize the groups (Caron et al. 2022,
+            # WAF, doi:10.1175/WAF-D-22-0108.1). None = fixed contiguous groups.
+            group_perm = np.arange(nanals) if group_perm is None else np.asarray(group_perm)
+            if sorted(group_perm.tolist()) != list(range(nanals)):
+                raise ValueError('group_perm must be a permutation of range(nanals)')
 
     def getYbvecs(ndgf, hx, oberrvar):
         normfact = np.array(np.sqrt(ndgf),dtype=np.float32)
@@ -911,7 +947,7 @@ def lgetkfms_bloc(xens, xprime, omf, oberrs, sqrtcovlocal_local, covlocal_ob, in
             else:
                 # update sub-ensemble groups, using cross validation.
                 for ngrp in range(ngroups):
-                    nanal_cv = [na + ngrp*nanals_per_group for na in range(nanals_per_group)]
+                    nanal_cv = group_perm[ngrp*nanals_per_group:(ngrp+1)*nanals_per_group]
                     nanals_sub = np.nonzero(np.isin(nanal_index,nanal_cv))
                     hxprime_cv = np.delete(hxprime2_local,nanals_sub,axis=0)
                     xprime_cv = np.delete(xprime2_local[:,:,nmindist],nanals_sub,axis=0)

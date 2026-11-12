@@ -101,6 +101,11 @@ if rank==0:
 
 # fix random seed for reproducibility.
 rsobs = np.random.RandomState(42) # fixed seed for observations
+# cross-validation groups: new random members each analysis (Caron et al. 2022, WAF,
+# doi:10.1175/WAF-D-22-0108.1) instead of fixed contiguous groups, which let members
+# withheld together drift away from the obs. Same seed on every MPI rank.
+randomize_groups = True
+rsgroups = np.random.RandomState(4242)
 rsics = np.random.RandomState(24) # fixed seed for initial conditions
 
 # get model info
@@ -324,9 +329,13 @@ if savedata is not None and rank == 0:
    nc.createVariable('pv_a',np.float32,('t','ens','z','y','x'),zlib=True)
    pv_a.units = 'K'
    pv_b.units = 'K'
-   pv_obs = nc.createVariable('obs',np.float32,('t','z','obs'))
+   pv_t.units = 'K'
+   pv_obs = nc.createVariable('obs',np.float32,('t','obs'))
+   pv_obs.units = 'K'
    x_obs = nc.createVariable('x_obs',np.float32,('t','obs'))
    y_obs = nc.createVariable('y_obs',np.float32,('t','obs'))
+   z_obs = nc.createVariable('z_obs',np.int32,('t','obs'))
+   z_obs.long_name = 'ob level: 0 = lower boundary (z=0), 1 = upper boundary (z=H)'
    # eady pv scaled by g/(f*theta0) so du/dz = d(pv)/dy
    xvar = nc.createVariable('x',np.float32,('x',))
    xvar.units = 'meters'
@@ -384,11 +393,12 @@ for ntime in range(nassim):
         if savedata == 'restart' and ntime != nassim-1:
             pass
         else:
-            pv_t[ntime] = pv_truth[ntime+ntstart]
+            pv_t[ntime] = scalefact*pv_truth[ntime+ntstart]
             pv_b[ntime,:,:,:] = scalefact*pvens
             pv_obs[ntime] = pvob
             x_obs[ntime] = xob
             y_obs[ntime] = yob
+            z_obs[ntime] = indxob//(nx*ny)
 
     fsprd = (pvprime**2).sum(axis=0)/(nanals-1)
 
@@ -478,7 +488,8 @@ for ntime in range(nassim):
 
     # hxens,pvob are in PV units, xens is not
     xens_updated = np.ascontiguousarray(np.zeros_like(xens))
-    xens = lgetkfms_bloc(xens, xprime, pvob-hxensmean_b, oberrvar, sqrtcovlocal_local, covlocal_ob, indxob, covlocal_model[0], scalefact, ngroups=ngroups, npts_dist=npts_dist)
+    group_perm = rsgroups.permutation(nanals) if (randomize_groups and ngroups != 0) else None
+    xens = lgetkfms_bloc(xens, xprime, pvob-hxensmean_b, oberrvar, sqrtcovlocal_local, covlocal_ob, indxob, covlocal_model[0], scalefact, ngroups=ngroups, npts_dist=npts_dist,group_perm=group_perm)
     xens_updated[:,:,npts_dist] = xens[:,:,npts_dist]
     comm.Allreduce(MPI.IN_PLACE, xens_updated, op=MPI.SUM)
 
