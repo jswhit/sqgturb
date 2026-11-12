@@ -66,8 +66,9 @@ randomize_groups = True
 # cv_blend = (r0, r1): blend the full-ensemble perturbation update into the cross-validated
 # one for members whose obs-space distance from the mean exceeds r0 times the median (fully
 # at r1); stops individual members slowly diverging with large ensembles and broad
-# localization (see lgetkf). None = pure cross-validation. (1.5, 3.) works well for 576
-# members, 6000 km localization.
+# localization (see lgetkf). None = pure cross-validation (default). (r0, r1) depend on
+# ensemble size: (0.75, 1.5) was best for 576 members at 6000 km; with 16 members the blend
+# is not needed (low r0 makes the filter diverge).
 cv_blend = None
 rsgroups = np.random.RandomState(4242)
 #rsics = np.random.RandomState() # varying seed for initial conditions

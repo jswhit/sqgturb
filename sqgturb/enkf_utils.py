@@ -88,7 +88,11 @@ def lgetkf(xens, hxens, obs, oberrs, covlocal, nerger=True, ngroups=None, npts_d
     Its perturbation increment is (1-w_i)*(cross-validated increment) + w_i*(increment from
     the full-ensemble gain, which includes the member itself and so contracts it along its
     own direction). Members with w_i = 0 get the unmodified cross-validation update; the
-    ensemble mean update is unchanged. cv_blend=None (default) is the original code path."""
+    ensemble mean update is unchanged. cv_blend=None (default) is the original code path.
+    (r0, r1) are tuning parameters that depend on ensemble size, and the blend is only needed
+    for large ensembles: in the SQG tests (8 random groups) (0.75, 1.5) worked best with 576
+    members and 6000 km localization, while with 16 members (2200-2400 km) r0 >= 1.25 never
+    switched it on and r0 <= 0.75 made the filter diverge."""
 
     hxmean = hxens.mean(axis=0)
     hxprime = hxens - hxmean
