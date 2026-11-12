@@ -81,6 +81,9 @@ rsobs = np.random.RandomState(42) # fixed seed for observations
 # doi:10.1175/WAF-D-22-0108.1) instead of fixed contiguous groups, which let members
 # withheld together drift away from the obs. Same seed on every MPI rank.
 randomize_groups = True
+# cv_blend = (r0, r1): blend the full-ensemble perturbation update into the cross-validated
+# one for members far from the ensemble mean (see lgetkf); None = pure cross-validation.
+cv_blend = None
 rsgroups = np.random.RandomState(4242)
 rsics = np.random.RandomState(24) # fixed seed for initial conditions
 
@@ -379,7 +382,7 @@ for ntime in range(nassim):
     # hxens,pvob are in PV units, xens is not
     xens_updated = np.ascontiguousarray(np.zeros_like(xens))
     group_perm = rsgroups.permutation(nanals) if (randomize_groups and ngroups != 0) else None
-    xens = lgetkf_bloc(xens, pvob-hxensmean_b, oberrvar, sqrtcovlocal_local, covlocal_ob, indxob, covlocal_model, scalefact, ngroups=ngroups, npts_dist=npts_dist,group_perm=group_perm)
+    xens = lgetkf_bloc(xens, pvob-hxensmean_b, oberrvar, sqrtcovlocal_local, covlocal_ob, indxob, covlocal_model, scalefact, ngroups=ngroups, npts_dist=npts_dist,group_perm=group_perm,cv_blend=cv_blend)
     xens_updated[:,:,npts_dist] = xens[:,:,npts_dist]
     comm.Allreduce(MPI.IN_PLACE, xens_updated, op=MPI.SUM)
 

@@ -63,6 +63,13 @@ rsobs = np.random.RandomState(42) # fixed seed for observations
 # doi:10.1175/WAF-D-22-0108.1) instead of fixed contiguous groups, which let members
 # withheld together drift away from the obs. Same seed on every MPI rank.
 randomize_groups = True
+# cv_blend = (r0, r1): blend the full-ensemble perturbation update into the cross-validated
+# one for members whose obs-space distance from the mean exceeds r0 times the median (fully
+# at r1); stops individual members slowly diverging with large ensembles and broad
+# localization (see lgetkf). None = pure cross-validation (default). (r0, r1) depend on
+# ensemble size: (0.75, 1.5) was best for 576 members at 6000 km; with 16 members the blend
+# is not needed (low r0 makes the filter diverge).
+cv_blend = None
 rsgroups = np.random.RandomState(4242)
 #rsics = np.random.RandomState() # varying seed for initial conditions
 rsics = np.random.RandomState(24) # fixed seed for initial conditions
@@ -107,8 +114,8 @@ if ngroups == 0:
     print("# hcovlocal=%g diff_efold=%s nanals=%s ngroups=%s rtps_coeff=%s" %\
          (hcovlocal_km,diff_efold,nanals,ngroups,rtps_coeff))
 else:
-    print("# hcovlocal=%g diff_efold=%s nanals=%s ngroups=%s" %\
-         (hcovlocal_km,diff_efold,nanals,ngroups))
+    print("# hcovlocal=%g diff_efold=%s nanals=%s ngroups=%s cv_blend=%s" %\
+         (hcovlocal_km,diff_efold,nanals,ngroups,cv_blend))
 
 # each ob time nobs ob locations are randomly sampled (without
 # replacement) from the model grid
@@ -273,7 +280,7 @@ for ntime in range(nassim):
 
     # hxens,pvob are in PV units, xens is not
     group_perm = rsgroups.permutation(nanals) if (randomize_groups and ngroups != 0) else None
-    xens = lgetkf(xens,hxens,pvob,oberrvar,covlocal_tmp,nerger=nerger,ngroups=ngroups,group_perm=group_perm)
+    xens = lgetkf(xens,hxens,pvob,oberrvar,covlocal_tmp,nerger=nerger,ngroups=ngroups,group_perm=group_perm,cv_blend=cv_blend)
 
     # back to 3d state vector
     pvens = xens.reshape((nanals,2,ny,nx))
