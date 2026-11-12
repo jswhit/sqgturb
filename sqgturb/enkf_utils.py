@@ -237,9 +237,12 @@ def lgetkf(xens, hxens, obs, oberrs, covlocal, nerger=True, ngroups=None, npts_d
 
     return xens
 
-def lgetkf_vloc(xens, xens2, hxens, hxens2, obs, oberrs, covlocal, nanal_index, nerger=True, ngroups=None, npts_dist=None, recen=False, group_perm=None):
+def lgetkf_vloc(xens, xens2, hxens, hxens2, obs, oberrs, covlocal, nanal_index, nerger=True, ngroups=None, npts_dist=None, recen=False, group_perm=None, cv_blend=None):
 
-    """returns ensemble updated by LGETKF with cross-validation and model-space vertical localization"""
+    """returns ensemble updated by LGETKF with cross-validation and model-space vertical localization
+
+    cv_blend = (r0, r1): per-member blend of the cross-validated perturbation update with the
+    full-ensemble one, as in lgetkf (weights from cv_blend_weights). None = unmodified."""
 
     hxmean = hxens.mean(axis=0)
     hxprime = hxens - hxmean
@@ -253,6 +256,7 @@ def lgetkf_vloc(xens, xens2, hxens, hxens2, obs, oberrs, covlocal, nanal_index, 
     xmean = xens.mean(axis=0)
     xprime = xens - xmean
     xprime2 = xens2 - xmean # modulated ens
+    wblend = cv_blend_weights(hxens, oberrs, cv_blend) if cv_blend is not None else None
     if ngroups is None: # default is "leave one out" (nanals must be multiple of ngroups)
         ngroups = nanals
     if nanals % ngroups:
@@ -357,6 +361,7 @@ def lgetkf_vloc(xens, xens2, hxens, hxens2, obs, oberrs, covlocal, nanal_index, 
             for k in range(2):
                 xmean[k,n] += np.dot(wts_ensmean,xprime2[:,k,n])
             # update sub-ensemble groups, using cross validation.
+            wts_full = None
             for ngrp in range(ngroups):
                 # nanal_index has original ens index for modulated member
                 nanal_cv = group_perm[ngrp*nanals_per_group:(ngrp+1)*nanals_per_group]
@@ -366,17 +371,28 @@ def lgetkf_vloc(xens, xens2, hxens, hxens2, obs, oberrs, covlocal, nanal_index, 
                     hxprime_cv_mean = hxprime_cv.mean(axis=0); xprime_cv_mean = xprime_cv.mean(axis=0)
                     hxprime_cv -= hxprime_cv_mean; xprime_cv -= xprime_cv_mean
                 wts_ensperts_cv = calcwts_perts((nanals-nanals//ngroups)-1, hxprime_local[nanal_cv], hxprime_cv, Rlocal, oberrvar_local, nerger=nerger)
-                for k in range(2):
-                    xprime[nanal_cv,k,n] += np.dot(wts_ensperts_cv,xprime_cv[:,k])
+                wg = None if wblend is None else wblend[nanal_cv]
+                if wg is not None and wg.max() > 0.:
+                    # blend in the full-ensemble update for this group's outlying members (cv_blend)
+                    if wts_full is None:
+                        wts_full = calcwts_perts(nanals-1, hxprime_local, hxprime2_local, Rlocal, oberrvar_local, nerger=nerger)
+                    for k in range(2):
+                        xprime[nanal_cv,k,n] += (1.-wg)*np.dot(wts_ensperts_cv,xprime_cv[:,k]) + wg*np.dot(wts_full[nanal_cv],xprime2[:,k,n])
+                else:
+                    for k in range(2):
+                        xprime[nanal_cv,k,n] += np.dot(wts_ensperts_cv,xprime_cv[:,k])
             xprime_mean = xprime[:,:,n].mean(axis=0) 
             xprime[:,:,n] -= xprime_mean # ensure zero mean
             xens[:,:,n] = xmean[:,n]+xprime[:,:,n]
 
     return xens
 
-def lgetkf_ms(nlscales, xens, xprime, hxprime, hxprime_orig, omf, oberrs, covlocal, ngroups=None, npts_dist=None, recen=False, group_perm=None):
+def lgetkf_ms(nlscales, xens, xprime, hxprime, hxprime_orig, omf, oberrs, covlocal, ngroups=None, npts_dist=None, recen=False, group_perm=None, cv_blend=None):
 
-    """returns ensemble updated by LGETKF with cross-validation and multi-scale R localization"""
+    """returns ensemble updated by LGETKF with cross-validation and multi-scale R localization
+
+    cv_blend = (r0, r1): per-member blend of the cross-validated perturbation update with the
+    full-ensemble one, as in lgetkf (weights from cv_blend_weights). None = unmodified."""
 
     nanals = hxprime_orig.shape[0]
     ndim = covlocal.shape[-1]
@@ -384,6 +400,7 @@ def lgetkf_ms(nlscales, xens, xprime, hxprime, hxprime_orig, omf, oberrs, covloc
         npts_dist = np.arange(ndim)
     xmean = xens.mean(axis=0)
     xprime_orig = xens - xmean
+    wblend = cv_blend_weights(hxprime_orig, oberrs, cv_blend) if (cv_blend is not None and ngroups != 0) else None
     nanal_index = np.empty(nanals*nlscales)
     nanal2 = 0
     for nl in range(nlscales):
@@ -520,6 +537,7 @@ def lgetkf_ms(nlscales, xens, xprime, hxprime, hxprime_orig, omf, oberrs, covloc
                 for k in range(2):
                     xprime_orig[:,k,n] += np.dot(wts_ensperts,xprime[:,k,n])
             else:
+                wts_full = None
                 for ngrp in range(ngroups):
                     nanal_cv = group_perm[ngrp*nanals_per_group:(ngrp+1)*nanals_per_group]
                     nanals_sub = np.nonzero(np.isin(nanal_index,nanal_cv))
@@ -529,17 +547,28 @@ def lgetkf_ms(nlscales, xens, xprime, hxprime, hxprime_orig, omf, oberrs, covloc
                         hxprime_cv_mean = hxprime_cv.mean(axis=0); xprime_cv_mean = xprime_cv.mean(axis=0)
                         hxprime_cv -= hxprime_cv_mean; xprime_cv -= xprime_cv_mean
                     wts_ensperts_cv = calcwts_perts(nlscales, hxprime_orig_local[nanal_cv], hxprime_cv, oberrvar_local, Rlocal)
-                    for k in range(2):
-                        xprime_orig[nanal_cv,k,n] += np.dot(wts_ensperts_cv,xprime_cv[:,k])
+                    wg = None if wblend is None else wblend[nanal_cv]
+                    if wg is not None and wg.max() > 0.:
+                        # blend in the full-ensemble update for this group's outlying members (cv_blend)
+                        if wts_full is None:
+                            wts_full = calcwts_perts(nlscales, hxprime_orig_local, hxprime_local, oberrvar_local, Rlocal, evals=evals, evecs=evecs)
+                        for k in range(2):
+                            xprime_orig[nanal_cv,k,n] += (1.-wg)*np.dot(wts_ensperts_cv,xprime_cv[:,k]) + wg*np.dot(wts_full[nanal_cv],xprime[:,k,n])
+                    else:
+                        for k in range(2):
+                            xprime_orig[nanal_cv,k,n] += np.dot(wts_ensperts_cv,xprime_cv[:,k])
             xprime_mean = xprime_orig[:,:,n].mean(axis=0) 
             xprime_orig[:,:,n] -= xprime_mean # ensure zero mean
             xens[:,:,n] = xmean[:,n]+xprime_orig[:,:,n]
 
     return xens
 
-def lgetkf_ms_vloc(nlscales, neig, xens, xprime, hxprime, hxprime_orig, omf, oberrs, covlocal, ngroups=None, npts_dist=None, recen=False, group_perm=None):
+def lgetkf_ms_vloc(nlscales, neig, xens, xprime, hxprime, hxprime_orig, omf, oberrs, covlocal, ngroups=None, npts_dist=None, recen=False, group_perm=None, cv_blend=None):
 
-    """returns ensemble updated by LGETKF with cross-validation, multi-scale R localization and model-space vert localization"""
+    """returns ensemble updated by LGETKF with cross-validation, multi-scale R localization and model-space vert localization
+
+    cv_blend = (r0, r1): per-member blend of the cross-validated perturbation update with the
+    full-ensemble one, as in lgetkf (weights from cv_blend_weights). None = unmodified."""
 
     nanals = hxprime_orig.shape[0]
     nanals2 = hxprime.shape[0]
@@ -549,6 +578,7 @@ def lgetkf_ms_vloc(nlscales, neig, xens, xprime, hxprime, hxprime_orig, omf, obe
         npts_dist = np.arange(ndim)
     xmean = xens.mean(axis=0)
     xprime_orig = xens - xmean
+    wblend = cv_blend_weights(hxprime_orig, oberrs, cv_blend) if cv_blend is not None else None
     nanal_index  = np.empty(nanals*neig*nlscales,np.int32)
     nanal2 = 0
     for nl in range(nlscales):
@@ -676,6 +706,7 @@ def lgetkf_ms_vloc(nlscales, neig, xens, xprime, hxprime, hxprime_orig, omf, obe
             for k in range(2):
                 xmean[k,n] += np.dot(wts_ensmean,xprime[:,k,n])
             # update one member at a time (one member for each scale), using cross validation.
+            wts_full = None
             for ngrp in range(ngroups):
                 nanal_cv = group_perm[ngrp*nanals_per_group:(ngrp+1)*nanals_per_group]
                 nanals_sub = np.nonzero(np.isin(nanal_index,nanal_cv))
@@ -686,17 +717,28 @@ def lgetkf_ms_vloc(nlscales, neig, xens, xprime, hxprime, hxprime_orig, omf, obe
                     hxprime_cv -= hxprime_cv_mean; xprime_cv -= xprime_cv_mean
                 #wts_ensperts_cv = calcwts_perts(nlscales*neig*(nanals-nanals//ngroups),nlscales,neig,hxprime_orig_local[nanal_cv],hxprime_cv,oberrvar_local,Rlocal)
                 wts_ensperts_cv = calcwts_perts((nanals-nanals//ngroups)-1,nlscales,neig,hxprime_orig_local[nanal_cv],hxprime_cv,oberrvar_local,Rlocal)
-                for k in range(2):
-                    xprime_orig[nanal_cv,k,n] += np.dot(wts_ensperts_cv,xprime_cv[:,k])
+                wg = None if wblend is None else wblend[nanal_cv]
+                if wg is not None and wg.max() > 0.:
+                    # blend in the full-ensemble update for this group's outlying members (cv_blend)
+                    if wts_full is None:
+                        wts_full = calcwts_perts(nanals-1,nlscales,neig,hxprime_orig_local,hxprime_local,oberrvar_local,Rlocal)
+                    for k in range(2):
+                        xprime_orig[nanal_cv,k,n] += (1.-wg)*np.dot(wts_ensperts_cv,xprime_cv[:,k]) + wg*np.dot(wts_full[nanal_cv],xprime[:,k,n])
+                else:
+                    for k in range(2):
+                        xprime_orig[nanal_cv,k,n] += np.dot(wts_ensperts_cv,xprime_cv[:,k])
             xprime_mean = xprime_orig[:,:,n].mean(axis=0) 
             xprime[:,:,n] -= xprime_mean # ensure zero mean
             xens[:,:,n] = xmean[:,n]+xprime_orig[:,:,n]
 
     return xens
 
-def lgetkf_bloc(xens, omf, oberrs, sqrtcovlocal_local, covlocal_ob, indxob, covlocal_model, scalefact, ngroups=None, npts_dist=None, recen=False, group_perm=None):
+def lgetkf_bloc(xens, omf, oberrs, sqrtcovlocal_local, covlocal_ob, indxob, covlocal_model, scalefact, ngroups=None, npts_dist=None, recen=False, group_perm=None, cv_blend=None):
 
-    """returns ensemble updated by LGETKF with cross-validation and model-space localization"""
+    """returns ensemble updated by LGETKF with cross-validation and model-space localization
+
+    cv_blend = (r0, r1): per-member blend of the cross-validated perturbation update with the
+    full-ensemble one, as in lgetkf (weights from cv_blend_weights). None = unmodified."""
 
     nanals = xens.shape[0]
     ndim = xens.shape[-1]
@@ -705,6 +747,9 @@ def lgetkf_bloc(xens, omf, oberrs, sqrtcovlocal_local, covlocal_ob, indxob, covl
     xmean = xens.mean(axis=0)
     xprime = xens - xmean
     xprime_b = xprime.copy()
+    # obs-space perturbations of the whole ensemble (obs are grid points indxob of the 2-level state)
+    wblend = cv_blend_weights((scalefact*xprime_b.reshape(nanals,2*ndim))[:,indxob], oberrs, cv_blend)\
+             if (cv_blend is not None and ngroups != 0) else None
     if ngroups != 0:
         if ngroups is None: # default is "leave one out" (nanals must be multiple of ngroups)
             ngroups = nanals
@@ -822,6 +867,7 @@ def lgetkf_bloc(xens, omf, oberrs, sqrtcovlocal_local, covlocal_ob, indxob, covl
                     xprime[:,k,n] += np.dot(wts_ensperts,xprime2_local[:,k,nmindist])
             else:
                 # update sub-ensemble groups, using cross validation.
+                wts_full = None
                 for ngrp in range(ngroups):
                     nanal_cv = group_perm[ngrp*nanals_per_group:(ngrp+1)*nanals_per_group]
                     nanals_sub = np.nonzero(np.isin(nanal_index,nanal_cv))
@@ -831,8 +877,16 @@ def lgetkf_bloc(xens, omf, oberrs, sqrtcovlocal_local, covlocal_ob, indxob, covl
                         hxprime_cv_mean = hxprime_cv.mean(axis=0); xprime_cv_mean = xprime_cv.mean(axis=0)
                         hxprime_cv -= hxprime_cv_mean; xprime_cv -= xprime_cv_mean
                     wts_ensperts_cv = calcwts_perts((nanals-nanals//ngroups)-1, hxprime_local[nanal_cv], hxprime_cv, oberrvar_local)
-                    for k in range(2):
-                        xprime[nanal_cv,k,n] += np.dot(wts_ensperts_cv,xprime_cv[:,k])
+                    wg = None if wblend is None else wblend[nanal_cv]
+                    if wg is not None and wg.max() > 0.:
+                        # blend in the full-ensemble update for this group's outlying members (cv_blend)
+                        if wts_full is None:
+                            wts_full = calcwts_perts(nanals-1, hxprime_local, hxprime2_local, oberrvar_local, evals=evals, evecs=evecs)
+                        for k in range(2):
+                            xprime[nanal_cv,k,n] += (1.-wg)*np.dot(wts_ensperts_cv,xprime_cv[:,k]) + wg*np.dot(wts_full[nanal_cv],xprime2_local[:,k,nmindist])
+                    else:
+                        for k in range(2):
+                            xprime[nanal_cv,k,n] += np.dot(wts_ensperts_cv,xprime_cv[:,k])
             xprime_mean = xprime[:,:,n].mean(axis=0) 
             xprime[:,:,n] -= xprime_mean # ensure zero mean
             xens[:,:,n] = xmean[:,n]+xprime[:,:,n]
@@ -841,9 +895,12 @@ def lgetkf_bloc(xens, omf, oberrs, sqrtcovlocal_local, covlocal_ob, indxob, covl
 
     return xens
 
-def lgetkfms_bloc(xens, xprime, omf, oberrs, sqrtcovlocal_local, covlocal_ob, indxob, covlocal_model, scalefact, ngroups=None, npts_dist=None, recen=False, group_perm=None):
+def lgetkfms_bloc(xens, xprime, omf, oberrs, sqrtcovlocal_local, covlocal_ob, indxob, covlocal_model, scalefact, ngroups=None, npts_dist=None, recen=False, group_perm=None, cv_blend=None):
 
-    """returns ensemble updated by LGETKF with cross-validation and multi-scale model-space localization"""
+    """returns ensemble updated by LGETKF with cross-validation and multi-scale model-space localization
+
+    cv_blend = (r0, r1): per-member blend of the cross-validated perturbation update with the
+    full-ensemble one, as in lgetkf (weights from cv_blend_weights). None = unmodified."""
 
     # xens is original ensemble, xprime has scale-decomposed ensemble perturbations
     nanals = xprime.shape[0]
@@ -853,6 +910,9 @@ def lgetkfms_bloc(xens, xprime, omf, oberrs, sqrtcovlocal_local, covlocal_ob, in
     if npts_dist is None:
         npts_dist = np.arange(ndim)
     xprime_orig = xens - xmean
+    # obs-space perturbations of the whole ensemble (obs are grid points indxob of the 2-level state)
+    wblend = cv_blend_weights((scalefact*xprime_orig.reshape(nanals,2*ndim))[:,indxob], oberrs, cv_blend)\
+             if (cv_blend is not None and ngroups != 0) else None
     if ngroups != 0:
         if ngroups is None: # default is "leave one out" (nanals must be multiple of ngroups)
             ngroups = nanals
@@ -976,6 +1036,7 @@ def lgetkfms_bloc(xens, xprime, omf, oberrs, sqrtcovlocal_local, covlocal_ob, in
                     xprime_orig[:,k,n] += np.dot(wts_ensperts,xprime2_local[:,k,nmindist])
             else:
                 # update sub-ensemble groups, using cross validation.
+                wts_full = None
                 for ngrp in range(ngroups):
                     nanal_cv = group_perm[ngrp*nanals_per_group:(ngrp+1)*nanals_per_group]
                     nanals_sub = np.nonzero(np.isin(nanal_index,nanal_cv))
@@ -985,8 +1046,16 @@ def lgetkfms_bloc(xens, xprime, omf, oberrs, sqrtcovlocal_local, covlocal_ob, in
                         hxprime_cv_mean = hxprime_cv.mean(axis=0); xprime_cv_mean = xprime_cv.mean(axis=0)
                         hxprime_cv -= hxprime_cv_mean; xprime_cv -= xprime_cv_mean
                     wts_ensperts_cv = calcwts_perts((nanals-nanals//ngroups)-1, hxprime_local[nanal_cv], hxprime_cv, oberrvar_local)
-                    for k in range(2):
-                        xprime_orig[nanal_cv,k,n] += np.dot(wts_ensperts_cv,xprime_cv[:,k])
+                    wg = None if wblend is None else wblend[nanal_cv]
+                    if wg is not None and wg.max() > 0.:
+                        # blend in the full-ensemble update for this group's outlying members (cv_blend)
+                        if wts_full is None:
+                            wts_full = calcwts_perts(nanals-1, hxprime_local, hxprime2_local, oberrvar_local)
+                        for k in range(2):
+                            xprime_orig[nanal_cv,k,n] += (1.-wg)*np.dot(wts_ensperts_cv,xprime_cv[:,k]) + wg*np.dot(wts_full[nanal_cv],xprime2_local[:,k,nmindist])
+                    else:
+                        for k in range(2):
+                            xprime_orig[nanal_cv,k,n] += np.dot(wts_ensperts_cv,xprime_cv[:,k])
             xprime_mean = xprime_orig[:,:,n].mean(axis=0) 
             xprime_orig[:,:,n] -= xprime_mean # ensure zero mean
         nc += 1

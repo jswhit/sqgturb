@@ -61,6 +61,9 @@ rsobs = np.random.RandomState(42) # fixed seed for observations
 # doi:10.1175/WAF-D-22-0108.1) instead of fixed contiguous groups, which let members
 # withheld together drift away from the obs. Same seed on every MPI rank.
 randomize_groups = True
+# cv_blend = (r0, r1): blend the full-ensemble perturbation update into the cross-validated
+# one for members far from the ensemble mean (see lgetkf); None = pure cross-validation.
+cv_blend = None
 rsgroups = np.random.RandomState(4242)
 #rsics = np.random.RandomState() # varying seed for initial conditions
 rsics = np.random.RandomState(24) # fixed seed for initial conditions
@@ -302,7 +305,7 @@ for ntime in range(nassim):
 
     # hxens,pvob are in PV units, xens is not
     group_perm = rsgroups.permutation(nanals) if (randomize_groups and ngroups != 0) else None
-    xens = lgetkf_vloc(xens,xens2,hxens,hxens2,pvob,oberrvar,covlocal_tmp,nanal_index,nerger=nerger,ngroups=ngroups,group_perm=group_perm)
+    xens = lgetkf_vloc(xens,xens2,hxens,hxens2,pvob,oberrvar,covlocal_tmp,nanal_index,nerger=nerger,ngroups=ngroups,group_perm=group_perm,cv_blend=cv_blend)
 
     # back to 3d state vector
     pvens = xens.reshape((nanals,2,ny,nx))
