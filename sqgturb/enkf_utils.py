@@ -66,19 +66,29 @@ def get_nanal_index(nanals, neig):
             nanal2 += 1
     return nanal_index
 
-def lgetkf(xens, hxens, obs, oberrs, covlocal, nerger=True, ngroups=None, npts_dist=None, recen=False, group_perm=None, cv_alpha=0.):
+def cv_blend_weights(hxens, oberrs, cv_blend):
+    """per-member weights of the full-ensemble perturbation update for lgetkf's cv_blend:
+    r_i = d_i/median(d), d_i = rms over obs of (Hx_i - mean Hx)/sqrt(R) (oberrs are error
+    variances), w_i = smoothstep((r_i - r0)/(r1 - r0)) for cv_blend = (r0, r1)."""
+    r0, r1 = cv_blend
+    hxprime = hxens - hxens.mean(axis=0)
+    d = np.sqrt(((hxprime**2)/oberrs[np.newaxis,:]).mean(axis=1))
+    t = np.clip((d/np.median(d)-r0)/(r1-r0), 0., 1.)
+    return t*t*(3.-2.*t)
+
+def lgetkf(xens, hxens, obs, oberrs, covlocal, nerger=True, ngroups=None, npts_dist=None, recen=False, group_perm=None, cv_blend=None):
 
     """returns ensemble updated by LGETKF with cross-validation
 
-    cv_alpha: weight of the withheld members in their own group's gain (0 <= cv_alpha <= 1).
-    The gain for group g is computed from the covariance
-        (sum_{j not in g} x_j x_j^T + cv_alpha * sum_{j in g} x_j x_j^T) / (n_cv + cv_alpha*n_g - 1),
-    i.e. the withheld members' perturbations, scaled by sqrt(cv_alpha), join the ensemble that
-    computes the gain (and the update is applied with those same weighted perturbations).
-    A member far from the ensemble mean then contributes variance in its own direction and is
-    pulled back, which prevents the slow divergence of individual members seen with pure
-    cross-validation (cv_alpha=0, the default, unchanged). cv_alpha=1 is equivalent to no
-    cross-validation (ngroups=0). The ensemble mean update is unchanged."""
+    cv_blend = (r0, r1): per-member blend of the cross-validated perturbation update with the
+    full-ensemble (no cross-validation) one, to stop individual members from slowly diverging
+    from the ensemble. Each analysis, member i gets an outlier score r_i, its rms obs-space
+    perturbation normalized by sqrt(R) divided by the ensemble median of that quantity, and
+    a weight w_i rising smoothly from 0 at r_i <= r0 to 1 at r_i >= r1 (cv_blend_weights).
+    Its perturbation increment is (1-w_i)*(cross-validated increment) + w_i*(increment from
+    the full-ensemble gain, which includes the member itself and so contracts it along its
+    own direction). Members with w_i = 0 get the unmodified cross-validation update; the
+    ensemble mean update is unchanged. cv_blend=None (default) is the original code path."""
 
     hxmean = hxens.mean(axis=0)
     hxprime = hxens - hxmean
@@ -89,6 +99,7 @@ def lgetkf(xens, hxens, obs, oberrs, covlocal, nerger=True, ngroups=None, npts_d
     xmean = xens.mean(axis=0)
     xprime = xens - xmean
     xprime_b = xprime.copy()
+    wblend = cv_blend_weights(hxens, oberrs, cv_blend) if (cv_blend is not None and ngroups != 0) else None
     if ngroups != 0: # ngroups=0 means no cross-validation
         if ngroups is None: # default is "leave one out" (nanals must be multiple of ngroups)
             ngroups = nanals
@@ -196,31 +207,30 @@ def lgetkf(xens, hxens, obs, oberrs, covlocal, nerger=True, ngroups=None, npts_d
             for k in range(2):
                 xmean[k,n] += np.dot(wts_ensmean,xprime_b[:,k,n])
             # update sub-ensemble groups, using cross validation.
-            if recen and cv_alpha > 0:
-                raise ValueError('recen with cv_alpha > 0 not implemented')
             if ngroups == 0:
                 # no cross-validation
                 wts_ensperts = calcwts_perts(hxprime_local, hxprime_local, Rlocal, oberrvar_local, evals=evals, evecs=evecs, nerger=nerger)
                 for k in range(2):
                     xprime[:,k,n] += np.dot(wts_ensperts,xprime[:,k,n])
             else:
+                wts_full = None
                 for ngrp in range(ngroups):
                     nanal_cv = group_perm[ngrp*nanals_per_group:(ngrp+1)*nanals_per_group]
                     hxprime_cv = np.delete(hxprime_local,nanal_cv,axis=0); xprime_cv = np.delete(xprime_b[:,:,n],nanal_cv,axis=0)
                     if recen:
                         hxprime_cv_mean = hxprime_cv.mean(axis=0); xprime_cv_mean = xprime_cv.mean(axis=0)
                         hxprime_cv -= hxprime_cv_mean; xprime_cv -= xprime_cv_mean
-                    if cv_alpha > 0:
-                        # add the withheld members to the gain's ensemble with weight cv_alpha; scale all
-                        # rows so the sample covariance denominator is n_cv + cv_alpha*n_g - 1
-                        n_cv = hxprime_cv.shape[0]; n_g = len(nanal_cv)
-                        c = np.sqrt((n_cv+n_g-1.)/(n_cv+cv_alpha*n_g-1.))
-                        wrow = np.concatenate([np.full(n_cv,c),np.full(n_g,c*np.sqrt(cv_alpha))]).astype(hxprime_cv.dtype)
-                        hxprime_cv = wrow[:,None]*np.concatenate([hxprime_cv,hxprime_local[nanal_cv]])
-                        xprime_cv = wrow[:,None]*np.concatenate([xprime_cv,xprime_b[nanal_cv,:,n]])
                     wts_ensperts_cv = calcwts_perts(hxprime_local[nanal_cv], hxprime_cv, Rlocal, oberrvar_local, nerger=nerger)
-                    for k in range(2):
-                        xprime[nanal_cv,k,n] += np.dot(wts_ensperts_cv,xprime_cv[:,k])
+                    wg = None if wblend is None else wblend[nanal_cv]
+                    if wg is not None and wg.max() > 0.:
+                        # blend in the full-ensemble update for this group's outlying members
+                        if wts_full is None: # (nanals, nanals), reuses the mean update's eigenpairs
+                            wts_full = calcwts_perts(hxprime_local, hxprime_local, Rlocal, oberrvar_local, evals=evals, evecs=evecs, nerger=nerger)
+                        for k in range(2):
+                            xprime[nanal_cv,k,n] += (1.-wg)*np.dot(wts_ensperts_cv,xprime_cv[:,k]) + wg*np.dot(wts_full[nanal_cv],xprime_b[:,k,n])
+                    else:
+                        for k in range(2):
+                            xprime[nanal_cv,k,n] += np.dot(wts_ensperts_cv,xprime_cv[:,k])
             xprime_mean = xprime[:,:,n].mean(axis=0) 
             xprime[:,:,n] -= xprime_mean # ensure zero mean
             xens[:,:,n] = xmean[:,n]+xprime[:,:,n]
